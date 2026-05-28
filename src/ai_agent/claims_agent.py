@@ -178,6 +178,8 @@ class ClaimsAgent:
             result = self._handle_general_query(question_lower)
 
         result.setdefault("motor", "reglas")
+        result["openai_configured"] = self._use_openai()
+        result["openai_used"] = False
 
         if self._use_openai() and result.get("tipo") not in ("ayuda",):
             factual = result.get("respuesta", "")
@@ -195,6 +197,7 @@ class ClaimsAgent:
             if enhanced:
                 result["respuesta"] = enhanced
                 result["motor"] = "chatgpt+datos"
+                result["openai_used"] = True
             else:
                 result["motor"] = "reglas (OpenAI no disponible)"
 

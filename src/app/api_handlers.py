@@ -52,6 +52,30 @@ def _should_use_live_database() -> bool:
     return (not is_vercel_runtime()) or is_persistent_database_configured()
 
 
+def _hydrate_agent_from_scored_if_available() -> bool:
+    """
+    Inicializa agente con datos ya analizados si la tabla siniestros contiene columnas scored.
+    Útil en Vercel/producción para que el chatbot funcione sin ejecutar pipeline manual.
+    """
+    datasets = app_state.get("datasets") or {}
+    sin = datasets.get("siniestros")
+    if sin is None or len(sin) == 0:
+        return False
+
+    required = {"id_siniestro", "semaforo_final", "score_hibrido"}
+    if not required.issubset(set(sin.columns)):
+        return False
+
+    app_state["df_scored"] = sin.copy()
+    app_state["df_features"] = sin.copy()
+    app_state["pipeline_status"] = "completed"
+    app_state["dashboard_last_payload"] = build_dashboard_payload(
+        app_state["df_scored"], total_unfiltered=len(app_state["df_scored"]), active_filters=[]
+    )
+    app_state["agent"] = ClaimsAgent(app_state["df_scored"], extra_context=build_agent_context())
+    return True
+
+
 def ensure_vercel_data() -> None:
     if is_vercel_runtime() and not is_persistent_database_configured() and app_state.get("df_scored") is None:
         try:
@@ -275,12 +299,14 @@ def load_from_db() -> dict:
         raise ValueError("No hay datos en la base de datos. Suba un archivo primero.")
     app_state["datasets"] = datasets
     reset_pipeline_state()
+    _hydrate_agent_from_scored_if_available()
     db_info = test_connection()
     return {
         "status": "success",
         "message": f"Datos cargados desde {db_info.get('type', 'DB')}",
         "tables": {n: {"rows": len(d), "columns": len(d.columns)} for n, d in datasets.items()},
         "has_siniestros": True,
+        "pipeline_ready": app_state.get("agent") is not None,
     }
 
 
@@ -381,7 +407,16 @@ def agent_status() -> dict:
 def agent_query(body: dict) -> dict:
     agent = app_state.get("agent")
     if agent is None:
-        raise ValueError("Agente no inicializado. Ejecute el pipeline primero.")
+        if _should_use_live_database():
+            datasets = normalize_datasets_columns(load_all_datasets())
+            if datasets:
+                app_state["datasets"] = datasets
+                _hydrate_agent_from_scored_if_available()
+                agent = app_state.get("agent")
+    if agent is None:
+        raise ValueError(
+            "Agente no inicializado. Ejecute el pipeline o cargue desde BD una tabla siniestros con score_hibrido/semaforo_final."
+        )
     question = (body or {}).get("question", "")
     if not question:
         raise ValueError("Pregunta vacía")
