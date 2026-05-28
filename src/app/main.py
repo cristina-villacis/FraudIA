@@ -53,7 +53,12 @@ from src.db.repository import (
     save_dataframe,
 )
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_APP_DIR, "templates"),
+    static_folder=os.path.join(_APP_DIR, "static"),
+)
 CORS(app)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
