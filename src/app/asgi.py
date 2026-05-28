@@ -7,7 +7,9 @@ import os
 import traceback
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, UploadFile
+from typing import List, Optional
+
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -125,6 +127,51 @@ async def api_upload(file: UploadFile = File(...)):
 async def api_load_synthetic():
     try:
         return h.load_synthetic()
+    except Exception as e:
+        return _err(e)
+
+
+@app.post("/api/load-insurer")
+async def api_load_insurer():
+    try:
+        return h.load_insurer_dataset()
+    except (ValueError, FileNotFoundError) as e:
+        return _err(e, 400)
+    except Exception as e:
+        return _err(e)
+
+
+@app.post("/api/upload-documents")
+async def api_upload_documents(
+    files: List[UploadFile] = File(...),
+    link_to_dataset: bool = Form(False),
+    tipo_documento: Optional[str] = Form(None),
+):
+    try:
+        batch = []
+        for f in files:
+            batch.append((f.filename or "documento.pdf", await f.read()))
+        return h.upload_documents(batch, link_to_dataset=link_to_dataset, tipo_documento=tipo_documento)
+    except ValueError as e:
+        return _err(e, 400)
+    except Exception as e:
+        return _err(e)
+
+
+@app.get("/api/documents")
+async def api_list_documents():
+    try:
+        return h.list_uploaded_documents()
+    except Exception as e:
+        return _err(e)
+
+
+@app.get("/api/documents/{doc_id}")
+async def api_get_document(doc_id: int):
+    try:
+        return h.get_uploaded_document(doc_id)
+    except LookupError as e:
+        return _err(e, 404)
     except Exception as e:
         return _err(e)
 

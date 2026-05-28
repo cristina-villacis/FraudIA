@@ -2,8 +2,10 @@
 Repositorio de datos - CRUD entre DataFrames de pandas y la base de datos.
 Maneja la persistencia bidireccional: DataFrame <-> MySQL/SQLite.
 """
+import json
 import time
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -12,7 +14,7 @@ from sqlalchemy import text, inspect
 from src.db.config import get_engine, get_session
 from src.db.models import (
     Base, Asegurado, Vehiculo, Poliza, Proveedor,
-    Siniestro, Documento, AnalisisRun,
+    Siniestro, Documento, DocumentoSubido, AnalisisRun,
 )
 
 TABLE_MODEL_MAP = {
@@ -25,16 +27,54 @@ TABLE_MODEL_MAP = {
 }
 
 
+_SCHEMA_ALTER_COLUMNS = {
+    "asegurados": [
+        ("nombres_asegurado", "VARCHAR(200) NULL"),
+    ],
+    "siniestros": [
+        ("placa_vehiculo", "VARCHAR(20) NULL"),
+        ("similitud_narrativa_max", "DOUBLE DEFAULT 0"),
+        ("numero_parte_policial", "VARCHAR(50) NULL"),
+        ("prov_en_lista_restrictiva", "INT DEFAULT 0"),
+        ("suma_asegurada", "DOUBLE NULL"),
+    ],
+    "documentos": [
+        ("nombre_archivo_pdf", "VARCHAR(255) NULL"),
+    ],
+}
+
+
+def _ensure_schema_columns():
+    """Añade columnas nuevas en BD existente (TiDB/MySQL) sin borrar datos."""
+    engine = get_engine()
+    if "mysql" not in str(engine.url):
+        return
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table, columns in _SCHEMA_ALTER_COLUMNS.items():
+            if table not in existing_tables:
+                continue
+            have = {c["name"] for c in inspector.get_columns(table)}
+            for col_name, ddl in columns:
+                if col_name not in have:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {ddl}"))
+
+
 def init_database():
     engine = get_engine()
     Base.metadata.create_all(engine)
+    _ensure_schema_columns()
     return True
 
 
 def drop_all_data():
     engine = get_engine()
     is_mysql = "mysql" in str(engine.url)
-    tables_order = ["documentos", "siniestros", "polizas", "vehiculos", "proveedores", "asegurados", "analisis_runs"]
+    tables_order = [
+        "documentos_subidos", "documentos", "siniestros", "polizas",
+        "vehiculos", "proveedores", "asegurados", "analisis_runs",
+    ]
 
     with engine.begin() as conn:
         if is_mysql:
@@ -283,3 +323,118 @@ def _prepare_for_db(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
             df[col] = df[col].apply(lambda x: str(x)[:500] if isinstance(x, str) else x)
 
     return df
+
+
+def _doc_subido_to_dict(row: DocumentoSubido) -> Dict[str, Any]:
+    alertas = []
+    inconsistencias = []
+    campos = {}
+    try:
+        if row.alertas:
+            alertas = json.loads(row.alertas)
+    except json.JSONDecodeError:
+        pass
+    try:
+        if row.inconsistencias:
+            inconsistencias = json.loads(row.inconsistencias)
+    except json.JSONDecodeError:
+        if row.inconsistencias:
+            inconsistencias = [row.inconsistencias]
+    try:
+        if row.campos_extraidos:
+            campos = json.loads(row.campos_extraidos)
+    except json.JSONDecodeError:
+        pass
+    return {
+        "id": row.id,
+        "id_documento": row.id_documento,
+        "id_siniestro": row.id_siniestro,
+        "tipo_documento": row.tipo_documento,
+        "nombre_archivo": row.nombre_archivo,
+        "score_documento": row.score_documento,
+        "semaforo": row.semaforo,
+        "alertas": alertas,
+        "inconsistencias": inconsistencias,
+        "campos_extraidos": campos,
+        "vinculado_dataset": bool(row.vinculado_dataset),
+        "estado": row.estado,
+        "fecha_carga": row.fecha_carga.isoformat() if row.fecha_carga else None,
+        "fecha_analisis": row.fecha_analisis.isoformat() if row.fecha_analisis else None,
+        "texto_preview": (row.texto_extraido or "")[:400],
+    }
+
+
+def save_documento_subido(record: Dict[str, Any]) -> int:
+    init_database()
+    session = get_session()
+    try:
+        row = DocumentoSubido(
+            id_documento=record.get("id_documento"),
+            id_siniestro=record.get("id_siniestro"),
+            tipo_documento=record.get("tipo_documento"),
+            nombre_archivo=record.get("nombre_archivo"),
+            ruta_almacen=record.get("ruta_almacen"),
+            texto_extraido=(record.get("texto_extraido") or "")[:50000],
+            campos_extraidos=record.get("campos_extraidos"),
+            score_documento=record.get("score_documento"),
+            semaforo=record.get("semaforo"),
+            alertas=record.get("alertas"),
+            inconsistencias=record.get("inconsistencias"),
+            vinculado_dataset=1 if record.get("vinculado_dataset") else 0,
+            estado=record.get("estado", "analizado"),
+            fecha_analisis=record.get("fecha_analisis") or datetime.utcnow(),
+        )
+        session.add(row)
+        session.commit()
+        return row.id
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_documento_subido(doc_id: int, updates: Dict[str, Any]) -> bool:
+    session = get_session()
+    try:
+        row = session.query(DocumentoSubido).filter(DocumentoSubido.id == doc_id).first()
+        if not row:
+            return False
+        for key, val in updates.items():
+            if hasattr(row, key):
+                setattr(row, key, val)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def list_documentos_subidos(limit: int = 100) -> List[Dict[str, Any]]:
+    init_database()
+    session = get_session()
+    try:
+        rows = (
+            session.query(DocumentoSubido)
+            .order_by(DocumentoSubido.fecha_carga.desc())
+            .limit(limit)
+            .all()
+        )
+        return [_doc_subido_to_dict(r) for r in rows]
+    finally:
+        session.close()
+
+
+def get_documento_subido(doc_id: int) -> Optional[Dict[str, Any]]:
+    session = get_session()
+    try:
+        row = session.query(DocumentoSubido).filter(DocumentoSubido.id == doc_id).first()
+        if not row:
+            return None
+        d = _doc_subido_to_dict(row)
+        d["texto_extraido"] = row.texto_extraido
+        return d
+    finally:
+        session.close()

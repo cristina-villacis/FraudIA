@@ -6,11 +6,12 @@ import json
 import os
 import time
 import traceback
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from src.app.core import (
+    DOCUMENTS_UPLOAD_FOLDER,
     UPLOAD_FOLDER,
     app_state,
     build_agent_context,
@@ -32,6 +33,7 @@ from src.ingestion.load_data import (
     load_all_from_directory,
     load_file_to_tables,
     load_from_upload,
+    load_insurer_default_workbook,
     validate_datasets,
 )
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
@@ -46,11 +48,105 @@ from src.db.repository import (
     save_analysis_run,
     get_analysis_history,
     get_db_stats,
+    save_documento_subido,
+    list_documentos_subidos,
+    get_documento_subido,
 )
+from src.ingestion.pdf_extractor import campos_to_json, process_pdf_upload, TIPOS_DOCUMENTO
+from src.documents.document_analyzer import analyze_document, merge_document_into_datasets
+from src.documents.dataset_integration import (
+    apply_document_post_scoring,
+    enrich_datasets_with_uploaded_documents,
+    documents_for_siniestro,
+)
+from src.pipeline.run_full_analysis import build_dashboard_snapshot, execute_full_pipeline
 
 
 def _should_use_live_database() -> bool:
     return (not is_vercel_runtime()) or is_persistent_database_configured()
+
+
+def _collect_uploaded_documents() -> List[Dict[str, Any]]:
+    if _should_use_live_database():
+        try:
+            return list_documentos_subidos()
+        except Exception:
+            pass
+    return list(app_state.get("documentos_subidos", []))
+
+
+def _prepare_datasets_for_pipeline() -> Dict[str, pd.DataFrame]:
+    datasets = app_state.get("datasets") or {}
+    docs = _collect_uploaded_documents()
+    if docs and "siniestros" in datasets:
+        datasets = enrich_datasets_with_uploaded_documents(datasets, docs)
+        app_state["datasets"] = datasets
+    return datasets
+
+
+def _apply_pipeline_result(result: Dict[str, Any]) -> None:
+    """Actualiza estado global, dashboard, ML y agente tras el pipeline."""
+    docs = _collect_uploaded_documents()
+    df_scored = result["df_scored"]
+    if docs:
+        df_scored = apply_document_post_scoring(df_scored, docs)
+        result["df_scored"] = df_scored
+        if docs:
+            result["steps"] = list(result.get("steps", [])) + [
+                {"step": "Integración PDFs cargados", "status": "ok", "documentos": len(docs)},
+            ]
+
+    dashboard_payload = build_dashboard_payload(
+        df_scored, total_unfiltered=len(df_scored), active_filters=[]
+    )
+    dashboard_snapshot = build_dashboard_snapshot(dashboard_payload)
+
+    app_state.update({
+        "datasets": result["datasets"],
+        "df_features": result["df_features"],
+        "df_scored": df_scored,
+        "model_results": result["model_results"],
+        "anomaly_results": result["anomaly_results"],
+        "nlp_results": result["nlp_results"],
+        "dashboard_snapshot": dashboard_snapshot,
+        "dashboard_last_payload": dashboard_payload,
+        "model_snapshot": result["model_snapshot"],
+        "pipeline_status": "completed",
+        "executive_summary": result.get("executive_summary"),
+    })
+
+    ctx = build_agent_context()
+    ctx["manifest"] = {"steps": result.get("steps", [])}
+    app_state["agent"] = ClaimsAgent(df_scored, extra_context=ctx)
+
+
+def _run_analysis_after_load() -> Optional[Dict[str, Any]]:
+    """Ejecuta pipeline completo tras cargar dataset (dashboard + ML + agente)."""
+    if not app_state.get("datasets") or "siniestros" not in app_state["datasets"]:
+        return None
+    try:
+        out = run_pipeline()
+        out["auto_analyzed"] = app_state.get("df_scored") is not None
+        return out
+    except Exception as exc:
+        if app_state.get("df_scored") is not None:
+            return {
+                "auto_analyzed": True,
+                "status": "partial",
+                "pipeline_error": str(exc),
+                "total_records": len(app_state["df_scored"]),
+                "steps": [{"step": "Pipeline", "status": "warning", "detail": str(exc)[:80]}],
+            }
+        return {"auto_analyzed": False, "pipeline_error": str(exc)}
+
+
+def _documents_storage_dir() -> str:
+    if is_vercel_runtime():
+        path = "/tmp/fraudia_documents"
+        os.makedirs(path, exist_ok=True)
+        return path
+    os.makedirs(DOCUMENTS_UPLOAD_FOLDER, exist_ok=True)
+    return DOCUMENTS_UPLOAD_FOLDER
 
 
 def _runtime_cache_dir() -> str:
@@ -261,46 +357,230 @@ def db_init() -> dict:
 
 
 def build_template_excel() -> io.BytesIO:
+    """Plantilla alineada al dataset oficial de la aseguradora (hojas 1_Siniestros … 5_Documentos)."""
     templates = {
-        "siniestros": [
-            "id_siniestro", "id_poliza", "id_asegurado", "ramo", "cobertura",
-            "fecha_ocurrencia", "fecha_reporte", "monto_reclamado", "monto_estimado",
-            "monto_pagado", "estado", "sucursal", "descripcion", "documentos_completos",
-            "beneficiario", "dias_desde_inicio_poliza", "dias_desde_fin_poliza",
-            "dias_entre_ocurrencia_reporte", "historial_siniestros_asegurado",
-            "etiqueta_fraude_simulada",
+        "1_Siniestros": [
+            "id_siniestro", "id_poliza", "id_asegurado", "ramo", "placa_vehiculo", "cobertura",
+            "fecha_ocurrencia", "fecha_reporte", "dias_entre_ocurrencia_reporte",
+            "monto_reclamado", "monto_estimado", "monto_pagado", "estado", "sucursal",
+            "id_proveedor", "descripcion", "documentos_completos", "prov_en_lista_restrictiva",
+            "dias_desde_inicio_poliza", "dias_desde_fin_poliza", "historial_siniestros_asegurado",
+            "suma_asegurada", "similitud_narrativa_max", "numero_parte_policial",
         ],
-        "polizas": [
+        "2_Polizas": [
             "id_poliza", "id_asegurado", "ramo", "fecha_inicio", "fecha_fin",
-            "prima", "suma_asegurada", "deducible", "canal_venta", "ciudad", "estado_poliza",
+            "suma_asegurada", "prima", "canal_venta", "estado_poliza",
         ],
-        "asegurados": [
-            "id_asegurado", "segmento", "antiguedad_anos", "ciudad",
-            "numero_polizas", "reclamos_ultimos_12m", "mora_actual", "score_cliente",
+        "3_Asegurados": [
+            "id_asegurado", "nombres_asegurado", "segmento", "ciudad",
+            "antiguedad_anos", "numero_polizas", "reclamos_ultimos_12m",
         ],
-        "proveedores": [
-            "id_proveedor", "tipo", "ciudad", "reclamos_asociados",
-            "monto_promedio_reclamado", "casos_observados", "antiguedad_anos",
+        "4_Proveedores": [
+            "id_proveedor", "nombre_proveedor", "tipo", "ciudad",
+            "reclamos_asociados", "en_lista_restrictiva",
         ],
-        "documentos": [
-            "id_documento", "id_siniestro", "tipo_documento", "entregado",
-            "legible", "fecha_emision", "inconsistencia_detectada", "observacion",
+        "5_Documentos": [
+            "id_documento", "id_siniestro", "tipo_documento", "nombre_archivo_pdf",
         ],
     }
     guia = pd.DataFrame([
-        {"Tabla": "siniestros", "Campos_clave": "id_siniestro, id_poliza, id_asegurado", "Propósito": "Análisis antifraude"},
-        {"Tabla": "polizas", "Campos_clave": "id_poliza, id_asegurado", "Propósito": "Vigencia y suma asegurada"},
-        {"Tabla": "asegurados", "Campos_clave": "id_asegurado", "Propósito": "Perfil del asegurado"},
-        {"Tabla": "proveedores", "Campos_clave": "id_proveedor", "Propósito": "Riesgo por proveedor"},
-        {"Tabla": "documentos", "Campos_clave": "id_documento, id_siniestro", "Propósito": "Consistencia documental"},
+        {"Hoja": "1_Siniestros", "Notas": "Placa en siniestro; etiqueta_fraude se deriva si no viene"},
+        {"Hoja": "2_Polizas", "Notas": "Prima anual → prima"},
+        {"Hoja": "3_Asegurados", "Notas": "Perfil y reclamos recientes"},
+        {"Hoja": "4_Proveedores", "Notas": "Lista restrictiva Sí/No"},
+        {"Hoja": "5_Documentos", "Notas": "PDF por siniestro"},
     ])
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         for sheet, cols in templates.items():
             pd.DataFrame(columns=cols).to_excel(writer, sheet_name=sheet, index=False)
-        guia.to_excel(writer, sheet_name="Guia", index=False)
+        guia.to_excel(writer, sheet_name="README", index=False)
     buf.seek(0)
     return buf
+
+
+def load_insurer_dataset() -> dict:
+    """Carga el Excel oficial desde data/raw/Evento_Datasets_Sinteticos_Fraude_500_v2.xlsx."""
+    datasets = {
+        name: ensure_str_columns(df)
+        for name, df in load_insurer_default_workbook().items()
+    }
+    if "siniestros" not in datasets:
+        raise ValueError("El workbook de la aseguradora no contiene la hoja 1_Siniestros.")
+    app_state["datasets"] = datasets
+    reset_pipeline_state()
+    _clear_runtime_analysis_cache()
+    _persist_runtime_datasets(app_state["datasets"])
+    validation = validate_datasets(datasets)
+    tables_info = {
+        name: {"rows": len(df), "columns": len(df.columns), "cols": list(df.columns)}
+        for name, df in datasets.items()
+    }
+    db_msg = ""
+    if _should_use_live_database() and validation["has_siniestros"]:
+        try:
+            init_database()
+            save_all_datasets({k: v.copy() for k, v in datasets.items()})
+            db_msg = f" (guardado en {test_connection().get('type', 'BD')})"
+        except Exception as exc:
+            db_msg = f" (error BD: {exc})"
+    resp = {
+        "status": "success",
+        "message": "Dataset oficial de la aseguradora cargado" + db_msg,
+        "tables": tables_info,
+        "has_siniestros": validation["has_siniestros"],
+        "warnings": validation["warnings"],
+        "source": "insurer_workbook",
+    }
+    if validation["has_siniestros"]:
+        pipeline_out = _run_analysis_after_load()
+        if pipeline_out:
+            resp["pipeline"] = pipeline_out
+            if pipeline_out.get("auto_analyzed"):
+                resp["message"] += (
+                    f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
+                )
+    return resp
+
+
+def upload_documents(
+    files: list,
+    link_to_dataset: bool = False,
+    tipo_documento: Optional[str] = None,
+) -> dict:
+    """
+    files: lista de (filename, bytes).
+    Extrae texto del PDF, analiza y persiste en documentos_subidos.
+    """
+    if isinstance(link_to_dataset, str):
+        link_to_dataset = link_to_dataset.lower() in ("true", "1", "yes", "on")
+    if not files:
+        raise ValueError("No se recibieron archivos PDF.")
+
+    import uuid
+    from datetime import datetime
+
+    datasets = app_state.get("datasets") or {}
+    processed = []
+    storage = _documents_storage_dir()
+
+    for filename, content in files:
+        if not filename.lower().endswith(".pdf"):
+            continue
+        parsed = process_pdf_upload(filename, content, tipo_hint=tipo_documento or None)
+        campos = parsed.get("campos_extraidos") or {}
+        analisis = analyze_document(
+            tipo_documento=parsed["tipo_documento"],
+            texto_extraido=parsed.get("texto_extraido") or "",
+            campos=campos,
+            datasets=datasets if link_to_dataset else None,
+            vincular_dataset=link_to_dataset,
+        )
+
+        safe_name = f"{uuid.uuid4().hex[:10]}_{os.path.basename(filename)}"
+        ruta = os.path.join(storage, safe_name)
+        with open(ruta, "wb") as f:
+            f.write(content)
+
+        id_doc = parsed.get("id_documento") or campos.get("id_documento")
+        if not id_doc:
+            id_doc = f"DOC-UP-{uuid.uuid4().hex[:6].upper()}"
+
+        record = {
+            "id_documento": id_doc,
+            "id_siniestro": parsed.get("id_siniestro") or campos.get("id_siniestro"),
+            "tipo_documento": parsed["tipo_documento"],
+            "nombre_archivo": parsed["nombre_archivo"],
+            "ruta_almacen": ruta,
+            "texto_extraido": parsed.get("texto_extraido"),
+            "campos_extraidos": campos_to_json(campos),
+            "score_documento": analisis["score_documento"],
+            "semaforo": analisis["semaforo"],
+            "alertas": json.dumps(analisis["alertas"], ensure_ascii=False),
+            "inconsistencias": json.dumps(analisis["inconsistencias"], ensure_ascii=False),
+            "vinculado_dataset": link_to_dataset,
+            "estado": "analizado",
+            "fecha_analisis": datetime.utcnow(),
+        }
+
+        if _should_use_live_database():
+            db_id = save_documento_subido(record)
+        else:
+            db_id = len(app_state.get("documentos_subidos", [])) + 1
+
+        public = {
+            "id": db_id,
+            "id_documento": record["id_documento"],
+            "id_siniestro": record["id_siniestro"],
+            "tipo_documento": record["tipo_documento"],
+            "nombre_archivo": record["nombre_archivo"],
+            "score_documento": record["score_documento"],
+            "semaforo": record["semaforo"],
+            "alertas": analisis["alertas"],
+            "inconsistencias": analisis["inconsistencias"],
+            "campos_extraidos": campos,
+            "vinculado_dataset": link_to_dataset,
+            "estado": "analizado",
+            "encontrado_en_dataset": analisis.get("encontrado_en_dataset"),
+        }
+        if not _should_use_live_database():
+            app_state.setdefault("documentos_subidos", []).insert(0, public)
+        else:
+            public["id"] = db_id
+
+        if link_to_dataset and record["id_siniestro"]:
+            app_state["datasets"] = merge_document_into_datasets(
+                datasets,
+                id_documento=id_doc,
+                id_siniestro=record["id_siniestro"],
+                tipo_documento=record["tipo_documento"],
+                nombre_archivo=record["nombre_archivo"],
+                analisis=analisis,
+            )
+            datasets = app_state["datasets"]
+
+        processed.append(public)
+
+    if not processed:
+        raise ValueError("Solo se aceptan archivos PDF (.pdf).")
+
+    resp = {
+        "status": "success",
+        "message": f"{len(processed)} documento(s) procesado(s) y analizado(s).",
+        "documents": processed,
+        "link_to_dataset": link_to_dataset,
+        "tipos_aceptados": list(TIPOS_DOCUMENTO.values()),
+    }
+    if app_state.get("datasets") and "siniestros" in app_state["datasets"]:
+        pipeline_out = _run_analysis_after_load()
+        if pipeline_out:
+            resp["pipeline"] = pipeline_out
+            if pipeline_out.get("auto_analyzed"):
+                resp["message"] += (
+                    f" Pipeline ejecutado: {pipeline_out.get('total_records', 0)} siniestros "
+                    "en dashboard y modelo ML."
+                )
+            elif pipeline_out.get("pipeline_error"):
+                resp["message"] += f" (Pipeline: {pipeline_out['pipeline_error']})"
+    return resp
+
+
+def list_uploaded_documents() -> dict:
+    if _should_use_live_database():
+        docs = list_documentos_subidos()
+    else:
+        docs = list(app_state.get("documentos_subidos", []))
+    return {"status": "ok", "documents": docs, "total": len(docs)}
+
+
+def get_uploaded_document(doc_id: int) -> dict:
+    if _should_use_live_database():
+        doc = get_documento_subido(doc_id)
+    else:
+        doc = next((d for d in app_state.get("documentos_subidos", []) if d.get("id") == doc_id), None)
+    if not doc:
+        raise LookupError(f"Documento {doc_id} no encontrado")
+    return {"status": "ok", "document": doc}
 
 
 def upload_dataset(filename: str, content: bytes) -> dict:
@@ -358,7 +638,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     else:
         db_msg = ""
     msg = f"'{filename}' cargado ({', '.join(new_tables.keys())})." + db_msg
-    return {
+    resp = {
         "status": "success" if validation["has_siniestros"] else "warning",
         "message": msg,
         "tables": tables_info,
@@ -367,6 +647,15 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         "loaded_tables": list(new_tables.keys()),
         "db_save_result": db_save_result,
     }
+    if validation["has_siniestros"]:
+        pipeline_out = _run_analysis_after_load()
+        if pipeline_out:
+            resp["pipeline"] = pipeline_out
+            if pipeline_out.get("auto_analyzed"):
+                resp["message"] += (
+                    f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
+                )
+    return resp
 
 
 def load_synthetic() -> dict:
@@ -388,12 +677,20 @@ def load_synthetic() -> dict:
     if _should_use_live_database():
         init_database()
         save_all_datasets({k: v.copy() for k, v in app_state["datasets"].items()})
-    return {
+    resp = {
         "status": "success",
         "message": f"Datos sintéticos generados (semilla {seed_used})",
         "seed": seed_used,
         "tables": tables_info,
     }
+    pipeline_out = _run_analysis_after_load()
+    if pipeline_out:
+        resp["pipeline"] = pipeline_out
+        if pipeline_out.get("auto_analyzed"):
+            resp["message"] += (
+                f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
+            )
+    return resp
 
 
 def load_from_db() -> dict:
@@ -467,22 +764,11 @@ def run_pipeline() -> dict:
         raise ValueError("No hay datos cargados. Suba un archivo o cargue datos sintéticos.")
     t_start = time.time()
     app_state["pipeline_status"] = "running"
-    from src.pipeline.run_full_analysis import execute_full_pipeline
 
-    result = execute_full_pipeline(app_state["datasets"])
-    df_scored = result["df_scored"]
-    app_state.update({
-        "datasets": result["datasets"],
-        "df_features": result["df_features"],
-        "df_scored": df_scored,
-        "model_results": result["model_results"],
-        "anomaly_results": result["anomaly_results"],
-        "nlp_results": result["nlp_results"],
-        "dashboard_snapshot": result["dashboard_snapshot"],
-        "dashboard_last_payload": result["dashboard_last_payload"],
-        "model_snapshot": result["model_snapshot"],
-        "pipeline_status": "completed",
-    })
+    datasets = _prepare_datasets_for_pipeline()
+    result = execute_full_pipeline(datasets)
+    _apply_pipeline_result(result)
+    df_scored = app_state["df_scored"]
     sem_counts = df_scored["semaforo_final"].value_counts()
     db_payload = {
         "total": len(df_scored),
@@ -500,19 +786,30 @@ def run_pipeline() -> dict:
 
     steps_out = list(result["steps"])
     if _should_use_live_database():
-        _persist_scores(df_scored.copy(), db_payload)
-        steps_out.append({"step": "Guardado en BD", "status": "ok"})
+        try:
+            _persist_scores(df_scored.copy(), db_payload)
+            steps_out.append({"step": "Guardado en BD", "status": "ok"})
+        except Exception as exc:
+            steps_out.append({
+                "step": "Guardado en BD",
+                "status": "warning",
+                "detail": str(exc)[:120],
+            })
     else:
-        _persist_runtime_analysis(result)
+        _persist_runtime_analysis({**result, "df_scored": df_scored})
 
-    app_state["agent"] = ClaimsAgent(df_scored, extra_context=build_agent_context())
     return {
         "status": "success",
         "steps": steps_out,
-        "executive_summary": result["executive_summary"],
-        "total_records": result["total_records"],
-        "duration_seconds": result["duration_seconds"],
+        "executive_summary": app_state.get("executive_summary"),
+        "total_records": len(df_scored),
+        "duration_seconds": round(time.time() - t_start, 2),
         "analyzed_from_upload": True,
+        "semaforo_counts": {
+            "Rojo": int(sem_counts.get("Rojo", 0)),
+            "Amarillo": int(sem_counts.get("Amarillo", 0)),
+            "Verde": int(sem_counts.get("Verde", 0)),
+        },
     }
 
 
@@ -541,7 +838,20 @@ def get_case(case_id: str) -> dict:
     mask = df["id_siniestro"].str.upper() == case_id.upper()
     if mask.sum() == 0:
         raise LookupError(f"Siniestro {case_id} no encontrado")
-    return explain_single_case(df[mask].iloc[0])
+    case = explain_single_case(df[mask].iloc[0])
+    pdfs = documents_for_siniestro(_collect_uploaded_documents(), case_id)
+    if pdfs:
+        case["documentos_pdf"] = [
+            {
+                "nombre": d.get("nombre_archivo"),
+                "tipo": d.get("tipo_documento"),
+                "semaforo": d.get("semaforo"),
+                "score": d.get("score_documento"),
+                "alertas": [a.get("mensaje") for a in (d.get("alertas") or [])[:5] if isinstance(a, dict)],
+            }
+            for d in pdfs
+        ]
+    return case
 
 
 def agent_status() -> dict:

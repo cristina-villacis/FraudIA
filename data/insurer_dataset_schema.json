@@ -1,0 +1,83 @@
+{
+  "1_Siniestros": {
+    "rows": 500,
+    "columns": [
+      "ID Siniestro",
+      "ID Póliza",
+      "ID Asegurado",
+      "Ramo",
+      "Placa Vehículo Asegurado",
+      "Cobertura",
+      "Fecha Ocurrencia",
+      "Fecha Reporte",
+      "Días Ocurr→Reporte",
+      "Monto Reclamado ($)",
+      "Monto Estimado ($)",
+      "Monto Pagado ($)",
+      "Estado",
+      "Sucursal",
+      "ID Proveedor",
+      "Descripción del Evento",
+      "Docs Completos",
+      "Prov. Lista Restrictiva",
+      "Días desde Inicio Póliza",
+      "Días hasta Fin Póliza",
+      "N° Reclamos Previos Asegurado",
+      "Suma Asegurada ($)",
+      "Similitud Narrativa Máx.",
+      "Número Parte Policial"
+    ]
+  },
+  "2_Polizas": {
+    "rows": 500,
+    "columns": [
+      "ID Póliza",
+      "ID Asegurado",
+      "Ramo",
+      "Fecha Inicio",
+      "Fecha Fin",
+      "Suma Asegurada ($)",
+      "Prima Anual ($)",
+      "Canal Venta",
+      "Estado Póliza"
+    ]
+  },
+  "3_Asegurados": {
+    "rows": 174,
+    "columns": [
+      "ID Asegurado",
+      "Nombres Asegurado",
+      "Segmento",
+      "Ciudad",
+      "Antigüedad (años)",
+      "N° Pólizas Activas",
+      "N° Reclamos Últimos 12 Meses",
+      "N° Reclamos Histórico Total",
+      "Reclamos RC sin Tercero",
+      "Perfil Riesgo Histórico"
+    ]
+  },
+  "4_Proveedores": {
+    "rows": 33,
+    "columns": [
+      "ID Proveedor",
+      "Nombre Proveedor",
+      "Tipo",
+      "Ciudad",
+      "N° Siniestros Asociados",
+      "En Lista Restrictiva",
+      "Motivo Restricción",
+      "Promedio Monto ($)",
+      "Unnamed: 8"
+    ]
+  },
+  "5_Documentos": {
+    "rows": 1263,
+    "columns": [
+      "ID Documento",
+      "ID Siniestro",
+      "Tipo Documento",
+      "Nombre Archivo PDF"
+    ]
+  }
+}

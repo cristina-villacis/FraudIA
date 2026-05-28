@@ -62,7 +62,10 @@ def _merge_poliza_features(df: pd.DataFrame, polizas: pd.DataFrame) -> pd.DataFr
 
 def _merge_asegurado_features(df: pd.DataFrame, asegurados: pd.DataFrame) -> pd.DataFrame:
     aseg_cols = ["id_asegurado"]
-    for col in ["segmento", "antiguedad_anos", "score_cliente", "mora_actual", "en_lista_restrictiva"]:
+    for col in [
+        "segmento", "antiguedad_anos", "score_cliente", "mora_actual",
+        "en_lista_restrictiva", "reclamos_ultimos_12m", "numero_polizas",
+    ]:
         if col in asegurados.columns and col not in df.columns:
             aseg_cols.append(col)
 
@@ -79,7 +82,9 @@ def _merge_proveedor_features(df: pd.DataFrame, proveedores: pd.DataFrame) -> pd
     prov_cols = ["id_proveedor"]
     for col in ["casos_observados", "porcentaje_casos_observados", "en_lista_restrictiva", "monto_promedio_reclamado"]:
         if col in proveedores.columns:
-            prov_cols.append(col)
+            target = f"prov_{col}" if col != "id_proveedor" else col
+            if target not in df.columns:
+                prov_cols.append(col)
 
     if len(prov_cols) > 1:
         prov_rename = {c: f"prov_{c}" if c != "id_proveedor" else c for c in prov_cols}
@@ -109,12 +114,29 @@ def _merge_documento_features(df: pd.DataFrame, documentos: pd.DataFrame) -> pd.
     if "id_siniestro" not in documentos.columns:
         return df
 
-    doc_agg = documentos.groupby("id_siniestro").agg(
-        total_documentos=("id_documento", "count"),
-        docs_entregados=("entregado", lambda x: (x == "Sí").sum()),
-        docs_legibles=("legible", lambda x: (x == "Sí").sum() if "legible" in documentos.columns else 0),
-        docs_con_inconsistencia=("inconsistencia_detectada", lambda x: (x.fillna("") != "").sum()),
-    ).reset_index()
+    agg_spec = {"total_documentos": ("id_documento", "count")}
+    if "entregado" in documentos.columns:
+        agg_spec["docs_entregados"] = (
+            "entregado",
+            lambda x: x.astype(str).str.lower().str.startswith("s").sum(),
+        )
+    if "legible" in documentos.columns:
+        agg_spec["docs_legibles"] = (
+            "legible",
+            lambda x: x.astype(str).str.lower().str.startswith("s").sum(),
+        )
+    if "inconsistencia_detectada" in documentos.columns:
+        agg_spec["docs_con_inconsistencia"] = (
+            "inconsistencia_detectada",
+            lambda x: (x.fillna("") != "").sum(),
+        )
+    doc_agg = documentos.groupby("id_siniestro").agg(**agg_spec).reset_index()
+    if "docs_entregados" not in doc_agg.columns:
+        doc_agg["docs_entregados"] = doc_agg["total_documentos"]
+    if "docs_legibles" not in doc_agg.columns:
+        doc_agg["docs_legibles"] = doc_agg["docs_entregados"]
+    if "docs_con_inconsistencia" not in doc_agg.columns:
+        doc_agg["docs_con_inconsistencia"] = 0
 
     doc_agg["ratio_docs_entregados"] = np.where(
         doc_agg["total_documentos"] > 0,
@@ -208,6 +230,12 @@ def _build_critical_rule_features(df: pd.DataFrame) -> pd.DataFrame:
             (df["flag_falsificacion_doc"] == 1) | (df["tiene_inconsistencia_doc"].fillna(0) > 0)
         ).astype(int)
 
+    if "similitud_narrativa_max" in df.columns:
+        sim = pd.to_numeric(df["similitud_narrativa_max"], errors="coerce").fillna(0)
+        df["flag_narrativa_duplicada"] = (sim >= 0.88).astype(int)
+    else:
+        df["flag_narrativa_duplicada"] = 0
+
     return df
 
 
@@ -219,6 +247,9 @@ def _build_frequency_features(df: pd.DataFrame) -> pd.DataFrame:
     if "id_vehiculo" in df.columns:
         freq_veh = df.groupby("id_vehiculo")["id_siniestro"].transform("count")
         df["frecuencia_siniestros_vehiculo"] = freq_veh.fillna(0)
+    elif "placa_vehiculo" in df.columns:
+        freq_placa = df.groupby("placa_vehiculo")["id_siniestro"].transform("count")
+        df["frecuencia_siniestros_vehiculo"] = freq_placa.fillna(0)
 
     if "id_conductor" in df.columns:
         freq_cond = df.groupby("id_conductor")["id_siniestro"].transform("count")

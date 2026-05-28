@@ -134,6 +134,21 @@ class ClaimsAgent:
             for step in manifest["steps"]:
                 lines.append(f"  · {step.get('step', '?')}: {step.get('status', '')}")
 
+        doc_ctx = self.extra_context.get("documentos_subidos")
+        if isinstance(doc_ctx, dict) and doc_ctx.get("total", 0) > 0:
+            lines.append(f"Documentos PDF analizados: {doc_ctx['total']}")
+            por = doc_ctx.get("por_semaforo") or {}
+            if por:
+                lines.append(
+                    f"  Semáforos PDF: Rojo={por.get('Rojo', 0)}, "
+                    f"Amarillo={por.get('Amarillo', 0)}, Verde={por.get('Verde', 0)}"
+                )
+            for item in (doc_ctx.get("items") or [])[:6]:
+                lines.append(
+                    f"  · {item.get('archivo')} ({item.get('tipo')}) → "
+                    f"{item.get('siniestro')} {item.get('semaforo')} score={item.get('score')}"
+                )
+
         return "\n".join(lines)
 
     def _use_openai(self) -> bool:
@@ -238,6 +253,24 @@ class ClaimsAgent:
         )
         if ai_block:
             respuesta += f"\n**Señales de IA:**\n{ai_block}\n"
+
+        if row.get("score_documentos_max") and float(row.get("score_documentos_max") or 0) > 0:
+            respuesta += (
+                f"\n**Documentos PDF vinculados:**\n"
+                f"- Score documental: {float(row['score_documentos_max']):.1f} "
+                f"({row.get('semaforo_documento_peor', 'N/A')})\n"
+                f"- PDFs analizados: {int(row.get('num_pdfs_cargados', 0) or 0)}\n"
+            )
+        doc_ctx = self.extra_context.get("documentos_subidos") or {}
+        pdf_lines = []
+        for item in (doc_ctx.get("items") or []):
+            if str(item.get("siniestro", "")).upper() == case_id:
+                pdf_lines.append(
+                    f"  · {item.get('archivo')} ({item.get('tipo')}): "
+                    f"{item.get('semaforo')} — {', '.join(item.get('alertas') or [])[:2]}"
+                )
+        if pdf_lines:
+            respuesta += "\n".join(["", "**Detalle PDFs:**"] + pdf_lines) + "\n"
 
         return {"respuesta": respuesta, "datos": row.to_dict(), "tipo": "caso"}
 

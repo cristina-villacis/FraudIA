@@ -18,6 +18,7 @@ EXPECTED_COLUMNS = {
         "monto_pagado", "estado", "sucursal", "descripcion", "documentos_completos",
         "beneficiario", "dias_desde_inicio_poliza", "dias_desde_fin_poliza",
         "dias_entre_ocurrencia_reporte", "historial_siniestros_asegurado",
+        "placa_vehiculo", "similitud_narrativa_max", "numero_parte_policial",
         "etiqueta_fraude_simulada",
     ],
     "polizas": [
@@ -25,16 +26,18 @@ EXPECTED_COLUMNS = {
         "prima", "suma_asegurada",
     ],
     "asegurados": [
-        "id_asegurado", "segmento", "ciudad",
+        "id_asegurado", "nombres_asegurado", "segmento", "ciudad",
+        "antiguedad_anos", "numero_polizas", "reclamos_ultimos_12m",
     ],
     "vehiculos": [
         "id_vehiculo", "id_asegurado", "placa", "chasis", "motor", "marca", "modelo", "ano",
     ],
     "proveedores": [
-        "id_proveedor", "tipo", "ciudad",
+        "id_proveedor", "nombre_proveedor", "tipo", "ciudad",
+        "reclamos_asociados", "en_lista_restrictiva",
     ],
     "documentos": [
-        "id_documento", "id_siniestro", "tipo_documento", "entregado",
+        "id_documento", "id_siniestro", "tipo_documento", "nombre_archivo_pdf",
     ],
 }
 
@@ -46,6 +49,15 @@ TABLE_KEY_COLUMNS = {
     "proveedores": "id_proveedor",
     "documentos": "id_documento",
 }
+
+from src.ingestion.insurer_mapping import (
+    INSURER_DEFAULT_XLSX,
+    is_insurer_workbook,
+    remap_insurer_dataframe,
+    resolve_insurer_sheet_name,
+)
+
+SKIP_SHEETS = {"readme", "indice_documentos", "guia"}
 
 NAME_ALIASES = {
     "siniestro": "siniestros",
@@ -170,11 +182,18 @@ def _clean_polizas(df: pd.DataFrame) -> pd.DataFrame:
 
 def tables_from_sheets(sheets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     """Convierte hojas/archivos crudos en tablas con nombres canónicos."""
+    insurer_mode = is_insurer_workbook(sheets.keys())
     datasets: Dict[str, pd.DataFrame] = {}
     for sheet_name, df in sheets.items():
         if df is None or df.empty:
             continue
-        table_name = resolve_table_name(sheet_name, df)
+        if insurer_mode:
+            table_name = resolve_insurer_sheet_name(sheet_name)
+            if table_name in SKIP_SHEETS:
+                continue
+            df = remap_insurer_dataframe(df, table_name)
+        else:
+            table_name = resolve_table_name(sheet_name, df)
         cleaned = clean_dataframe(df, table_name)
         if table_name in datasets:
             datasets[table_name] = pd.concat([datasets[table_name], cleaned], ignore_index=True)
@@ -234,6 +253,16 @@ def validate_datasets(datasets: Dict[str, pd.DataFrame]) -> Dict:
         "warnings": warnings,
         "tables": list(datasets.keys()),
     }
+
+
+def load_insurer_default_workbook() -> Dict[str, pd.DataFrame]:
+    """Carga el Excel oficial de la aseguradora desde data/raw/."""
+    if not os.path.isfile(INSURER_DEFAULT_XLSX):
+        raise FileNotFoundError(
+            f"No se encontró {INSURER_DEFAULT_XLSX}. Copie el archivo "
+            "'Evento Datasets_Sinteticos_Fraude_500_v2.xlsx' a data/raw/."
+        )
+    return tables_from_sheets(load_excel(INSURER_DEFAULT_XLSX))
 
 
 def load_from_upload(file_storage, filename: str) -> Dict[str, pd.DataFrame]:

@@ -5,10 +5,12 @@ import os
 import threading
 
 UPLOAD_FOLDER = os.path.join("data", "raw")
-try:
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-except OSError:
-    pass
+DOCUMENTS_UPLOAD_FOLDER = os.path.join("data", "uploads", "documents")
+for _folder in (UPLOAD_FOLDER, DOCUMENTS_UPLOAD_FOLDER):
+    try:
+        os.makedirs(_folder, exist_ok=True)
+    except OSError:
+        pass
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,6 +26,8 @@ app_state: dict = {
     "model_snapshot": None,
     "dashboard_last_payload": None,
     "pipeline_status": "idle",
+    "documentos_subidos": [],
+    "executive_summary": None,
 }
 
 _db_save_lock = threading.Lock()
@@ -40,13 +44,21 @@ def reset_pipeline_state() -> None:
     app_state["model_snapshot"] = None
     app_state["dashboard_last_payload"] = None
     app_state["pipeline_status"] = "idle"
+    app_state["executive_summary"] = None
 
 
 def build_agent_context() -> dict:
+    from src.documents.dataset_integration import build_documents_agent_summary
+
+    docs = app_state.get("documentos_subidos") or []
+    doc_summary = build_documents_agent_summary(docs)
     return {
         "dashboard_snapshot": app_state.get("dashboard_snapshot"),
         "model_snapshot": app_state.get("model_snapshot"),
         "dashboard_last_payload": app_state.get("dashboard_last_payload"),
+        "documentos_subidos": doc_summary,
+        "executive_summary": app_state.get("executive_summary"),
+        "total_pdfs_cargados": doc_summary.get("total", 0),
     }
 
 

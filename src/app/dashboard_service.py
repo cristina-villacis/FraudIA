@@ -308,6 +308,9 @@ def build_dashboard_payload(
     else:
         proveedores_sospechosos = 0
     narrativas_clonadas = int(df["alertas_reglas"].fillna("").str.contains("Similitud textual", case=False).sum()) if "alertas_reglas" in df.columns else 0
+    alertas_pdf_count = int((df.get("tiene_alerta_pdf", 0) == 1).sum()) if "tiene_alerta_pdf" in df.columns else 0
+    if alertas_pdf_count == 0 and "alertas_reglas" in df.columns:
+        alertas_pdf_count = int(df["alertas_reglas"].fillna("").str.contains("[PDF]", case=False).sum())
 
     # Señales de fraude (conteo por lógica de negocio)
     signal_counts = [
@@ -325,6 +328,7 @@ def build_dashboard_payload(
         {"signal": "Reporte tardío", "count": int((df.get("reporte_tardio", 0) == 1).sum()) if "reporte_tardio" in df.columns else 0},
         {"signal": "Narrativas similares", "count": narrativas_clonadas},
         {"signal": "Monto cercano a suma asegurada", "count": int((df.get("ratio_reclamado_asegurado", 0) > 0.95).sum()) if "ratio_reclamado_asegurado" in df.columns else 0},
+        {"signal": "Alertas en PDF cargados", "count": alertas_pdf_count},
     ]
 
     signal_masks = {
@@ -342,6 +346,11 @@ def build_dashboard_payload(
         "Reporte tardío": (df.get("reporte_tardio", 0) == 1) if "reporte_tardio" in df.columns else pd.Series([False] * len(df), index=df.index),
         "Narrativas similares": df.get("alertas_reglas", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.contains("Similitud textual", case=False),
         "Monto cercano a suma asegurada": (df.get("ratio_reclamado_asegurado", 0) > 0.95) if "ratio_reclamado_asegurado" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Alertas en PDF cargados": (
+            (df.get("tiene_alerta_pdf", 0) == 1)
+            if "tiene_alerta_pdf" in df.columns
+            else df.get("alertas_reglas", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.contains("[PDF]", case=False)
+        ),
     }
     signal_case_cols = [
         c for c in ["id_siniestro", "ramo", "cobertura", score_col, semaforo_col, "monto_reclamado", "alertas_reglas"]

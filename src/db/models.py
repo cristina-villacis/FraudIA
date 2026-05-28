@@ -19,6 +19,7 @@ class Asegurado(Base):
     __tablename__ = "asegurados"
 
     id_asegurado = Column(String(20), primary_key=True)
+    nombres_asegurado = Column(String(200))
     segmento = Column(String(50))
     antiguedad_anos = Column(Integer)
     ciudad = Column(String(100))
@@ -126,6 +127,11 @@ class Siniestro(Base):
     dias_desde_fin_poliza = Column(Integer, default=0)
     dias_entre_ocurrencia_reporte = Column(Integer, default=0)
     historial_siniestros_asegurado = Column(Integer, default=0)
+    placa_vehiculo = Column(String(20), nullable=True)
+    similitud_narrativa_max = Column(Float, default=0)
+    numero_parte_policial = Column(String(50), nullable=True)
+    prov_en_lista_restrictiva = Column(Integer, default=0)
+    suma_asegurada = Column(Float, nullable=True)
     etiqueta_fraude_simulada = Column(Integer, default=0)
 
     # Campos de scoring (se llenan al ejecutar pipeline)
@@ -158,6 +164,7 @@ class Documento(Base):
     id_documento = Column(String(20), primary_key=True)
     id_siniestro = Column(String(20), ForeignKey("siniestros.id_siniestro"))
     tipo_documento = Column(String(100))
+    nombre_archivo_pdf = Column(String(255), nullable=True)
     entregado = Column(String(5), default="No")
     legible = Column(String(5), default="No")
     fecha_emision = Column(Date, nullable=True)
@@ -165,6 +172,33 @@ class Documento(Base):
     observacion = Column(Text, nullable=True)
 
     siniestro = relationship("Siniestro", back_populates="documentos")
+
+
+class DocumentoSubido(Base):
+    """PDF cargado por el usuario: extracción, análisis y opcional vínculo al dataset."""
+    __tablename__ = "documentos_subidos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_documento = Column(String(30), nullable=True, index=True)
+    id_siniestro = Column(String(30), nullable=True, index=True)
+    tipo_documento = Column(String(80))
+    nombre_archivo = Column(String(255))
+    ruta_almacen = Column(String(500), nullable=True)
+    texto_extraido = Column(Text)
+    campos_extraidos = Column(Text)
+    score_documento = Column(Float, nullable=True)
+    semaforo = Column(String(10), nullable=True)
+    alertas = Column(Text, nullable=True)
+    inconsistencias = Column(Text, nullable=True)
+    vinculado_dataset = Column(Integer, default=0)
+    estado = Column(String(20), default="pendiente")
+    fecha_carga = Column(DateTime, default=func.now())
+    fecha_analisis = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_docs_subidos_siniestro", "id_siniestro"),
+        Index("ix_docs_subidos_semaforo", "semaforo"),
+    )
 
 
 class AnalisisRun(Base):

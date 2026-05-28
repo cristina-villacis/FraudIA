@@ -460,6 +460,63 @@
             border-radius: 2px;
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
+        .grid-3-upload {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1.15fr;
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+            align-items: stretch;
+        }
+        .card-docs-featured {
+            border-color: rgba(0, 209, 255, 0.45);
+            box-shadow: 0 0 24px rgba(0, 209, 255, 0.12);
+            position: relative;
+        }
+        .card-docs-featured::before {
+            content: 'PLUS';
+            position: absolute;
+            top: 0.65rem;
+            right: 0.75rem;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            color: var(--cyan);
+            background: rgba(0, 209, 255, 0.12);
+            padding: 0.2rem 0.45rem;
+            border-radius: 4px;
+        }
+        .doc-upload-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            margin: 0.75rem 0;
+            font-size: 0.82rem;
+        }
+        .doc-upload-options label { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--text-secondary); }
+        .doc-upload-options select {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.82rem;
+        }
+        .doc-results-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.65rem; max-height: 320px; overflow-y: auto; }
+        .doc-result-item {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 0.9rem;
+            background: rgba(0,0,0,0.15);
+            font-size: 0.82rem;
+        }
+        .doc-result-item .doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.35rem; }
+        .doc-result-item .doc-name { font-weight: 600; word-break: break-all; }
+        .semaforo-pill { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+        .semaforo-Rojo { background: rgba(239,68,68,0.2); color: #f87171; }
+        .semaforo-Amarillo { background: rgba(234,179,8,0.2); color: #facc15; }
+        .semaforo-Verde { background: rgba(34,197,94,0.2); color: #4ade80; }
+        .doc-alerts { color: var(--text-muted); margin-top: 0.35rem; line-height: 1.45; }
         @media (max-width: 1200px) {
             .grid-3 { grid-template-columns: 1fr 1fr; }
         }
@@ -469,7 +526,7 @@
         .card-alerts { min-height: 380px; display: flex; flex-direction: column; }
         .card-alerts .alerts-panel { flex: 1; }
         @media (max-width: 768px) {
-            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .grid-2, .grid-3, .grid-3-upload, .grid-4 { grid-template-columns: 1fr; }
             .main-content { padding: 1rem; margin-left: 62px !important; }
             .sidebar { width: 62px !important; }
             .sidebar .nav-label { display: none !important; }
@@ -1506,24 +1563,54 @@
                 </div>
             </div>
 
-            <!-- Upload + Synthetic -->
-            <div class="grid-2">
+            <!-- Upload dataset + documentos PDF -->
+            <div class="grid-3-upload">
                 <div class="card">
                     <div class="card-title">Subir Dataset</div>
                     <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
                         <div class="upload-icon">&#128194;</div>
                         <p style="font-size:1rem; font-weight:600; margin-bottom:0.35rem;">Arrastra o haz clic para subir</p>
-                        <p style="color:var(--text-muted); font-size:0.82rem;">CSV o Excel (.xlsx) &mdash; se persiste en la base de datos</p>
+                        <p style="color:var(--text-muted); font-size:0.82rem;">Excel aseguradora (hojas 1_Siniestros&hellip;5_Documentos) o CSV &mdash; se persiste en BD</p>
                     </div>
                     <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="uploadFile(this)">
                     <div id="uploadStatus" style="margin-top:1rem;"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title">Datos Sintéticos de Prueba</div>
-                    <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">Genera un dataset completo con siniestros, pólizas, asegurados, vehículos, proveedores y documentos sintéticos para evaluación del sistema.</p>
-                    <button class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar Datos Sintéticos</button>
+                    <div class="card-title">Dataset Oficial Aseguradora</div>
+                    <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">Carga el Excel del evento (500 siniestros). También puede subirlo en el panel izquierdo.</p>
+                    <button class="btn btn-primary" onclick="loadInsurer()" id="btnInsurer" style="margin-right:0.5rem;">Cargar Dataset Aseguradora</button>
+                    <button class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar Sintéticos (demo)</button>
                     <div id="syntheticStatus" style="margin-top:1rem;"></div>
                 </div>
+                <div class="card card-docs-featured">
+                    <div class="card-title">Documentos PDF (análisis independiente)</div>
+                    <p style="color:var(--text-secondary); margin:0.65rem 0; line-height:1.55; font-size:0.85rem;">Suba declaraciones de accidente, facturas o partes policiales. El sistema extrae datos, guarda en BD y analiza cada archivo por separado.</p>
+                    <div class="upload-zone" id="docUploadZone" onclick="document.getElementById('docFileInput').click()">
+                        <div class="upload-icon">&#128196;</div>
+                        <p style="font-size:0.95rem; font-weight:600; margin-bottom:0.3rem;">PDF individuales o carpeta</p>
+                        <p style="color:var(--text-muted); font-size:0.78rem;">DA_*, PP_*, facturas &mdash; uno o varios archivos</p>
+                    </div>
+                    <input type="file" id="docFileInput" accept=".pdf,application/pdf" multiple onchange="uploadDocuments(this)">
+                    <div class="doc-upload-options">
+                        <label><input type="checkbox" id="linkToDataset" checked> Vincular al dataset cargado</label>
+                        <label>Tipo
+                            <select id="docTipoSelect">
+                                <option value="">Detectar automático</option>
+                                <option value="declaracion_accidente">Declaración de Accidente</option>
+                                <option value="factura">Factura</option>
+                                <option value="parte_policial">Parte Policial</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%; margin-top:0.35rem;" onclick="document.getElementById('docFileInput').click()" id="btnUploadDocs">Subir y Analizar PDFs</button>
+                    <div id="docUploadStatus" style="margin-top:0.75rem;"></div>
+                </div>
+            </div>
+
+            <div id="docResultsPanel" class="card" style="display:none; margin-bottom:1.5rem;">
+                <div class="card-title">Documentos analizados</div>
+                <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.5rem;">Cada PDF se evalúa de forma independiente; si vinculó el dataset, se contrasta placa, montos y narrativa.</p>
+                <div id="docResultsList" class="doc-results-list"></div>
             </div>
 
             <!-- Tables info -->
@@ -1761,6 +1848,7 @@ Motor actual: reglas</div>
         } catch(e) { console.error('DB status error:', e); }
     }
     checkDBStatus();
+    refreshDocList();
 
     async function loadFromDB() {
         const btn = document.getElementById('btnLoadDB');
@@ -1800,6 +1888,86 @@ Motor actual: reglas</div>
     uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
     uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); if(e.dataTransfer.files.length) uploadFileObj(e.dataTransfer.files[0]); });
 
+    const docUploadZone = document.getElementById('docUploadZone');
+    docUploadZone.addEventListener('dragover', e => { e.preventDefault(); docUploadZone.classList.add('dragover'); });
+    docUploadZone.addEventListener('dragleave', () => docUploadZone.classList.remove('dragover'));
+    docUploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        docUploadZone.classList.remove('dragover');
+        const pdfs = [...e.dataTransfer.files].filter(f => f.name.toLowerCase().endsWith('.pdf'));
+        if (pdfs.length) uploadDocumentsFiles(pdfs);
+    });
+
+    function renderDocResults(documents) {
+        const panel = document.getElementById('docResultsPanel');
+        const list = document.getElementById('docResultsList');
+        if (!documents || !documents.length) { panel.style.display = 'none'; return; }
+        panel.style.display = 'block';
+        list.innerHTML = documents.map(d => {
+            const alerts = (d.alertas || []).map(a => `• ${a.mensaje} (${a.codigo})`).join('<br>') || 'Sin alertas relevantes.';
+            const inc = (d.inconsistencias || []).length ? '<br><strong>Inconsistencias:</strong> ' + d.inconsistencias.join('; ') : '';
+            const campos = d.campos_extraidos || {};
+            const meta = [d.id_siniestro, campos.placa, campos.monto_total ? '$' + campos.monto_total : ''].filter(Boolean).join(' · ');
+            return `<div class="doc-result-item">
+                <div class="doc-head">
+                    <span class="doc-name">${d.nombre_archivo}</span>
+                    <span class="semaforo-pill semaforo-${d.semaforo || 'Verde'}">${d.semaforo || '—'} · ${d.score_documento ?? 0} pts</span>
+                </div>
+                <div style="color:var(--cyan); font-size:0.78rem;">${d.tipo_documento}${meta ? ' · ' + meta : ''}</div>
+                <div class="doc-alerts">${alerts}${inc}</div>
+            </div>`;
+        }).join('');
+    }
+
+    async function refreshDocList() {
+        try {
+            const resp = await fetch('/api/documents');
+            const data = await resp.json();
+            if (!data.error && data.documents) renderDocResults(data.documents);
+        } catch (_) {}
+    }
+
+    async function uploadDocumentsFiles(fileList) {
+        const status = document.getElementById('docUploadStatus');
+        const btn = document.getElementById('btnUploadDocs');
+        const formData = new FormData();
+        for (const f of fileList) {
+            if (f.name.toLowerCase().endsWith('.pdf')) formData.append('files', f);
+        }
+        if (!formData.has('files')) {
+            status.innerHTML = '<div class="alert alert-warning" style="margin:0;">Seleccione archivos PDF.</div>';
+            return;
+        }
+        formData.append('link_to_dataset', document.getElementById('linkToDataset').checked ? 'true' : 'false');
+        const tipo = document.getElementById('docTipoSelect').value;
+        if (tipo) formData.append('tipo_documento', tipo);
+        btn.disabled = true;
+        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Extrayendo y analizando PDFs...</span>';
+        try {
+            const resp = await fetch('/api/upload-documents', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.error) {
+                status.innerHTML = '<div class="alert alert-danger" style="margin:0;">' + data.error + '</div>';
+                return;
+            }
+            status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
+            renderDocResults(data.documents);
+            if (document.getElementById('linkToDataset').checked && data.documents && data.documents.length) {
+                document.getElementById('btnPipeline').disabled = false;
+            }
+            applyAutoPipelineFromApiResponse(data);
+            checkDBStatus();
+        } catch (e) {
+            status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>';
+        }
+        btn.disabled = false;
+    }
+
+    function uploadDocuments(input) {
+        if (input.files && input.files.length) uploadDocumentsFiles(input.files);
+        input.value = '';
+    }
+
     function uploadFile(input) { if(input.files.length) uploadFileObj(input.files[0]); }
 
     async function uploadFileObj(file) {
@@ -1827,12 +1995,39 @@ Motor actual: reglas</div>
             if (data.tables) showTablesInfo(data.tables);
             document.getElementById('btnPipeline').disabled = !canAnalyze;
             if (canAnalyze) {
-                document.getElementById('statusText').textContent = 'Datos listos. Ejecute el análisis.';
-                document.getElementById('statusIndicator').className = 'badge badge-cyan';
-                document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-green"></span> Datos cargados';
+                document.getElementById('statusText').textContent = data.pipeline && data.pipeline.auto_analyzed
+                    ? 'Análisis completo. Revise Dashboard y Modelo ML.'
+                    : 'Datos listos. Ejecute el análisis.';
+                document.getElementById('statusIndicator').className = data.pipeline && data.pipeline.auto_analyzed ? 'badge badge-green' : 'badge badge-cyan';
+                document.getElementById('statusIndicator').innerHTML = data.pipeline && data.pipeline.auto_analyzed
+                    ? '<span class="pulse-dot pulse-dot-green"></span> Análisis completo'
+                    : '<span class="pulse-dot pulse-dot-green"></span> Datos cargados';
             }
+            applyAutoPipelineFromApiResponse(data);
             checkDBStatus();
         } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
+    }
+
+    async function loadInsurer() {
+        const btn = document.getElementById('btnInsurer');
+        const status = document.getElementById('syntheticStatus');
+        btn.disabled = true;
+        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Cargando dataset de la aseguradora...</span>';
+        try {
+            const resp = await fetch('/api/load-insurer', { method: 'POST' });
+            const data = await resp.json();
+            if(data.error) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>'; btn.disabled = false; return; }
+            status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
+            if(data.warnings && data.warnings.length) status.innerHTML += '<div class="alert alert-warning" style="margin-top:0.5rem;">' + data.warnings.join('<br>') + '</div>';
+            showTablesInfo(data.tables);
+            document.getElementById('btnPipeline').disabled = false;
+            document.getElementById('statusText').textContent = data.pipeline && data.pipeline.auto_analyzed
+                ? 'Dataset cargado y analizado. Dashboard y ML actualizados.'
+                : 'Dataset aseguradora listo. Ejecute el análisis.';
+            applyAutoPipelineFromApiResponse(data);
+            checkDBStatus();
+        } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
+        btn.disabled = false;
     }
 
     async function loadSynthetic() {
@@ -1847,6 +2042,7 @@ Motor actual: reglas</div>
             status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
             showTablesInfo(data.tables);
             document.getElementById('btnPipeline').disabled = false;
+            applyAutoPipelineFromApiResponse(data);
             checkDBStatus();
         } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
         btn.disabled = false;
@@ -1863,6 +2059,44 @@ Motor actual: reglas</div>
             </div>`;
         }
         document.getElementById('tablesInfo').style.display = 'block';
+    }
+
+    function handlePipelineComplete(data) {
+        const btn = document.getElementById('btnPipeline');
+        document.getElementById('pipelineProgress').style.display = 'block';
+        let stepsHtml = '';
+        const pipelineSteps = Array.isArray(data.steps) ? data.steps : [];
+        pipelineSteps.forEach(s => {
+            const cls = s.status === 'ok' ? 'step-ok' : s.status === 'skipped' ? '' : s.status === 'warning' ? 'step-warn' : 'step-error';
+            const icon = s.status === 'ok' ? '&#10003;' : s.status === 'skipped' ? '&#8722;' : '&#10007;';
+            stepsHtml += `<div class="step ${cls}"><div class="step-icon">${icon}</div> <strong>${s.step}</strong></div>`;
+        });
+        if (!stepsHtml) {
+            stepsHtml = '<div class="step step-ok"><div class="step-icon">&#10003;</div> <strong>Pipeline completado</strong></div>';
+        }
+        document.getElementById('pipelineSteps').innerHTML = stepsHtml;
+        document.getElementById('statusIndicator').className = 'badge badge-green';
+        document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-green"></span> Análisis completo';
+        const totalRecords = Number(data.total_records || 0);
+        const duration = Number(data.duration_seconds || 0);
+        document.getElementById('statusText').textContent = `Pipeline completado: ${totalRecords.toLocaleString()} siniestros · ${duration}s — dashboard y ML listos`;
+        btn.innerHTML = 'Ejecutar Análisis Completo';
+        btn.disabled = false;
+        if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
+        initDashboard();
+        loadCases();
+        loadModelMetrics();
+        if (document.getElementById('tab-model').classList.contains('active')) {
+            updateMlChatWidgetVisibility(true);
+        }
+        refreshMlChatStatus();
+    }
+
+    function applyAutoPipelineFromApiResponse(data) {
+        const pipe = data && data.pipeline;
+        if (pipe && pipe.auto_analyzed && !pipe.pipeline_error) {
+            handlePipelineComplete(pipe);
+        }
     }
 
     // ── Pipeline ──
@@ -1882,29 +2116,7 @@ Motor actual: reglas</div>
                 document.getElementById('pipelineSteps').innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> Error: ' + data.error + '</div>';
                 btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false; return;
             }
-            let stepsHtml = '';
-            const pipelineSteps = Array.isArray(data.steps) ? data.steps : [];
-            pipelineSteps.forEach(s => {
-                const cls = s.status === 'ok' ? 'step-ok' : s.status === 'skipped' ? '' : s.status === 'warning' ? 'step-warn' : 'step-error';
-                const icon = s.status === 'ok' ? '&#10003;' : s.status === 'skipped' ? '&#8722;' : '&#10007;';
-                stepsHtml += `<div class="step ${cls}"><div class="step-icon">${icon}</div> <strong>${s.step}</strong></div>`;
-            });
-            if (!stepsHtml) {
-                stepsHtml = '<div class="step step-ok"><div class="step-icon">&#10003;</div> <strong>Pipeline completado</strong></div>';
-            }
-            document.getElementById('pipelineSteps').innerHTML = stepsHtml;
-            document.getElementById('statusIndicator').className = 'badge badge-green';
-            document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-green"></span> Análisis completo';
-            const totalRecords = Number(data.total_records || 0);
-            const duration = Number(data.duration_seconds || 0);
-            document.getElementById('statusText').textContent = `Pipeline completado: ${totalRecords.toLocaleString()} siniestros · ${duration}s`;
-            btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false;
-            if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
-            initDashboard(); loadCases(); loadModelMetrics();
-            if (document.getElementById('tab-model').classList.contains('active')) {
-                updateMlChatWidgetVisibility(true);
-            }
-            refreshMlChatStatus();
+            handlePipelineComplete(data);
         } catch(e) {
             document.getElementById('pipelineSteps').innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> Error de conexión: ' + e.message + '</div>';
             btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false;
