@@ -36,6 +36,7 @@ from src.ingestion.load_data import (
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
 from src.utils.dataframe_columns import ensure_str_columns, normalize_datasets_columns
 from src.db.config import test_connection
+from src.db.config import is_persistent_database_configured
 from src.db.repository import (
     init_database,
     save_all_datasets,
@@ -47,8 +48,12 @@ from src.db.repository import (
 )
 
 
+def _should_use_live_database() -> bool:
+    return (not is_vercel_runtime()) or is_persistent_database_configured()
+
+
 def ensure_vercel_data() -> None:
-    if is_vercel_runtime() and app_state.get("df_scored") is None:
+    if is_vercel_runtime() and not is_persistent_database_configured() and app_state.get("df_scored") is None:
         try:
             bootstrap_vercel_demo(app_state)
         except Exception as exc:
@@ -59,6 +64,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "vercel": is_vercel_runtime(),
+        "live_db_mode": is_persistent_database_configured(),
         "pipeline_ready": app_state.get("df_scored") is not None,
         "stack": "fastapi",
     }
@@ -73,6 +79,7 @@ def deployment_info() -> dict:
         "openai_configured": is_openai_configured(),
         "openai_model": get_openai_model() if is_openai_configured() else None,
         "stack": "python-fastapi",
+        "live_db_mode": is_persistent_database_configured(),
         "analysis_flow": (
             "build: datos → pipeline → bundle; runtime: dashboard + OpenAI"
         ) if is_vercel_runtime() else "local: carga/sintéticos → pipeline",
@@ -83,7 +90,7 @@ def deployment_info() -> dict:
 
 
 def db_status() -> dict:
-    if is_vercel_runtime():
+    if is_vercel_runtime() and not is_persistent_database_configured():
         return {
             "status": "ok",
             "type": "In-memory (Vercel)",
@@ -185,7 +192,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     db_save_result = None
     if validation["has_siniestros"]:
         datasets_copy = {k: v.copy() for k, v in app_state["datasets"].items()}
-        if is_vercel_runtime():
+        if not _should_use_live_database():
             db_save_result = {"status": "skipped", "reason": "serverless-ephemeral-runtime"}
             db_msg = " (persistencia omitida en runtime Vercel)"
         else:
@@ -210,7 +217,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
 
 
 def load_synthetic() -> dict:
-    if is_vercel_runtime():
+    if is_vercel_runtime() and not is_persistent_database_configured():
         boot = bootstrap_vercel_demo(app_state)
         df_scored = app_state.get("df_scored")
         return {
@@ -229,15 +236,18 @@ def load_synthetic() -> dict:
 
     from src.ingestion.generate_synthetic import main as generate_data
 
-    seed_used = generate_data()
-    app_state["datasets"] = load_all_from_directory(os.path.join("data", "synthetic"))
+    synth_dir = os.path.join("data", "synthetic")
+    if is_vercel_runtime():
+        synth_dir = "/tmp/fraudia_synthetic"
+    seed_used = generate_data(output_dir=synth_dir)
+    app_state["datasets"] = load_all_from_directory(synth_dir)
     reset_pipeline_state()
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns)}
         for name, df in app_state["datasets"].items()
     }
 
-    if not is_vercel_runtime():
+    if _should_use_live_database():
         init_database()
         save_all_datasets({k: v.copy() for k, v in app_state["datasets"].items()})
     return {
@@ -249,7 +259,7 @@ def load_synthetic() -> dict:
 
 
 def load_from_db() -> dict:
-    if is_vercel_runtime():
+    if is_vercel_runtime() and not is_persistent_database_configured():
         boot = bootstrap_vercel_demo(app_state)
         df_scored = app_state.get("df_scored")
         return {
@@ -275,7 +285,7 @@ def load_from_db() -> dict:
 
 
 def run_pipeline() -> dict:
-    if is_vercel_runtime():
+    if is_vercel_runtime() and not is_persistent_database_configured():
         boot = bootstrap_vercel_demo(app_state)
         return {
             "status": "success",
@@ -319,7 +329,7 @@ def run_pipeline() -> dict:
         update_siniestros_scores(df)
         save_analysis_run(**payload)
 
-    if not is_vercel_runtime():
+    if _should_use_live_database():
         _persist_scores(df_scored.copy(), db_payload)
     app_state["agent"] = ClaimsAgent(df_scored, extra_context=build_agent_context())
     return {

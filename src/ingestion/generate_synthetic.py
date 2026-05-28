@@ -349,10 +349,11 @@ def generate_documentos(siniestros_df):
     return pd.DataFrame(records)
 
 
-def main(seed: Optional[int] = None) -> int:
+def main(seed: Optional[int] = None, output_dir: Optional[str] = None) -> int:
     """Genera datasets sintéticos. Retorna la semilla usada."""
     used_seed = _set_seed(seed)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out_dir = output_dir or OUTPUT_DIR
+    os.makedirs(out_dir, exist_ok=True)
 
     print(f"Generando datos sintéticos (semilla={used_seed})...")
     print("Generando asegurados...")
@@ -383,11 +384,11 @@ def main(seed: Optional[int] = None) -> int:
     }
 
     for name, df in datasets.items():
-        csv_path = os.path.join(OUTPUT_DIR, f"{name}.csv")
+        csv_path = os.path.join(out_dir, f"{name}.csv")
         df.to_csv(csv_path, index=False, encoding="utf-8-sig")
         print(f"  {name}: {len(df)} registros -> {csv_path}")
 
-    excel_path = os.path.join(OUTPUT_DIR, "dataset_completo.xlsx")
+    excel_path = os.path.join(out_dir, "dataset_completo.xlsx")
     with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
         for name, df in datasets.items():
             df.to_excel(writer, sheet_name=name, index=False)

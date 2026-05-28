@@ -47,8 +47,10 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 | `OPENAI_ENABLED` | `true` |
 | `SECRET_KEY` | Cadena aleatoria |
 | `VERCEL_API_KEY` | Clave opcional para proteger `/api/*` por header `X-Vercel-API-Key` |
+| `DATABASE_URL` | **Obligatoria** si quiere BD real en Vercel (MySQL/TiDB/Postgres) |
 
 Sin `OPENAI_API_KEY` el dashboard funciona; el chat no generará respuestas enriquecidas.
+Sin `DATABASE_URL` en Vercel, el sistema opera en modo bundle/in-memory (demo).
 
 ## 3. Probar localmente el mismo flujo que Vercel
 

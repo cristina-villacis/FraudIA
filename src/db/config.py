@@ -23,6 +23,19 @@ _engine = None
 _SessionFactory = None
 
 
+def is_persistent_database_configured() -> bool:
+    """
+    True cuando la BD configurada es apta para entorno serverless (MySQL/TiDB remota).
+    SQLite local en ruta de proyecto no es persistente en Vercel.
+    """
+    url = (os.environ.get("DATABASE_URL") or DATABASE_URL or "").strip().lower()
+    if not url:
+        return False
+    if url.startswith("sqlite"):
+        return False
+    return url.startswith(("mysql", "postgresql", "postgres"))
+
+
 def get_engine():
     global _engine
     if _engine is None:
