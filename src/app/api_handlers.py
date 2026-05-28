@@ -27,7 +27,12 @@ from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime, l
 from src.ai_agent.claims_agent import ClaimsAgent
 from src.ai_agent.openai_client import is_openai_configured, get_openai_model
 from src.explainability.explain_score import explain_single_case
-from src.ingestion.load_data import load_all_from_directory, load_file_to_tables, validate_datasets
+from src.ingestion.load_data import (
+    load_all_from_directory,
+    load_file_to_tables,
+    load_from_upload,
+    validate_datasets,
+)
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
 from src.utils.dataframe_columns import ensure_str_columns, normalize_datasets_columns
 from src.db.config import test_connection
@@ -144,13 +149,22 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     ext = os.path.splitext(filename)[1].lower()
     if ext not in (".csv", ".xlsx", ".xls"):
         raise ValueError("Formato no soportado. Use CSV o Excel (.xlsx).")
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    with open(filepath, "wb") as f:
-        f.write(content)
-    new_tables = {
-        name: ensure_str_columns(df)
-        for name, df in load_file_to_tables(filepath, filename).items()
-    }
+    if is_vercel_runtime():
+        # Runtime serverless: evita escribir en disco de solo lectura.
+        file_obj = io.BytesIO(content)
+        file_obj.name = filename
+        new_tables = {
+            name: ensure_str_columns(df)
+            for name, df in load_from_upload(file_obj, filename).items()
+        }
+    else:
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        with open(filepath, "wb") as f:
+            f.write(content)
+        new_tables = {
+            name: ensure_str_columns(df)
+            for name, df in load_file_to_tables(filepath, filename).items()
+        }
     if not new_tables:
         raise ValueError("El archivo no contiene datos válidos (hojas vacías).")
     merge_uploaded_tables(new_tables)
@@ -196,6 +210,23 @@ def upload_dataset(filename: str, content: bytes) -> dict:
 
 
 def load_synthetic() -> dict:
+    if is_vercel_runtime():
+        boot = bootstrap_vercel_demo(app_state)
+        df_scored = app_state.get("df_scored")
+        return {
+            "status": "success",
+            "message": (
+                "En Vercel se usa dataset preanalizado del build (no se genera archivo sintético en runtime)."
+            ),
+            "tables": {
+                "siniestros": {
+                    "rows": len(df_scored) if df_scored is not None else 0,
+                    "columns": len(df_scored.columns) if df_scored is not None else 0,
+                }
+            },
+            "bootstrap": boot,
+        }
+
     from src.ingestion.generate_synthetic import main as generate_data
 
     seed_used = generate_data()
@@ -218,6 +249,17 @@ def load_synthetic() -> dict:
 
 
 def load_from_db() -> dict:
+    if is_vercel_runtime():
+        boot = bootstrap_vercel_demo(app_state)
+        df_scored = app_state.get("df_scored")
+        return {
+            "status": "success",
+            "message": "Modo Vercel: datos cargados desde bundle en memoria.",
+            "tables": {"siniestros": {"rows": len(df_scored) if df_scored is not None else 0, "columns": 0}},
+            "has_siniestros": df_scored is not None,
+            "bootstrap": boot,
+        }
+
     datasets = normalize_datasets_columns(load_all_datasets())
     if not datasets or "siniestros" not in datasets:
         raise ValueError("No hay datos en la base de datos. Suba un archivo primero.")
