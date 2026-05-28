@@ -309,12 +309,34 @@ def _documents_storage_dir() -> str:
     return DOCUMENTS_UPLOAD_FOLDER
 
 
-def _runtime_cache_dir() -> str:
-    return "/tmp/fraudia_runtime_datasets"
+def _runtime_cache_dirs() -> List[str]:
+    """Rutas /tmp: primero sesión (header), luego caché global."""
+    dirs: List[str] = []
+    sid = get_request_session_id()
+    if sid:
+        dirs.append(f"/tmp/fraudia_sessions/{sid}/datasets")
+    dirs.append("/tmp/fraudia_runtime_datasets")
+    return dirs
 
 
-def _runtime_analysis_dir() -> str:
-    return "/tmp/fraudia_runtime_analysis"
+def _runtime_analysis_dirs() -> List[str]:
+    dirs: List[str] = []
+    sid = get_request_session_id()
+    if sid:
+        dirs.append(f"/tmp/fraudia_sessions/{sid}/analysis")
+    dirs.append("/tmp/fraudia_runtime_analysis")
+    return dirs
+
+
+def _write_datasets_to_cache_dir(datasets: Dict[str, pd.DataFrame], cache_dir: str) -> None:
+    os.makedirs(cache_dir, exist_ok=True)
+    manifest = {"tables": []}
+    for name, df in datasets.items():
+        path = os.path.join(cache_dir, f"{name}.csv")
+        df.to_csv(path, index=False)
+        manifest["tables"].append(name)
+    with open(os.path.join(cache_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False)
 
 
 def _clear_runtime_analysis_cache() -> None:
