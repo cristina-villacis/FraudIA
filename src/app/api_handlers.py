@@ -313,10 +313,24 @@ def load_from_db() -> dict:
 def run_pipeline() -> dict:
     if is_vercel_runtime() and not is_persistent_database_configured():
         boot = bootstrap_vercel_demo(app_state)
+        bundle = load_vercel_bundle() or {}
+        bundle_steps = (
+            (bundle.get("manifest") or {}).get("steps")
+            or (boot.get("pipeline_steps") if isinstance(boot, dict) else None)
+            or []
+        )
+        steps = [
+            {"step": str(step), "status": "ok"} if not isinstance(step, dict) else step
+            for step in bundle_steps
+        ]
+        if not steps:
+            steps = [{"step": "Carga de bundle Vercel", "status": "ok"}]
         return {
             "status": "success",
             "message": "Análisis cargado desde build Vercel. Redeploy para recalcular.",
             "total_records": len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0,
+            "duration_seconds": 0,
+            "steps": steps,
             "vercel": True,
             "bootstrap": boot,
         }

@@ -1883,15 +1883,21 @@ Motor actual: reglas</div>
                 btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false; return;
             }
             let stepsHtml = '';
-            data.steps.forEach(s => {
+            const pipelineSteps = Array.isArray(data.steps) ? data.steps : [];
+            pipelineSteps.forEach(s => {
                 const cls = s.status === 'ok' ? 'step-ok' : s.status === 'skipped' ? '' : s.status === 'warning' ? 'step-warn' : 'step-error';
                 const icon = s.status === 'ok' ? '&#10003;' : s.status === 'skipped' ? '&#8722;' : '&#10007;';
                 stepsHtml += `<div class="step ${cls}"><div class="step-icon">${icon}</div> <strong>${s.step}</strong></div>`;
             });
+            if (!stepsHtml) {
+                stepsHtml = '<div class="step step-ok"><div class="step-icon">&#10003;</div> <strong>Pipeline completado</strong></div>';
+            }
             document.getElementById('pipelineSteps').innerHTML = stepsHtml;
             document.getElementById('statusIndicator').className = 'badge badge-green';
             document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-green"></span> Análisis completo';
-            document.getElementById('statusText').textContent = `Pipeline completado: ${data.total_records.toLocaleString()} siniestros · ${data.duration_seconds}s`;
+            const totalRecords = Number(data.total_records || 0);
+            const duration = Number(data.duration_seconds || 0);
+            document.getElementById('statusText').textContent = `Pipeline completado: ${totalRecords.toLocaleString()} siniestros · ${duration}s`;
             btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false;
             if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
             initDashboard(); loadCases(); loadModelMetrics();
