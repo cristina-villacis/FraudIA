@@ -52,6 +52,17 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 Sin `OPENAI_API_KEY` el dashboard funciona; el chat no generará respuestas enriquecidas.
 Sin `DATABASE_URL` en Vercel, el sistema opera en modo bundle/in-memory (demo).
 
+### TiDB Cloud (recomendado para producción)
+
+Guía paso a paso con tu cluster **Siniestros**: [despliegue-tidb-vercel.md](./despliegue-tidb-vercel.md)
+
+Resumen:
+
+1. TiDB Cloud → **Connect** → copiar host, usuario, contraseña, puerto `4000`
+2. Vercel → `DATABASE_URL=mysql+pymysql://user:pass@HOST:4000/fraudia_claims`
+3. Redeploy → `POST /api/db-init` una vez
+4. Subir datos → **Ejecutar análisis** → Dashboard/ML reflejan **ese** dataset
+
 ## 3. Probar localmente el mismo flujo que Vercel
 
 ```powershell
