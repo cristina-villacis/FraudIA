@@ -57,6 +57,66 @@ def _runtime_cache_dir() -> str:
     return "/tmp/fraudia_runtime_datasets"
 
 
+def _runtime_analysis_dir() -> str:
+    return "/tmp/fraudia_runtime_analysis"
+
+
+def _clear_runtime_analysis_cache() -> None:
+    if not is_vercel_runtime():
+        return
+    import shutil
+
+    path = _runtime_analysis_dir()
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _persist_runtime_analysis(result: dict) -> None:
+    """Guarda resultado del pipeline en /tmp (misma instancia serverless)."""
+    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+        return
+    df = result.get("df_scored")
+    if df is None:
+        return
+    out_dir = _runtime_analysis_dir()
+    os.makedirs(out_dir, exist_ok=True)
+    df.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
+    meta = {
+        "model_snapshot": result.get("model_snapshot"),
+        "dashboard_snapshot": result.get("dashboard_snapshot"),
+        "nlp_results": result.get("nlp_results"),
+        "total_records": result.get("total_records"),
+        "auc_roc": result.get("auc_roc"),
+    }
+    with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, default=str)
+
+
+def _hydrate_runtime_analysis() -> bool:
+    """Recupera último análisis guardado en /tmp (si existe)."""
+    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+        return False
+    csv_path = os.path.join(_runtime_analysis_dir(), "siniestros_scored.csv")
+    if not os.path.exists(csv_path):
+        return False
+    df = pd.read_csv(csv_path)
+    app_state["df_scored"] = df
+    app_state["df_features"] = df.copy()
+    app_state["pipeline_status"] = "completed"
+    meta_path = os.path.join(_runtime_analysis_dir(), "meta.json")
+    if os.path.exists(meta_path):
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        app_state["model_snapshot"] = meta.get("model_snapshot")
+        app_state["dashboard_snapshot"] = meta.get("dashboard_snapshot")
+        app_state["nlp_results"] = meta.get("nlp_results") or {}
+    app_state["dashboard_last_payload"] = build_dashboard_payload(
+        df, total_unfiltered=len(df), active_filters=[]
+    )
+    app_state["agent"] = ClaimsAgent(df, extra_context=build_agent_context())
+    return True
+
+
 def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
     """
     En Vercel sin BD persistente, guarda datasets en /tmp para reuso entre requests
@@ -123,11 +183,32 @@ def _hydrate_agent_from_scored_if_available() -> bool:
 
 
 def ensure_vercel_data() -> None:
-    if is_vercel_runtime() and not is_persistent_database_configured() and app_state.get("df_scored") is None:
-        try:
-            bootstrap_vercel_demo(app_state)
-        except Exception as exc:
-            print(f"[Vercel] Error cargando bundle: {exc}")
+    """
+    En Vercel sin BD persistente: no reemplazar datos cargados por el usuario con el bundle demo.
+    Solo precargar demo si no hay datasets ni análisis en /tmp.
+    """
+    if not is_vercel_runtime() or is_persistent_database_configured():
+        return
+
+    if app_state.get("datasets") and "siniestros" in app_state["datasets"]:
+        if app_state.get("df_scored") is None:
+            _hydrate_runtime_analysis()
+        return
+
+    runtime_ds = _load_runtime_datasets()
+    if runtime_ds and "siniestros" in runtime_ds:
+        app_state["datasets"] = runtime_ds
+        if app_state.get("df_scored") is None:
+            _hydrate_runtime_analysis()
+        return
+
+    if app_state.get("df_scored") is not None:
+        return
+
+    try:
+        bootstrap_vercel_demo(app_state)
+    except Exception as exc:
+        print(f"[Vercel] Error cargando bundle: {exc}")
 
 
 def health() -> dict:
@@ -246,6 +327,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         raise ValueError("El archivo no contiene datos válidos (hojas vacías).")
     merge_uploaded_tables(new_tables)
     reset_pipeline_state()
+    _clear_runtime_analysis_cache()
     _persist_runtime_datasets(app_state["datasets"])
     validation = validate_datasets(app_state["datasets"])
     tables_info = {
@@ -296,6 +378,7 @@ def load_synthetic() -> dict:
     seed_used = generate_data(output_dir=synth_dir)
     app_state["datasets"] = load_all_from_directory(synth_dir)
     reset_pipeline_state()
+    _clear_runtime_analysis_cache()
     _persist_runtime_datasets(app_state["datasets"])
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns)}
@@ -315,15 +398,23 @@ def load_synthetic() -> dict:
 
 def load_from_db() -> dict:
     if is_vercel_runtime() and not is_persistent_database_configured():
-        boot = bootstrap_vercel_demo(app_state)
-        df_scored = app_state.get("df_scored")
-        return {
-            "status": "success",
-            "message": "Modo Vercel: datos cargados desde bundle en memoria.",
-            "tables": {"siniestros": {"rows": len(df_scored) if df_scored is not None else 0, "columns": 0}},
-            "has_siniestros": df_scored is not None,
-            "bootstrap": boot,
-        }
+        datasets = _load_runtime_datasets()
+        if datasets and "siniestros" in datasets:
+            app_state["datasets"] = datasets
+            _hydrate_runtime_analysis()
+            return {
+                "status": "success",
+                "message": "Datos recuperados de sesión Vercel (/tmp). Ejecute análisis si aún no lo hizo.",
+                "tables": {
+                    n: {"rows": len(d), "columns": len(d.columns)}
+                    for n, d in datasets.items()
+                },
+                "has_siniestros": True,
+                "pipeline_ready": app_state.get("df_scored") is not None,
+            }
+        raise ValueError(
+            "En Vercel sin base de datos: suba un dataset o genere datos sintéticos y ejecute el análisis."
+        )
 
     datasets = normalize_datasets_columns(load_all_datasets())
     if not datasets or "siniestros" not in datasets:
@@ -407,15 +498,21 @@ def run_pipeline() -> dict:
         update_siniestros_scores(df)
         save_analysis_run(**payload)
 
+    steps_out = list(result["steps"])
     if _should_use_live_database():
         _persist_scores(df_scored.copy(), db_payload)
+        steps_out.append({"step": "Guardado en BD", "status": "ok"})
+    else:
+        _persist_runtime_analysis(result)
+
     app_state["agent"] = ClaimsAgent(df_scored, extra_context=build_agent_context())
     return {
         "status": "success",
-        "steps": result["steps"] + [{"step": "Guardado en BD", "status": "ok"}],
+        "steps": steps_out,
         "executive_summary": result["executive_summary"],
         "total_records": result["total_records"],
         "duration_seconds": result["duration_seconds"],
+        "analyzed_from_upload": True,
     }
 
 

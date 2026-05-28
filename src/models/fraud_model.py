@@ -27,6 +27,33 @@ warnings.filterwarnings("ignore")
 MODEL_DIR = os.path.join("src", "models", "saved")
 
 
+def _is_vercel_runtime() -> bool:
+    return bool(
+        os.getenv("VERCEL")
+        or os.getenv("VERCEL_DEPLOYMENT_ID")
+        or os.getenv("VERCEL_ENV")
+    )
+
+
+def _resolve_model_dir() -> str:
+    # En runtimes serverless (Vercel) solo /tmp es escribible.
+    if _is_vercel_runtime():
+        return "/tmp/fraudia_models"
+    return MODEL_DIR
+
+
+def _safe_dump(obj, filename: str) -> None:
+    """
+    Persistencia best-effort: no rompe el pipeline si el filesystem es read-only.
+    """
+    model_dir = _resolve_model_dir()
+    try:
+        os.makedirs(model_dir, exist_ok=True)
+        joblib.dump(obj, os.path.join(model_dir, filename))
+    except Exception as exc:
+        warnings.warn(f"No se pudo guardar '{filename}' en disco: {exc}")
+
+
 def prepare_features(df: pd.DataFrame, feature_cols: list) -> Tuple[pd.DataFrame, list]:
     from src.utils.dataframe_columns import ensure_str_columns
 
@@ -101,10 +128,9 @@ def train_supervised_model(
         "importance": model.feature_importances_,
     }).sort_values("importance", ascending=False)
 
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(model, os.path.join(MODEL_DIR, "rf_fraud_model.joblib"))
-    joblib.dump(scaler, os.path.join(MODEL_DIR, "scaler.joblib"))
-    joblib.dump(valid_cols, os.path.join(MODEL_DIR, "feature_cols.joblib"))
+    _safe_dump(model, "rf_fraud_model.joblib")
+    _safe_dump(scaler, "scaler.joblib")
+    _safe_dump(valid_cols, "feature_cols.joblib")
 
     auc = roc_auc_score(y_test, y_proba)
     report = classification_report(y_test, y_pred, output_dict=True)
@@ -151,9 +177,8 @@ def train_anomaly_model(
         anomaly_scores.max() - anomaly_scores.min() + 1e-8
     )
 
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(iso_forest, os.path.join(MODEL_DIR, "isolation_forest.joblib"))
-    joblib.dump(scaler, os.path.join(MODEL_DIR, "anomaly_scaler.joblib"))
+    _safe_dump(iso_forest, "isolation_forest.joblib")
+    _safe_dump(scaler, "anomaly_scaler.joblib")
 
     n_anomalies = (anomaly_labels == -1).sum()
 
@@ -176,9 +201,10 @@ def predict_fraud_probability(
     feature_cols: list = None,
 ) -> np.ndarray:
     if model is None:
-        model = joblib.load(os.path.join(MODEL_DIR, "rf_fraud_model.joblib"))
-        scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.joblib"))
-        feature_cols = joblib.load(os.path.join(MODEL_DIR, "feature_cols.joblib"))
+        model_dir = _resolve_model_dir()
+        model = joblib.load(os.path.join(model_dir, "rf_fraud_model.joblib"))
+        scaler = joblib.load(os.path.join(model_dir, "scaler.joblib"))
+        feature_cols = joblib.load(os.path.join(model_dir, "feature_cols.joblib"))
 
     feature_cols = [str(c) for c in feature_cols]
     X, _ = prepare_features(df, feature_cols)

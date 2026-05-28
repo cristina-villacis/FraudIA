@@ -5,7 +5,10 @@ import os
 import threading
 
 UPLOAD_FOLDER = os.path.join("data", "raw")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except OSError:
+    pass
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 

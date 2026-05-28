@@ -29,6 +29,20 @@ from src.utils.dataframe_columns import normalize_datasets_columns
 BUNDLE_DIR = os.path.join("data", "processed", "vercel_bundle")
 
 
+def _is_vercel_runtime() -> bool:
+    return bool(
+        os.getenv("VERCEL")
+        or os.getenv("VERCEL_DEPLOYMENT_ID")
+        or os.getenv("VERCEL_ENV")
+    )
+
+
+def _default_scored_csv_path() -> str:
+    if _is_vercel_runtime():
+        return "/tmp/fraudia_processed/siniestros_scored.csv"
+    return os.path.join("data", "processed", "siniestros_scored.csv")
+
+
 class NumpyJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, (np.integer,)):
@@ -144,9 +158,13 @@ def execute_full_pipeline(
     df_scored = compute_hybrid_score(df_rules)
 
     if persist_csv:
-        out = csv_path or os.path.join("data", "processed", "siniestros_scored.csv")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        df_scored.to_csv(out, index=False)
+        out = csv_path or _default_scored_csv_path()
+        try:
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            df_scored.to_csv(out, index=False)
+        except OSError:
+            # En serverless solo /tmp es escribible; el estado vive en memoria del request.
+            pass
 
     dashboard_payload = build_dashboard_payload(
         df_scored, total_unfiltered=len(df_scored), active_filters=[]
