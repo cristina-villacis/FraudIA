@@ -93,6 +93,12 @@ Para un nuevo análisis en producción: ejecute el script local o redeploy (buil
 
 ## Solución de problemas
 
+### "This deployment can not be redeployed"
+Vercel **no permite** volver a desplegar un build fallido. Solución:
+1. Haga `git push` con un **commit nuevo** (aunque sea un cambio mínimo).
+2. Espere el deployment automático desde GitHub.
+3. No use **Redeploy** en el deployment viejo; abra el **nuevo** que aparece arriba en la lista.
+
 ### Pantalla "No Production Deployment"
 Significa que **ningún build terminó bien**. En Vercel → **Deployments** → abra el último → **Building** / **Logs**.
 
