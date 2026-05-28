@@ -216,3 +216,4 @@ class AnalisisRun(Base):
     anomalias_detectadas = Column(Integer, nullable=True)
     duracion_segundos = Column(Float, nullable=True)
     estado = Column(String(20), default="completado")
+    meta_json = Column(Text, nullable=True)

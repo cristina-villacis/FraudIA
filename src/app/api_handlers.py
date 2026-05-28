@@ -46,6 +46,9 @@ from src.db.repository import (
     init_database,
     save_all_datasets,
     load_all_datasets,
+    load_dataframe,
+    load_latest_analysis_meta,
+    replace_siniestros_scored,
     update_siniestros_scores,
     save_analysis_run,
     get_analysis_history,
@@ -84,8 +87,13 @@ def _should_pipeline_async() -> bool:
 
 
 def _should_sync_scores_after_pipeline() -> bool:
-    """Evita miles de UPDATE fila a fila en TiDB tras cada análisis."""
-    return os.getenv("SCORE_SYNC_ON_PIPELINE", "false").lower() in ("1", "true", "yes")
+    """Persiste scores en TiDB tras análisis (necesario para dashboard/ML en Vercel)."""
+    env = os.getenv("SCORE_SYNC_ON_PIPELINE", "").strip().lower()
+    if env in ("0", "false", "no"):
+        return False
+    if env in ("1", "true", "yes"):
+        return True
+    return _should_use_live_database()
 
 
 def _standard_tables_label(datasets: dict) -> str:
@@ -152,15 +160,67 @@ def _try_persist_datasets_early() -> Optional[str]:
         return str(exc)[:160]
 
 
+def _apply_analysis_meta(meta: Optional[dict]) -> None:
+    if not meta or not isinstance(meta, dict):
+        return
+    if meta.get("model_snapshot"):
+        app_state["model_snapshot"] = meta["model_snapshot"]
+        app_state["model_results"] = meta.get("model_results") or meta["model_snapshot"]
+    if meta.get("nlp_results") is not None:
+        app_state["nlp_results"] = meta["nlp_results"]
+    if meta.get("dashboard_snapshot"):
+        app_state["dashboard_snapshot"] = meta["dashboard_snapshot"]
+    if meta.get("executive_summary"):
+        app_state["executive_summary"] = meta["executive_summary"]
+
+
+def _reload_scored_siniestros_from_db() -> bool:
+    """Carga siniestros puntuados desde TiDB (siguiente request en Vercel)."""
+    if not _should_use_live_database():
+        return False
+    try:
+        sin = load_dataframe("siniestros")
+        if sin is None or len(sin) == 0:
+            return False
+        if "score_hibrido" not in sin.columns or sin["score_hibrido"].notna().sum() == 0:
+            return False
+        if "semaforo_final" not in sin.columns:
+            return False
+        sin = normalize_datasets_columns({"siniestros": sin})["siniestros"]
+        app_state.setdefault("datasets", {})["siniestros"] = sin
+        app_state["df_scored"] = sin.copy()
+        app_state["df_features"] = sin.copy()
+        app_state["pipeline_status"] = "completed"
+        app_state["dashboard_last_payload"] = build_dashboard_payload(
+            app_state["df_scored"], total_unfiltered=len(app_state["df_scored"]), active_filters=[]
+        )
+        _apply_analysis_meta(load_latest_analysis_meta())
+        if app_state.get("agent") is None:
+            app_state["agent"] = ClaimsAgent(
+                app_state["df_scored"], extra_context=build_agent_context()
+            )
+        return True
+    except Exception:
+        return False
+
+
 def _ensure_scored_state() -> bool:
     """Carga df_scored desde memoria, /tmp o TiDB (columnas score_hibrido / semaforo_final)."""
     if app_state.get("df_scored") is not None:
         return True
+    if is_vercel_runtime():
+        _hydrate_runtime_analysis()
+    if app_state.get("df_scored") is not None:
+        return True
     _hydrate_datasets_from_storage()
+    if _reload_scored_siniestros_from_db():
+        return True
     if is_vercel_runtime():
         _hydrate_runtime_analysis()
     if app_state.get("df_scored") is None:
         _hydrate_agent_from_scored_if_available()
+    if app_state.get("df_scored") is not None and app_state.get("model_snapshot") is None:
+        _apply_analysis_meta(load_latest_analysis_meta())
     return app_state.get("df_scored") is not None
 
 
@@ -247,6 +307,8 @@ def _apply_pipeline_result(result: Dict[str, Any]) -> None:
         "pipeline_status": "completed",
         "executive_summary": result.get("executive_summary"),
     })
+    if "siniestros" in app_state.get("datasets", {}):
+        app_state["datasets"]["siniestros"] = df_scored.copy()
 
     ctx = build_agent_context()
     ctx["manifest"] = {"steps": result.get("steps", [])}
@@ -480,6 +542,8 @@ def _hydrate_agent_from_scored_if_available() -> bool:
     required = {"id_siniestro", "semaforo_final", "score_hibrido"}
     if not required.issubset(set(sin.columns)):
         return False
+    if sin["score_hibrido"].notna().sum() == 0:
+        return False
 
     app_state["df_scored"] = sin.copy()
     app_state["df_features"] = sin.copy()
@@ -509,7 +573,10 @@ def ensure_vercel_data() -> None:
             _hydrate_datasets_from_storage()
         if app_state.get("df_scored") is None:
             _hydrate_runtime_analysis()
+            _reload_scored_siniestros_from_db()
             _hydrate_agent_from_scored_if_available()
+            if app_state.get("model_snapshot") is None:
+                _apply_analysis_meta(load_latest_analysis_meta())
         return
 
     if app_state.get("datasets") and "siniestros" in app_state["datasets"]:
@@ -1012,19 +1079,25 @@ def _execute_run_pipeline_body() -> dict:
         "duracion": time.time() - t_start,
     }
 
-    def _persist_scores(df, payload):
+    def _persist_scores(df, payload, pipeline_result):
+        meta = {
+            "model_snapshot": pipeline_result.get("model_snapshot"),
+            "nlp_results": pipeline_result.get("nlp_results"),
+            "dashboard_snapshot": app_state.get("dashboard_snapshot"),
+            "executive_summary": app_state.get("executive_summary"),
+        }
         if _should_sync_scores_after_pipeline():
-            update_siniestros_scores(df)
-        save_analysis_run(**payload)
+            replace_siniestros_scored(df)
+        save_analysis_run(**payload, meta=meta)
 
     steps_out = list(result["steps"])
     if _should_use_live_database():
         try:
-            _persist_scores(df_scored.copy(), db_payload)
-            steps_out.append({"step": "Guardado en BD", "status": "ok"})
+            _persist_scores(df_scored.copy(), db_payload, result)
+            steps_out.append({"step": "Scores y análisis en TiDB", "status": "ok"})
         except Exception as exc:
             steps_out.append({
-                "step": "Guardado en BD",
+                "step": "Scores y análisis en TiDB",
                 "status": "warning",
                 "detail": str(exc)[:120],
             })

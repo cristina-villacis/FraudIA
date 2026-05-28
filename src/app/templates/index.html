@@ -2215,8 +2215,13 @@
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             item.classList.add('active');
             document.getElementById('tab-' + item.dataset.tab).classList.add('active');
-            if (item.dataset.tab === 'dashboard') initDashboard();
-            if (item.dataset.tab === 'model') loadModelMetrics();
+            if (item.dataset.tab === 'dashboard') {
+                bootstrapSessionFromServer().then(() => initDashboard());
+            }
+            if (item.dataset.tab === 'model') {
+                bootstrapSessionFromServer().then(() => loadModelMetrics());
+            }
+            if (item.dataset.tab === 'cases') loadCases();
             if (item.dataset.tab === 'model' || item.dataset.tab === 'dashboard') {
                 updateMlChatWidgetVisibility(true);
             } else {
@@ -2464,7 +2469,8 @@
         pipelineSteps.forEach(s => {
             const cls = s.status === 'ok' ? 'step-ok' : s.status === 'skipped' ? '' : s.status === 'warning' ? 'step-warn' : 'step-error';
             const icon = s.status === 'ok' ? '&#10003;' : s.status === 'skipped' ? '&#8722;' : '&#10007;';
-            stepsHtml += `<div class="step ${cls}"><div class="step-icon">${icon}</div> <strong>${s.step}</strong></div>`;
+            const detail = s.detail ? ` <span style="color:var(--text-muted);font-size:0.8rem;">(${escapeHtml(String(s.detail))})</span>` : '';
+            stepsHtml += `<div class="step ${cls}"><div class="step-icon">${icon}</div> <strong>${escapeHtml(String(s.step))}</strong>${detail}</div>`;
         });
         if (!stepsHtml) {
             stepsHtml = '<div class="step step-ok"><div class="step-icon">&#10003;</div> <strong>Pipeline completado</strong></div>';
@@ -2488,9 +2494,11 @@
             if (b) b.textContent = 'Activar motor IA';
         });
         if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
-        initDashboard();
-        loadCases();
-        loadModelMetrics();
+        bootstrapSessionFromServer().then(() => {
+            initDashboard();
+            loadCases();
+            loadModelMetrics();
+        });
         if (document.getElementById('tab-model')?.classList.contains('active')
             || document.getElementById('tab-dashboard')?.classList.contains('active')) {
             updateMlChatWidgetVisibility(true);

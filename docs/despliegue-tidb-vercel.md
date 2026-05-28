@@ -43,6 +43,7 @@ Proyecto → **Settings** → **Environment Variables**:
 |----------|--------|----------|
 | `DATABASE_URL` | Cadena `mysql+pymysql://...` de arriba | Production, Preview |
 | `PERSIST_DATASET_ON_LOAD` | `true` | Production, Preview |
+| `SCORE_SYNC_ON_PIPELINE` | `true` (por defecto si hay `DATABASE_URL`) | Production, Preview |
 | `GEMINI_API_KEY` o `OPENAI_API_KEY` | Chat IA | Production, Preview |
 | `SECRET_KEY` | Texto aleatorio largo | Production, Preview |
 

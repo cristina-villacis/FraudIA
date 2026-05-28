@@ -41,6 +41,9 @@ _SCHEMA_ALTER_COLUMNS = {
     "documentos": [
         ("nombre_archivo_pdf", "VARCHAR(255) NULL"),
     ],
+    "analisis_runs": [
+        ("meta_json", "TEXT NULL"),
+    ],
 }
 
 
@@ -349,13 +352,43 @@ def update_siniestros_scores(df_scored: pd.DataFrame) -> int:
     return count
 
 
+def replace_siniestros_scored(df_scored: pd.DataFrame) -> int:
+    """Reemplaza siniestros con el dataframe puntuado (scores + semáforo) tras el pipeline."""
+    engine = get_engine()
+    is_mysql = "mysql" in str(engine.url)
+    df_clean = _prepare_for_db(df_scored, "siniestros")
+    with engine.begin() as conn:
+        if is_mysql:
+            conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        try:
+            if is_mysql:
+                conn.execute(text("TRUNCATE TABLE siniestros"))
+            else:
+                conn.execute(text("DELETE FROM siniestros"))
+        except Exception:
+            conn.execute(text("DELETE FROM siniestros"))
+        df_clean.to_sql(
+            "siniestros",
+            conn,
+            if_exists="append",
+            index=False,
+            method="multi",
+            chunksize=500,
+        )
+        if is_mysql:
+            conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+    return len(df_clean)
+
+
 def save_analysis_run(
     total: int, rojos: int, amarillos: int, verdes: int,
     score_prom: float, auc: float = None,
     anomalias: int = None, duracion: float = None,
+    meta: Optional[Dict[str, Any]] = None,
 ) -> int:
     session = get_session()
     try:
+        meta_json = json.dumps(meta, ensure_ascii=False, default=str) if meta else None
         run = AnalisisRun(
             total_siniestros=total,
             rojos=rojos,
@@ -365,6 +398,7 @@ def save_analysis_run(
             auc_roc=round(auc, 4) if auc else None,
             anomalias_detectadas=anomalias,
             duracion_segundos=round(duracion, 2) if duracion else None,
+            meta_json=meta_json,
         )
         session.add(run)
         session.commit()
@@ -372,6 +406,24 @@ def save_analysis_run(
     except Exception:
         session.rollback()
         raise
+    finally:
+        session.close()
+
+
+def load_latest_analysis_meta() -> Optional[Dict[str, Any]]:
+    """Último snapshot ML/NLP guardado tras un análisis (Vercel / cold start)."""
+    session = get_session()
+    try:
+        run = (
+            session.query(AnalisisRun)
+            .order_by(AnalisisRun.fecha_ejecucion.desc())
+            .first()
+        )
+        if not run or not run.meta_json:
+            return None
+        return json.loads(run.meta_json)
+    except Exception:
+        return None
     finally:
         session.close()
 
