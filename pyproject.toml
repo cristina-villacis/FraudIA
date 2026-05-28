@@ -5,7 +5,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = []
 
 [tool.vercel]
-# Flask en raiz: app.py exporta `app`
+# FastAPI (Python ASGI) en app.py
 entrypoint = "app:app"
 
 [tool.vercel.scripts]

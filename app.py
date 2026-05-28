@@ -1,5 +1,5 @@
 """
-Punto de entrada Vercel / Flask (detectado como `app:app`).
+Entrada Vercel / local — FastAPI (Python ASGI).
 """
 import os
 import sys
@@ -11,4 +11,4 @@ if ROOT not in sys.path:
 os.environ.setdefault("VERCEL", "1")
 os.environ.setdefault("PYTHONPATH", ROOT)
 
-from src.app.main import app  # noqa: E402
+from src.app.asgi import app  # noqa: E402

@@ -1,7 +1,7 @@
-# Dependencias para Vercel (Flask serverless). Vercel instala ESTE archivo por defecto.
-# Desarrollo local completo: pip install -r requirements-local.txt
-flask>=3.0.0,<4
-flask-cors>=4.0.0
+# Python API (Vercel + local). Desarrollo completo: requirements-local.txt
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
 pandas>=2.0.0,<3
 numpy>=1.24.0,<3
 scikit-learn>=1.3.0,<2

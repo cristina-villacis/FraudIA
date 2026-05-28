@@ -63,14 +63,12 @@ python -m spacy download es_core_news_sm
 ## Ejecución
 
 ```bash
-# Generar datos sintéticos
+pip install -r requirements-local.txt
 python -m src.ingestion.generate_synthetic
-
-# Ejecutar aplicación web
 python -m src.app.main
 ```
 
-Acceder a http://localhost:5000
+Servidor **Python (FastAPI + Uvicorn)** en http://localhost:5000
 
 ## Estructura
 ```

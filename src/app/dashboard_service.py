@@ -1,10 +1,9 @@
 """Agregación y filtrado de datos para el dashboard ejecutivo."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import pandas as pd
-from flask import Request
 
 from src.risk.classification import (
     SCORE_AMARILLO_MAX,
@@ -164,8 +163,13 @@ def apply_dashboard_filters(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[p
     return filtered, active
 
 
-def params_from_request(req: Request) -> Dict[str, Any]:
-    return {k: req.args.get(k, "") for k in req.args}
+def params_from_request(req: Union[Mapping[str, str], Any]) -> Dict[str, Any]:
+    """Acepta Flask request.args o FastAPI query_params / dict."""
+    if hasattr(req, "args"):
+        return {k: req.args.get(k, "") for k in req.args}
+    if hasattr(req, "items"):
+        return {k: v for k, v in req.items()}
+    return {}
 
 
 def get_filter_options(df: pd.DataFrame) -> Dict[str, Any]:
