@@ -105,14 +105,34 @@ class ClaimsAgent:
 
         model_snapshot = self.extra_context.get("model_snapshot")
         if isinstance(model_snapshot, dict):
-            lines.append("Modelo ML (snapshot guardado):")
-            for key in ("auc_roc", "precision", "recall", "f1_score", "accuracy"):
+            lines.append("Modelo ML (entrenado en pipeline):")
+            for key in (
+                "auc_roc", "cv_auc_mean", "precision_fraude", "recall_fraude",
+                "f1_fraude", "accuracy", "precision", "recall", "f1_score",
+            ):
                 val = model_snapshot.get(key)
                 if val is not None:
                     if isinstance(val, (float, int)):
                         lines.append(f"- {key}: {float(val):.4f}")
                     else:
                         lines.append(f"- {key}: {val}")
+            top_feat = model_snapshot.get("top_features") or model_snapshot.get("feature_importance")
+            if isinstance(top_feat, list) and top_feat:
+                lines.append("- Top variables del modelo:")
+                for item in top_feat[:5]:
+                    if isinstance(item, dict):
+                        lines.append(f"  · {item.get('feature', item.get('name', '?'))}: {item.get('importance', item.get('score', ''))}")
+
+        exec_sum = self.extra_context.get("executive_summary")
+        if exec_sum:
+            lines.append("Resumen ejecutivo del análisis:")
+            lines.append(str(exec_sum)[:1200])
+
+        manifest = self.extra_context.get("manifest")
+        if isinstance(manifest, dict) and manifest.get("steps"):
+            lines.append("Pasos del pipeline ejecutado:")
+            for step in manifest["steps"]:
+                lines.append(f"  · {step.get('step', '?')}: {step.get('status', '')}")
 
         return "\n".join(lines)
 

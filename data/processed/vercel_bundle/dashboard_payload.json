@@ -1,0 +1,977 @@
+{
+  "semaforo": {
+    "Amarillo": 1141,
+    "Rojo": 359
+  },
+  "total": 1500,
+  "total_unfiltered": 1500,
+  "score_promedio": 50.7,
+  "monto_total": 37174855.46,
+  "monto_rojo": 11711350.95,
+  "ramo_data": [
+    {
+      "ramo": "Generales",
+      "count": 329,
+      "monto_total": 7624543.42,
+      "score_avg": 49.88,
+      "rojos": 69,
+      "amarillos": 260,
+      "verdes": 0
+    },
+    {
+      "ramo": "Hogar",
+      "count": 280,
+      "monto_total": 6375550.1,
+      "score_avg": 49.75,
+      "rojos": 59,
+      "amarillos": 221,
+      "verdes": 0
+    },
+    {
+      "ramo": "Salud",
+      "count": 294,
+      "monto_total": 7440973.05,
+      "score_avg": 49.16,
+      "rojos": 61,
+      "amarillos": 233,
+      "verdes": 0
+    },
+    {
+      "ramo": "Vehículos",
+      "count": 290,
+      "monto_total": 8229093.03,
+      "score_avg": 54.82,
+      "rojos": 102,
+      "amarillos": 188,
+      "verdes": 0
+    },
+    {
+      "ramo": "Vida",
+      "count": 307,
+      "monto_total": 7504695.86,
+      "score_avg": 49.91,
+      "rojos": 68,
+      "amarillos": 239,
+      "verdes": 0
+    }
+  ],
+  "top_cases": [
+    {
+      "id_siniestro": "SIN-001282",
+      "ramo": "Hogar",
+      "cobertura": "Robo",
+      "monto_reclamado": 116200.03,
+      "score_hibrido": 90.4,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 1 días del borde de vigencia (≤10 días: 8 pts) | Demora de ~120h en denuncia de robo (>48h: 8 pts) | Asegurado con 14 siniestros (≥3: 8 pts) | Conductor presente en 13 siniestros (≥3: 8 pts) | Proveedor con 3 casos observados este año (>2: 5 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 5 días después del evento (4-7 días: 3 pts) | Monto reclamado 92% de suma asegurada o 4.7x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-01] Cobertura Pérdida Total por Robo (PTxRB) → Rojo | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-05] Siniestro Extremo al Borde de Vigencia (< 48 hrs) → Amarillo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000879",
+      "ramo": "Vehículos",
+      "cobertura": "Robo",
+      "monto_reclamado": 134107.08,
+      "score_hibrido": 89.9,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Demora de ~216h en denuncia de robo (>48h: 8 pts) | Asegurado con 14 siniestros (≥3: 8 pts) | Conductor presente en 13 siniestros (≥3: 8 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 9 días después del evento (>7 días: 5 pts) | Monto reclamado 96% de suma asegurada o 5.4x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001246",
+      "ramo": "Vehículos",
+      "cobertura": "Pérdida Total por Robo (PTxRB)",
+      "monto_reclamado": 135311.22,
+      "score_hibrido": 89.6,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 4 días del borde de vigencia (≤10 días: 8 pts) | Demora de ~384h en denuncia de robo (>48h: 8 pts) | Asegurado con 6 siniestros (≥3: 8 pts) | Vehículo con 6 siniestros (≥3: 6 pts) | Conductor presente en 8 siniestros (≥3: 8 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 16 días después del evento (>7 días: 5 pts) | Monto reclamado 93% de suma asegurada o 4.3x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-01] Cobertura Pérdida Total por Robo (PTxRB) → Rojo | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001072",
+      "ramo": "Generales",
+      "cobertura": "Incendio",
+      "monto_reclamado": 102707.86,
+      "score_hibrido": 89.1,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 2 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 3 siniestros (≥3: 8 pts) | Vehículo con 3 siniestros (≥3: 6 pts) | Conductor presente en 7 siniestros (≥3: 8 pts) | Proveedor con 3 casos observados este año (>2: 5 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 21 días después del evento (>7 días: 5 pts) | Monto reclamado 91% de suma asegurada o 4.5x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001147",
+      "ramo": "Salud",
+      "cobertura": "Emergencia",
+      "monto_reclamado": 51228.21,
+      "score_hibrido": 88.3,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 6 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 5 siniestros (≥3: 8 pts) | Conductor presente en 5 siniestros (≥3: 8 pts) | Proveedor en Lista Restrictiva (10 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 16 días después del evento (>7 días: 5 pts) | Monto reclamado 46% de suma asegurada o 1.9x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-03] Asegurado, Beneficiario o APS — Coincidencia exacta con Lista Restrictiva → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001296",
+      "ramo": "Hogar",
+      "cobertura": "Desastres Naturales",
+      "monto_reclamado": 127474.17,
+      "score_hibrido": 88.3,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 19 días del borde de vigencia (11-30 días: 4 pts) | Asegurado con 10 siniestros (≥3: 8 pts) | Vehículo con 10 siniestros (≥3: 6 pts) | Conductor presente en 9 siniestros (≥3: 8 pts) | Documentos con inconsistencias detectadas (10 pts) | Monto reclamado 86% de suma asegurada o 5.5x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000810",
+      "ramo": "Vehículos",
+      "cobertura": "Pérdida Total",
+      "monto_reclamado": 121651.67,
+      "score_hibrido": 88.1,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 5 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 11 siniestros (≥3: 8 pts) | Conductor presente en 8 siniestros (≥3: 8 pts) | Proveedor con 4 casos observados este año (>2: 5 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 4 días después del evento (4-7 días: 3 pts) | Monto reclamado 91% de suma asegurada o 4.2x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001112",
+      "ramo": "Generales",
+      "cobertura": "Incendio",
+      "monto_reclamado": 68930.11,
+      "score_hibrido": 88.0,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 17 días del borde de vigencia (11-30 días: 4 pts) | Asegurado con 8 siniestros (≥3: 8 pts) | Conductor presente en 7 siniestros (≥3: 8 pts) | Proveedor en Lista Restrictiva (10 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 30 días después del evento (>7 días: 5 pts) | Monto reclamado 50% de suma asegurada o 3.0x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-03] Asegurado, Beneficiario o APS — Coincidencia exacta con Lista Restrictiva → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001111",
+      "ramo": "Vehículos",
+      "cobertura": "Pérdida Total por Robo (PTxRB)",
+      "monto_reclamado": 127885.72,
+      "score_hibrido": 87.8,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 12 días del borde de vigencia (11-30 días: 4 pts) | Demora de ~144h en denuncia de robo (>48h: 8 pts) | Asegurado con 6 siniestros (≥3: 8 pts) | Vehículo con 6 siniestros (≥3: 6 pts) | Conductor presente en 6 siniestros (≥3: 8 pts) | Proveedor con 4 casos observados este año (>2: 5 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 6 días después del evento (4-7 días: 3 pts) | Monto reclamado 88% de suma asegurada o 4.0x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-01] Cobertura Pérdida Total por Robo (PTxRB) → Rojo | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000787",
+      "ramo": "Generales",
+      "cobertura": "Responsabilidad Civil",
+      "monto_reclamado": 141643.53,
+      "score_hibrido": 87.6,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 8 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 6 siniestros (≥3: 8 pts) | Vehículo con 6 siniestros (≥3: 6 pts) | Conductor presente en 4 siniestros (≥3: 8 pts) | Proveedor con 4 casos observados este año (>2: 5 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Monto reclamado 95% de suma asegurada o 6.2x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000310",
+      "ramo": "Vehículos",
+      "cobertura": "Robo",
+      "monto_reclamado": 49435.4,
+      "score_hibrido": 87.3,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 3 días del borde de vigencia (≤10 días: 8 pts) | Demora de ~480h en denuncia de robo (>48h: 8 pts) | Asegurado con 3 siniestros (≥3: 8 pts) | Vehículo con 3 siniestros (≥3: 6 pts) | Conductor presente en 3 siniestros (≥3: 8 pts) | Proveedor con 4 casos observados este año (>2: 5 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 20 días después del evento (>7 días: 5 pts) | Monto reclamado 34% de suma asegurada o 2.0x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000698",
+      "ramo": "Salud",
+      "cobertura": "Emergencia",
+      "monto_reclamado": 119592.52,
+      "score_hibrido": 86.9,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Asegurado con 2 siniestros (2: 4 pts) | Vehículo con 2 siniestros (2: 3 pts) | Conductor en 2 siniestros (2: 4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 12 días después del evento (>7 días: 5 pts) | Monto reclamado 94% de suma asegurada o 4.5x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000664",
+      "ramo": "Vehículos",
+      "cobertura": "Pérdida Total por Robo (PTxRB)",
+      "monto_reclamado": 58184.83,
+      "score_hibrido": 86.8,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 4 días del borde de vigencia (≤10 días: 8 pts) | Demora de ~192h en denuncia de robo (>48h: 8 pts) | Asegurado con 8 siniestros (≥3: 8 pts) | Conductor presente en 12 siniestros (≥3: 8 pts) | Proveedor en Lista Restrictiva (10 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 8 días después del evento (>7 días: 5 pts) | Monto reclamado 88% de suma asegurada o 1.8x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-01] Cobertura Pérdida Total por Robo (PTxRB) → Rojo | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-03] Asegurado, Beneficiario o APS — Coincidencia exacta con Lista Restrictiva → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000249",
+      "ramo": "Hogar",
+      "cobertura": "Robo",
+      "monto_reclamado": 62273.52,
+      "score_hibrido": 86.7,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 1 días del borde de vigencia (≤10 días: 8 pts) | Demora de ~384h en denuncia de robo (>48h: 8 pts) | Asegurado con 7 siniestros (≥3: 8 pts) | Conductor presente en 7 siniestros (≥3: 8 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 16 días después del evento (>7 días: 5 pts) | Monto reclamado 44% de suma asegurada o 2.5x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-05] Siniestro Extremo al Borde de Vigencia (< 48 hrs) → Amarillo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001101",
+      "ramo": "Vida",
+      "cobertura": "Enfermedad Grave",
+      "monto_reclamado": 58414.49,
+      "score_hibrido": 86.5,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 4 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 7 siniestros (≥3: 8 pts) | Conductor presente en 8 siniestros (≥3: 8 pts) | Proveedor con 5 casos observados este año (>2: 5 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 30 días después del evento (>7 días: 5 pts) | Monto reclamado 45% de suma asegurada o 2.3x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000499",
+      "ramo": "Salud",
+      "cobertura": "Atención Médica",
+      "monto_reclamado": 78155.86,
+      "score_hibrido": 86.4,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 14 días del borde de vigencia (11-30 días: 4 pts) | Asegurado con 5 siniestros (≥3: 8 pts) | Conductor presente en 3 siniestros (≥3: 8 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 26 días después del evento (>7 días: 5 pts) | Monto reclamado 94% de suma asegurada o 3.0x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000863",
+      "ramo": "Hogar",
+      "cobertura": "Daño por Agua",
+      "monto_reclamado": 124127.07,
+      "score_hibrido": 86.4,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 20 días del borde de vigencia (11-30 días: 4 pts) | Asegurado con 2 siniestros (2: 4 pts) | Vehículo con 2 siniestros (2: 3 pts) | Conductor en 2 siniestros (2: 4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 5 días después del evento (4-7 días: 3 pts) | Monto reclamado 97% de suma asegurada o 5.0x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-001193",
+      "ramo": "Vida",
+      "cobertura": "Incapacidad",
+      "monto_reclamado": 29498.93,
+      "score_hibrido": 86.4,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 5 días del borde de vigencia (≤10 días: 8 pts) | Asegurado con 3 siniestros (≥3: 8 pts) | Vehículo con 3 siniestros (≥3: 6 pts) | Conductor presente en 4 siniestros (≥3: 8 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 21 días después del evento (>7 días: 5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000311",
+      "ramo": "Vida",
+      "cobertura": "Enfermedad Grave",
+      "monto_reclamado": 131822.57,
+      "score_hibrido": 86.3,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 13 días del borde de vigencia (11-30 días: 4 pts) | Asegurado con 8 siniestros (≥3: 8 pts) | Vehículo con 8 siniestros (≥3: 6 pts) | Conductor en 2 siniestros (2: 4 pts) | Proveedor con 5 casos observados este año (>2: 5 pts) | Documentos incompletos - falta documentación obligatoria (4 pts) | Reporte tardío: 7 días después del evento (4-7 días: 3 pts) | Monto reclamado 98% de suma asegurada o 5.1x del promedio (4-5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-04] Dinámica del Accidente Físicamente Imposible → Rojo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    },
+    {
+      "id_siniestro": "SIN-000690",
+      "ramo": "Vehículos",
+      "cobertura": "Robo",
+      "monto_reclamado": 11591.57,
+      "score_hibrido": 86.2,
+      "semaforo_final": "Rojo",
+      "alertas_reglas": "Siniestro a 16 días del borde de vigencia (11-30 días: 4 pts) | Demora de ~672h en denuncia de robo (>48h: 8 pts) | Asegurado con 7 siniestros (≥3: 8 pts) | Vehículo con 7 siniestros (≥3: 6 pts) | Conductor presente en 5 siniestros (≥3: 8 pts) | Proveedor con 3 casos observados este año (>2: 5 pts) | Evento reportado sin tercero identificado verificable (5 pts) | Documentos con inconsistencias detectadas (10 pts) | Reporte tardío: 28 días después del evento (>7 días: 5 pts) | Similitud textual >100% con otro reclamo (8 pts) | [RF-02] Evidencia de Falsificación o Adulteración Documental Evidente → Rojo | [RF-06] Demora Atípica en Denuncia de Robo (> 4 días) → Amarillo | [RF-07] Narrativa Idéntica (Clonada) → Amarillo"
+    }
+  ],
+  "score_distribution": {
+    "bins": [
+      "0-40",
+      "41-75",
+      "76-100"
+    ],
+    "counts": [
+      0,
+      1141,
+      359
+    ],
+    "colors": [
+      "#00C48C",
+      "#FFC857",
+      "#FF4D4F"
+    ],
+    "labels": [
+      "Verde — Bajo (0-40)",
+      "Amarillo — Medio (41-75)",
+      "Rojo — Alto (76-100)"
+    ],
+    "click_ranges": [
+      {
+        "min": 0,
+        "max": 40,
+        "key": "verde",
+        "label": "Verde — Bajo (0-40)",
+        "semaforo": "Verde"
+      },
+      {
+        "min": 41,
+        "max": 75,
+        "key": "amarillo",
+        "label": "Amarillo — Medio (41-75)",
+        "semaforo": "Amarillo"
+      },
+      {
+        "min": 76,
+        "max": 100,
+        "key": "rojo",
+        "label": "Rojo — Alto (76-100)",
+        "semaforo": "Rojo"
+      }
+    ],
+    "total": 1500
+  },
+  "temporal_data": [
+    {
+      "mes": "2023-01",
+      "count": 4,
+      "monto": 145014.17,
+      "score_avg": 82.98
+    },
+    {
+      "mes": "2023-02",
+      "count": 1,
+      "monto": 58414.49,
+      "score_avg": 86.5
+    },
+    {
+      "mes": "2023-03",
+      "count": 5,
+      "monto": 132379.78,
+      "score_avg": 62.78
+    },
+    {
+      "mes": "2023-04",
+      "count": 20,
+      "monto": 725899.54,
+      "score_avg": 56.48
+    },
+    {
+      "mes": "2023-05",
+      "count": 21,
+      "monto": 631549.79,
+      "score_avg": 50.93
+    },
+    {
+      "mes": "2023-06",
+      "count": 27,
+      "monto": 929309.0,
+      "score_avg": 50.86
+    },
+    {
+      "mes": "2023-07",
+      "count": 26,
+      "monto": 943315.51,
+      "score_avg": 53.34
+    },
+    {
+      "mes": "2023-08",
+      "count": 33,
+      "monto": 787014.19,
+      "score_avg": 49.43
+    },
+    {
+      "mes": "2023-09",
+      "count": 43,
+      "monto": 1024360.98,
+      "score_avg": 52.2
+    },
+    {
+      "mes": "2023-10",
+      "count": 48,
+      "monto": 1085433.33,
+      "score_avg": 47.11
+    },
+    {
+      "mes": "2023-11",
+      "count": 59,
+      "monto": 1494981.29,
+      "score_avg": 49.95
+    },
+    {
+      "mes": "2023-12",
+      "count": 51,
+      "monto": 1416361.57,
+      "score_avg": 51.05
+    },
+    {
+      "mes": "2024-01",
+      "count": 74,
+      "monto": 2030049.03,
+      "score_avg": 54.1
+    },
+    {
+      "mes": "2024-02",
+      "count": 55,
+      "monto": 1453793.59,
+      "score_avg": 49.75
+    },
+    {
+      "mes": "2024-03",
+      "count": 69,
+      "monto": 1276695.99,
+      "score_avg": 47.1
+    },
+    {
+      "mes": "2024-04",
+      "count": 61,
+      "monto": 1372613.26,
+      "score_avg": 50.56
+    },
+    {
+      "mes": "2024-05",
+      "count": 72,
+      "monto": 1849566.92,
+      "score_avg": 47.95
+    },
+    {
+      "mes": "2024-06",
+      "count": 59,
+      "monto": 1586738.08,
+      "score_avg": 50.19
+    },
+    {
+      "mes": "2024-07",
+      "count": 60,
+      "monto": 1630920.46,
+      "score_avg": 50.84
+    },
+    {
+      "mes": "2024-08",
+      "count": 56,
+      "monto": 1408611.99,
+      "score_avg": 51.69
+    },
+    {
+      "mes": "2024-09",
+      "count": 63,
+      "monto": 1298405.94,
+      "score_avg": 49.38
+    },
+    {
+      "mes": "2024-10",
+      "count": 67,
+      "monto": 1582153.3,
+      "score_avg": 49.76
+    },
+    {
+      "mes": "2024-11",
+      "count": 54,
+      "monto": 1220480.72,
+      "score_avg": 51.09
+    },
+    {
+      "mes": "2024-12",
+      "count": 63,
+      "monto": 1560635.39,
+      "score_avg": 51.25
+    },
+    {
+      "mes": "2025-01",
+      "count": 71,
+      "monto": 1447133.31,
+      "score_avg": 52.17
+    },
+    {
+      "mes": "2025-02",
+      "count": 59,
+      "monto": 1421024.53,
+      "score_avg": 48.46
+    },
+    {
+      "mes": "2025-03",
+      "count": 54,
+      "monto": 1524565.29,
+      "score_avg": 49.16
+    },
+    {
+      "mes": "2025-04",
+      "count": 53,
+      "monto": 965769.48,
+      "score_avg": 45.93
+    },
+    {
+      "mes": "2025-05",
+      "count": 40,
+      "monto": 1059651.76,
+      "score_avg": 49.63
+    },
+    {
+      "mes": "2025-06",
+      "count": 35,
+      "monto": 792680.53,
+      "score_avg": 53.86
+    },
+    {
+      "mes": "2025-07",
+      "count": 37,
+      "monto": 837621.34,
+      "score_avg": 46.76
+    },
+    {
+      "mes": "2025-08",
+      "count": 21,
+      "monto": 501434.56,
+      "score_avg": 56.28
+    },
+    {
+      "mes": "2025-09",
+      "count": 14,
+      "monto": 345638.36,
+      "score_avg": 50.31
+    },
+    {
+      "mes": "2025-10",
+      "count": 14,
+      "monto": 267641.86,
+      "score_avg": 60.57
+    },
+    {
+      "mes": "2025-11",
+      "count": 8,
+      "monto": 216744.58,
+      "score_avg": 66.46
+    },
+    {
+      "mes": "2025-12",
+      "count": 3,
+      "monto": 150251.55,
+      "score_avg": 83.87
+    }
+  ],
+  "active_filters": [],
+  "filtered": false,
+  "rojos": 359,
+  "executive_kpis": {
+    "casos_sospechosos": 1500,
+    "riesgo_alto": 359,
+    "riesgo_medio": 1141,
+    "riesgo_bajo": 0,
+    "prob_fraude_promedio": 15.2,
+    "monto_potencial_riesgo": 24443103.2,
+    "casos_escalados": 359,
+    "casos_observados": 1311,
+    "proveedores_sospechosos": 6,
+    "narrativas_clonadas": 1500
+  },
+  "signals_summary": [
+    {
+      "signal": "Reclamo cercano al borde de vigencia",
+      "count": 85
+    },
+    {
+      "signal": "Demora denuncia por robo",
+      "count": 126
+    },
+    {
+      "signal": "Alta frecuencia reclamos asegurado",
+      "count": 1330
+    },
+    {
+      "signal": "Alta frecuencia reclamos vehículo",
+      "count": 930
+    },
+    {
+      "signal": "Alta frecuencia conductor",
+      "count": 1293
+    },
+    {
+      "signal": "Reclamos solo RC",
+      "count": 6
+    },
+    {
+      "signal": "Beneficiario/proveedor recurrente",
+      "count": 813
+    },
+    {
+      "signal": "Documentos incompletos",
+      "count": 81
+    },
+    {
+      "signal": "Dinámica sospechosa",
+      "count": 0
+    },
+    {
+      "signal": "Eventos sin tercero identificado",
+      "count": 71
+    },
+    {
+      "signal": "Documentos inconsistentes",
+      "count": 163
+    },
+    {
+      "signal": "Reporte tardío",
+      "count": 99
+    },
+    {
+      "signal": "Narrativas similares",
+      "count": 1500
+    },
+    {
+      "signal": "Monto cercano a suma asegurada",
+      "count": 21
+    }
+  ],
+  "critical_rules_summary": {
+    "RF-01": 60,
+    "RF-02": 163,
+    "RF-03": 158,
+    "RF-04": 74,
+    "RF-05": 9,
+    "RF-06": 59,
+    "RF-07": 1500
+  },
+  "heatmap_ramo_riesgo": {
+    "ramos": [
+      "Generales",
+      "Hogar",
+      "Salud",
+      "Vehículos",
+      "Vida"
+    ],
+    "semaforos": [
+      "Verde",
+      "Amarillo",
+      "Rojo"
+    ],
+    "z": [
+      [
+        0,
+        260,
+        69
+      ],
+      [
+        0,
+        221,
+        59
+      ],
+      [
+        0,
+        233,
+        61
+      ],
+      [
+        0,
+        188,
+        102
+      ],
+      [
+        0,
+        239,
+        68
+      ]
+    ]
+  },
+  "geo_data": [
+    {
+      "sucursal": "Norte",
+      "casos": 278,
+      "monto": 7292694.75
+    },
+    {
+      "sucursal": "Oriente",
+      "casos": 270,
+      "monto": 6375062.34
+    },
+    {
+      "sucursal": "Centro",
+      "casos": 257,
+      "monto": 6234678.8
+    },
+    {
+      "sucursal": "Costa",
+      "casos": 240,
+      "monto": 5742880.69
+    },
+    {
+      "sucursal": "Sierra",
+      "casos": 230,
+      "monto": 5981584.85
+    },
+    {
+      "sucursal": "Sur",
+      "casos": 225,
+      "monto": 5547954.03
+    }
+  ],
+  "provider_risk": [
+    {
+      "beneficiario": "Abogado Ambato #75",
+      "casos": 25,
+      "score_prom": 77.6,
+      "monto": 677400.89
+    },
+    {
+      "beneficiario": "Clínica Machala #2",
+      "casos": 27,
+      "score_prom": 77.34,
+      "monto": 584377.87
+    },
+    {
+      "beneficiario": "Abogado Cuenca #3",
+      "casos": 21,
+      "score_prom": 77.0,
+      "monto": 616699.47
+    },
+    {
+      "beneficiario": "Abogado Santo Domingo #12",
+      "casos": 16,
+      "score_prom": 76.65,
+      "monto": 389988.17
+    },
+    {
+      "beneficiario": "Abogado Loja #24",
+      "casos": 21,
+      "score_prom": 76.0,
+      "monto": 478293.13
+    },
+    {
+      "beneficiario": "Abogado Machala #27",
+      "casos": 19,
+      "score_prom": 76.0,
+      "monto": 347708.95
+    },
+    {
+      "beneficiario": "Perito Loja #63",
+      "casos": 8,
+      "score_prom": 60.72,
+      "monto": 513972.26
+    },
+    {
+      "beneficiario": "Perito Santo Domingo #49",
+      "casos": 21,
+      "score_prom": 54.94,
+      "monto": 643203.72
+    },
+    {
+      "beneficiario": "Perito Ambato #16",
+      "casos": 17,
+      "score_prom": 54.78,
+      "monto": 471746.18
+    },
+    {
+      "beneficiario": "Hospital Guayaquil #52",
+      "casos": 19,
+      "score_prom": 54.55,
+      "monto": 434227.41
+    }
+  ],
+  "temporal_risk_data": [
+    {
+      "mes": "2023-01",
+      "Rojo": 4,
+      "Amarillo": 0,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-02",
+      "Rojo": 1,
+      "Amarillo": 0,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-03",
+      "Rojo": 2,
+      "Amarillo": 3,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-04",
+      "Rojo": 7,
+      "Amarillo": 13,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-05",
+      "Rojo": 4,
+      "Amarillo": 17,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-06",
+      "Rojo": 6,
+      "Amarillo": 21,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-07",
+      "Rojo": 6,
+      "Amarillo": 20,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-08",
+      "Rojo": 7,
+      "Amarillo": 26,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-09",
+      "Rojo": 12,
+      "Amarillo": 31,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-10",
+      "Rojo": 8,
+      "Amarillo": 40,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-11",
+      "Rojo": 13,
+      "Amarillo": 46,
+      "Verde": 0
+    },
+    {
+      "mes": "2023-12",
+      "Rojo": 13,
+      "Amarillo": 38,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-01",
+      "Rojo": 24,
+      "Amarillo": 50,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-02",
+      "Rojo": 12,
+      "Amarillo": 43,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-03",
+      "Rojo": 11,
+      "Amarillo": 58,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-04",
+      "Rojo": 15,
+      "Amarillo": 46,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-05",
+      "Rojo": 12,
+      "Amarillo": 60,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-06",
+      "Rojo": 14,
+      "Amarillo": 45,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-07",
+      "Rojo": 15,
+      "Amarillo": 45,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-08",
+      "Rojo": 14,
+      "Amarillo": 42,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-09",
+      "Rojo": 13,
+      "Amarillo": 50,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-10",
+      "Rojo": 15,
+      "Amarillo": 52,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-11",
+      "Rojo": 14,
+      "Amarillo": 40,
+      "Verde": 0
+    },
+    {
+      "mes": "2024-12",
+      "Rojo": 16,
+      "Amarillo": 47,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-01",
+      "Rojo": 20,
+      "Amarillo": 51,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-02",
+      "Rojo": 12,
+      "Amarillo": 47,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-03",
+      "Rojo": 10,
+      "Amarillo": 44,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-04",
+      "Rojo": 7,
+      "Amarillo": 46,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-05",
+      "Rojo": 9,
+      "Amarillo": 31,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-06",
+      "Rojo": 12,
+      "Amarillo": 23,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-07",
+      "Rojo": 5,
+      "Amarillo": 32,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-08",
+      "Rojo": 8,
+      "Amarillo": 13,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-09",
+      "Rojo": 3,
+      "Amarillo": 11,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-10",
+      "Rojo": 7,
+      "Amarillo": 7,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-11",
+      "Rojo": 5,
+      "Amarillo": 3,
+      "Verde": 0
+    },
+    {
+      "mes": "2025-12",
+      "Rojo": 3,
+      "Amarillo": 0,
+      "Verde": 0
+    }
+  ],
+  "geo_risk_data": [
+    {
+      "sucursal": "Centro",
+      "Rojo": 70,
+      "Amarillo": 187,
+      "Verde": 0
+    },
+    {
+      "sucursal": "Costa",
+      "Rojo": 48,
+      "Amarillo": 192,
+      "Verde": 0
+    },
+    {
+      "sucursal": "Norte",
+      "Rojo": 75,
+      "Amarillo": 203,
+      "Verde": 0
+    },
+    {
+      "sucursal": "Oriente",
+      "Rojo": 64,
+      "Amarillo": 206,
+      "Verde": 0
+    },
+    {
+      "sucursal": "Sierra",
+      "Rojo": 50,
+      "Amarillo": 180,
+      "Verde": 0
+    },
+    {
+      "sucursal": "Sur",
+      "Rojo": 52,
+      "Amarillo": 173,
+      "Verde": 0
+    }
+  ]
+}

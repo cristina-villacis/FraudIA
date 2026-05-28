@@ -1,0 +1,121 @@
+{
+  "text": {
+    "total_siniestros": 1500,
+    "distribucion_semaforo": {
+      "Rojo": 359,
+      "Amarillo": 1141,
+      "Verde": 0
+    },
+    "porcentajes": {
+      "Rojo": 23.9,
+      "Amarillo": 76.1,
+      "Verde": 0.0
+    },
+    "score_promedio": 50.7,
+    "score_maximo": 90.4,
+    "top_10_casos": [
+      {
+        "id_siniestro": "SIN-001282",
+        "score_hibrido": 90.4,
+        "semaforo_final": "Rojo",
+        "ramo": "Hogar",
+        "monto_reclamado": 116200.03
+      },
+      {
+        "id_siniestro": "SIN-000879",
+        "score_hibrido": 89.9,
+        "semaforo_final": "Rojo",
+        "ramo": "Vehículos",
+        "monto_reclamado": 134107.08
+      },
+      {
+        "id_siniestro": "SIN-001246",
+        "score_hibrido": 89.6,
+        "semaforo_final": "Rojo",
+        "ramo": "Vehículos",
+        "monto_reclamado": 135311.22
+      },
+      {
+        "id_siniestro": "SIN-001072",
+        "score_hibrido": 89.1,
+        "semaforo_final": "Rojo",
+        "ramo": "Generales",
+        "monto_reclamado": 102707.86
+      },
+      {
+        "id_siniestro": "SIN-001147",
+        "score_hibrido": 88.3,
+        "semaforo_final": "Rojo",
+        "ramo": "Salud",
+        "monto_reclamado": 51228.21
+      },
+      {
+        "id_siniestro": "SIN-001296",
+        "score_hibrido": 88.3,
+        "semaforo_final": "Rojo",
+        "ramo": "Hogar",
+        "monto_reclamado": 127474.17
+      },
+      {
+        "id_siniestro": "SIN-000810",
+        "score_hibrido": 88.1,
+        "semaforo_final": "Rojo",
+        "ramo": "Vehículos",
+        "monto_reclamado": 121651.67
+      },
+      {
+        "id_siniestro": "SIN-001112",
+        "score_hibrido": 88.0,
+        "semaforo_final": "Rojo",
+        "ramo": "Generales",
+        "monto_reclamado": 68930.11
+      },
+      {
+        "id_siniestro": "SIN-001111",
+        "score_hibrido": 87.8,
+        "semaforo_final": "Rojo",
+        "ramo": "Vehículos",
+        "monto_reclamado": 127885.72
+      },
+      {
+        "id_siniestro": "SIN-000787",
+        "score_hibrido": 87.6,
+        "semaforo_final": "Rojo",
+        "ramo": "Generales",
+        "monto_reclamado": 141643.53
+      }
+    ],
+    "riesgo_por_ramo": {
+      "Generales": {
+        "mean": 49.9,
+        "max": 89.1,
+        "count": 329
+      },
+      "Hogar": {
+        "mean": 49.8,
+        "max": 90.4,
+        "count": 280
+      },
+      "Salud": {
+        "mean": 49.2,
+        "max": 88.3,
+        "count": 294
+      },
+      "Vehículos": {
+        "mean": 54.8,
+        "max": 89.9,
+        "count": 290
+      },
+      "Vida": {
+        "mean": 49.9,
+        "max": 86.5,
+        "count": 307
+      }
+    },
+    "umbrales_score": {
+      "Verde": "0-40 (Bajo)",
+      "Amarillo": "41-75 (Medio)",
+      "Rojo": "76-100 (Alto)"
+    }
+  }
+}

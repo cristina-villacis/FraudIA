@@ -1,0 +1,11 @@
+{
+  "records_considered": 0,
+  "active_filters_count": 0,
+  "score_promedio": 0.0,
+  "monto_total": 0.0,
+  "semaforo_counts": {
+    "Rojo": 0,
+    "Amarillo": 0,
+    "Verde": 0
+  }
+}

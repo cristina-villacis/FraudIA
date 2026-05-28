@@ -3,7 +3,7 @@
   "version": 2,
   "name": "fraudia-claims",
   "installCommand": "pip install -r requirements-vercel.txt",
-  "buildCommand": "echo Build OK",
+  "buildCommand": "python scripts/prepare_vercel_bundle.py --synthetic",
   "framework": null,
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }

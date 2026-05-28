@@ -1,0 +1,127 @@
+{
+  "total_descripciones": 1500,
+  "descripciones_vacias": 0,
+  "longitud_promedio": 77.8,
+  "palabras_frecuentes": [
+    {
+      "palabra": "vehículo",
+      "frecuencia": 650
+    },
+    {
+      "palabra": "asegurado",
+      "frecuencia": 357
+    },
+    {
+      "palabra": "robo",
+      "frecuencia": 212
+    },
+    {
+      "palabra": "daños",
+      "frecuencia": 210
+    },
+    {
+      "palabra": "domicilio",
+      "frecuencia": 200
+    },
+    {
+      "palabra": "choque",
+      "frecuencia": 159
+    },
+    {
+      "palabra": "reporta",
+      "frecuencia": 153
+    },
+    {
+      "palabra": "otro",
+      "frecuencia": 152
+    },
+    {
+      "palabra": "incendio",
+      "frecuencia": 138
+    },
+    {
+      "palabra": "caída",
+      "frecuencia": 132
+    },
+    {
+      "palabra": "conductor",
+      "frecuencia": 130
+    },
+    {
+      "palabra": "techo",
+      "frecuencia": 130
+    },
+    {
+      "palabra": "según",
+      "frecuencia": 127
+    },
+    {
+      "palabra": "estacionado",
+      "frecuencia": 126
+    },
+    {
+      "palabra": "contra",
+      "frecuencia": 126
+    },
+    {
+      "palabra": "lateral",
+      "frecuencia": 118
+    },
+    {
+      "palabra": "afectó",
+      "frecuencia": 117
+    },
+    {
+      "palabra": "informe",
+      "frecuencia": 106
+    },
+    {
+      "palabra": "accidente",
+      "frecuencia": 91
+    },
+    {
+      "palabra": "noche",
+      "frecuencia": 89
+    },
+    {
+      "palabra": "impacto",
+      "frecuencia": 88
+    },
+    {
+      "palabra": "frontal",
+      "frecuencia": 83
+    },
+    {
+      "palabra": "daño",
+      "frecuencia": 83
+    },
+    {
+      "palabra": "severo",
+      "frecuencia": 83
+    },
+    {
+      "palabra": "madrugada",
+      "frecuencia": 79
+    },
+    {
+      "palabra": "volcadura",
+      "frecuencia": 76
+    },
+    {
+      "palabra": "consulta",
+      "frecuencia": 76
+    },
+    {
+      "palabra": "médica",
+      "frecuencia": 76
+    },
+    {
+      "palabra": "cuadro",
+      "frecuencia": 76
+    },
+    {
+      "palabra": "respiratorio",
+      "frecuencia": 76
+    }
+  ]
+}

@@ -40,6 +40,7 @@ from src.ai_agent.claims_agent import ClaimsAgent
 from src.ai_agent.openai_client import is_openai_configured, get_openai_model
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
 from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime
+from src.pipeline.run_full_analysis import execute_full_pipeline
 from src.db.config import get_engine, test_connection
 from src.db.repository import (
     init_database,
@@ -143,12 +144,23 @@ def index():
 @app.route("/api/deployment-info")
 def deployment_info():
     """Metadatos del entorno (local vs Vercel)."""
+    from src.pipeline.run_full_analysis import load_vercel_bundle
+
+    bundle = load_vercel_bundle() if is_vercel_runtime() else {}
+    manifest = bundle.get("manifest", {})
     return jsonify({
         "vercel": is_vercel_runtime(),
         "pipeline_ready": app_state.get("df_scored") is not None,
         "openai_configured": is_openai_configured(),
         "openai_model": get_openai_model() if is_openai_configured() else None,
-        "demo_mode": is_vercel_runtime(),
+        "analysis_flow": (
+            "build: datos → pipeline → bundle JSON + CSV; "
+            "runtime: dashboard + agente OpenAI sobre ese análisis"
+        ) if is_vercel_runtime() else "local: carga/sintéticos → pipeline en /api/run-pipeline",
+        "manifest": manifest,
+        "records": manifest.get("total_records") or (
+            len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0
+        ),
     })
 
 
@@ -622,106 +634,37 @@ def load_from_db():
 def run_pipeline():
     try:
         if is_vercel_runtime():
-            if app_state.get("df_scored") is not None:
-                return jsonify({
-                    "status": "success",
-                    "message": "Demo ya cargado en Vercel (datos pre-calculados).",
-                    "total_records": len(app_state["df_scored"]),
-                    "vercel": True,
-                })
-            bootstrap_vercel_demo(app_state)
+            boot = bootstrap_vercel_demo(app_state)
             return jsonify({
                 "status": "success",
-                "message": "Demo cargado desde datos embebidos.",
-                "total_records": len(app_state["df_scored"]),
+                "message": (
+                    "En Vercel el análisis completo se ejecuta al desplegar (build): "
+                    "carga/generación de datos → reglas → ML → dashboard. "
+                    "El chatbot OpenAI explica esos resultados. Para recalcular: redeploy."
+                ),
+                "total_records": len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0,
                 "vercel": True,
+                "bootstrap": boot,
             })
 
         if not app_state["datasets"] or "siniestros" not in app_state["datasets"]:
             return jsonify({"error": "No hay datos cargados. Suba un archivo o cargue datos sinteticos."}), 400
 
-        app_state["datasets"] = normalize_datasets_columns(app_state["datasets"])
-
         t_start = time.time()
         app_state["pipeline_status"] = "running"
-        results = {"steps": []}
 
-        # 1. Feature engineering
-        df_feat = build_all_features(app_state["datasets"])
-        app_state["df_features"] = df_feat
-        results["steps"].append({"step": "Feature Engineering", "status": "ok", "features": len(df_feat.columns)})
-
-        # 2. NLP similarity
-        similarity_scores = {}
-        if "descripcion" in df_feat.columns:
-            similarity_scores = get_similarity_scores_by_id(df_feat)
-            nlp_summary = generate_text_summary(df_feat)
-            app_state["nlp_results"] = nlp_summary
-            results["steps"].append({
-                "step": "Analisis NLP",
-                "status": "ok",
-                "pairs_detected": sum(1 for v in similarity_scores.values() if v >= 0.70),
-            })
-
-        # 3. Business rules
-        df_rules = apply_rules(df_feat, similarity_scores)
-        rules_summary = get_rules_summary(df_rules)
-        results["steps"].append({"step": "Reglas de Negocio", "status": "ok", "summary": rules_summary})
-
-        # 4. ML supervised model
-        feature_cols = get_feature_columns(df_rules)
-        auc_roc = None
-        if "etiqueta_fraude_simulada" not in df_rules.columns:
-            return jsonify({
-                "error": (
-                    "El modelo supervisado requiere la columna 'etiqueta_fraude_simulada' "
-                    "en la tabla de siniestros. Cargue datos con esa etiqueta o use datos sintéticos."
-                )
-            }), 400
-        if len(feature_cols) == 0:
-            return jsonify({
-                "error": "No se detectaron variables numéricas válidas para entrenar el modelo supervisado."
-            }), 400
-
-        ml_results = train_supervised_model(df_rules, feature_cols)
-        app_state["model_results"] = ml_results if "model" in ml_results else None
-
-        if "model" not in ml_results:
-            return jsonify({
-                "error": ml_results.get(
-                    "error",
-                    "No fue posible entrenar el modelo supervisado con etiqueta_fraude_simulada.",
-                )
-            }), 400
-
-        df_rules["ml_fraud_probability"] = predict_fraud_probability(
-            df_rules, ml_results["model"], ml_results["scaler"], ml_results["feature_cols"]
-        )
-        auc_roc = ml_results.get("auc_roc")
-        results["steps"].append({
-            "step": "Modelo Supervisado (Random Forest)",
-            "status": "ok",
-            "metrics": get_model_metrics_summary(ml_results),
-        })
-
-        # 5. Anomaly detection
-        n_anomalies = None
-        if len(feature_cols) > 0:
-            anomaly_results = train_anomaly_model(df_rules, feature_cols)
-            app_state["anomaly_results"] = anomaly_results
-            df_rules["anomaly_score"] = anomaly_results["anomaly_scores"]
-            n_anomalies = anomaly_results["n_anomalies"]
-            results["steps"].append({
-                "step": "Deteccion de Anomalias (Isolation Forest)",
-                "status": "ok",
-                "anomalies_detected": n_anomalies,
-            })
-
-        # 6. Hybrid score
-        df_scored = compute_hybrid_score(df_rules)
+        result = execute_full_pipeline(app_state["datasets"])
+        df_scored = result["df_scored"]
+        app_state["datasets"] = result["datasets"]
+        app_state["df_features"] = result["df_features"]
         app_state["df_scored"] = df_scored
+        app_state["model_results"] = result["model_results"]
+        app_state["anomaly_results"] = result["anomaly_results"]
+        app_state["nlp_results"] = result["nlp_results"]
+        app_state["dashboard_snapshot"] = result["dashboard_snapshot"]
+        app_state["dashboard_last_payload"] = result["dashboard_last_payload"]
+        app_state["model_snapshot"] = result["model_snapshot"]
 
-        # 7. Persist scores to database (async to avoid blocking the response)
         sem_counts = df_scored["semaforo_final"].value_counts()
         db_payload = {
             "total": len(df_scored),
@@ -729,8 +672,8 @@ def run_pipeline():
             "amarillos": int(sem_counts.get("Amarillo", 0)),
             "verdes": int(sem_counts.get("Verde", 0)),
             "score_prom": float(df_scored["score_hibrido"].mean()),
-            "auc": auc_roc,
-            "anomalias": n_anomalies,
+            "auc": result.get("auc_roc"),
+            "anomalias": result["anomaly_results"]["n_anomalies"] if result.get("anomaly_results") else None,
             "duracion": time.time() - t_start,
         }
 
@@ -742,41 +685,17 @@ def run_pipeline():
                 pass
 
         threading.Thread(target=_persist_scores, args=(df_scored.copy(), db_payload), daemon=True).start()
-        results["steps"].append({"step": "Guardado en BD (en segundo plano)", "status": "ok"})
 
-        # 8. Guardar snapshots persistentes de dashboard y modelo
-        try:
-            dashboard_payload = build_dashboard_payload(df_scored, total_unfiltered=len(df_scored), active_filters=[])
-            kpis = dashboard_payload.get("kpis", {}) if isinstance(dashboard_payload, dict) else {}
-            app_state["dashboard_snapshot"] = {
-                "records_considered": int(dashboard_payload.get("records_considered", len(df_scored))),
-                "active_filters_count": len(dashboard_payload.get("active_filters", [])),
-                "score_promedio": float(kpis.get("score_promedio", 0.0)),
-                "monto_total": float(kpis.get("monto_total", 0.0)),
-                "semaforo_counts": {
-                    "Rojo": int(kpis.get("casos_rojos", 0)),
-                    "Amarillo": int(kpis.get("casos_amarillos", 0)),
-                    "Verde": int(kpis.get("casos_verdes", 0)),
-                },
-            }
-            app_state["dashboard_last_payload"] = dashboard_payload
-        except Exception:
-            app_state["dashboard_snapshot"] = None
-            app_state["dashboard_last_payload"] = None
-
-        app_state["model_snapshot"] = get_model_metrics_summary(app_state["model_results"]) if app_state.get("model_results") else None
-
-        # 9. Init agent con contexto persistente
         app_state["agent"] = ClaimsAgent(df_scored, extra_context=_build_agent_context())
-
-        exec_summary = generate_executive_summary(df_scored)
-        results["executive_summary"] = exec_summary
-
         app_state["pipeline_status"] = "completed"
-        results["status"] = "success"
-        results["total_records"] = len(df_scored)
-        results["duration_seconds"] = round(time.time() - t_start, 2)
 
+        results = {
+            "status": "success",
+            "steps": result["steps"] + [{"step": "Guardado en BD (en segundo plano)", "status": "ok"}],
+            "executive_summary": result["executive_summary"],
+            "total_records": result["total_records"],
+            "duration_seconds": result["duration_seconds"],
+        }
         return jsonify(results)
     except Exception as e:
         app_state["pipeline_status"] = "error"
@@ -903,7 +822,13 @@ def download_csv():
 def model_metrics():
     results = app_state.get("model_results")
     if results is None:
+        snapshot = app_state.get("model_snapshot")
+        if snapshot:
+            return jsonify(snapshot)
         return jsonify({"error": "Modelo no entrenado"}), 400
+
+    if is_vercel_runtime() or results.get("trained") or "model" not in results:
+        return jsonify(results)
 
     metrics = get_model_metrics_summary(results)
     metrics["confusion_matrix"] = results.get("confusion_matrix")

@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "source": "data/synthetic",
+  "seed": null,
+  "total_records": 1500,
+  "duration_seconds": 6.3,
+  "semaforo_counts": {
+    "Rojo": 359,
+    "Amarillo": 1141,
+    "Verde": 0
+  },
+  "auc_roc": 0.9955,
+  "steps": [
+    {
+      "step": "Feature Engineering",
+      "status": "ok",
+      "features": 73
+    },
+    {
+      "step": "Analisis NLP",
+      "status": "ok",
+      "pairs_detected": 1500
+    },
+    {
+      "step": "Reglas de Negocio",
+      "status": "ok",
+      "summary": {
+        "total_siniestros": 1500,
+        "rojo": 358,
+        "amarillo": 1142,
+        "verde": 0,
+        "pct_rojo": 23.9,
+        "pct_amarillo": 76.1,
+        "pct_verde": 0.0,
+        "score_promedio": 49.7,
+        "score_max": 77.3
+      }
+    },
+    {
+      "step": "Modelo Supervisado (Random Forest)",
+      "status": "ok",
+      "metrics": {
+        "auc_roc": 0.9955,
+        "cv_auc_mean": 0.9969,
+        "precision_fraude": 1.0,
+        "recall_fraude": 0.982,
+        "f1_fraude": 0.991,
+        "top_features": [
+          {
+            "feature": "ratio_docs_entregados",
+            "importance": 0.15881087097370072
+          },
+          {
+            "feature": "tiene_inconsistencia_doc",
+            "importance": 0.13051629218125324
+          },
+          {
+            "feature": "flag_falsificacion_doc",
+            "importance": 0.10005455103629553
+          },
+          {
+            "feature": "docs_con_inconsistencia",
+            "importance": 0.09236124809490302
+          },
+          {
+            "feature": "score_reglas",
+            "importance": 0.08693482327528064
+          },
+          {
+            "feature": "horas_borde_vigencia",
+            "importance": 0.07046257784652778
+          },
+          {
+            "feature": "dias_entre_ocurrencia_reporte",
+            "importance": 0.05592052463516138
+          },
+          {
+            "feature": "reporte_tardio",
+            "importance": 0.04631396416075348
+          },
+          {
+            "feature": "num_alertas",
+            "importance": 0.04097671469673228
+          },
+          {
+            "feature": "dias_desde_fin_poliza",
+            "importance": 0.027991064894757875
+          }
+        ],
+        "feature_importance": [
+          {
+            "feature": "ratio_docs_entregados",
+            "importance": 0.15881087097370072
+          },
+          {
+            "feature": "tiene_inconsistencia_doc",
+            "importance": 0.13051629218125324
+          },
+          {
+            "feature": "flag_falsificacion_doc",
+            "importance": 0.10005455103629553
+          },
+          {
+            "feature": "docs_con_inconsistencia",
+            "importance": 0.09236124809490302
+          },
+          {
+            "feature": "score_reglas",
+            "importance": 0.08693482327528064
+          },
+          {
+            "feature": "horas_borde_vigencia",
+            "importance": 0.07046257784652778
+          },
+          {
+            "feature": "dias_entre_ocurrencia_reporte",
+            "importance": 0.05592052463516138
+          },
+          {
+            "feature": "reporte_tardio",
+            "importance": 0.04631396416075348
+          },
+          {
+            "feature": "num_alertas",
+            "importance": 0.04097671469673228
+          },
+          {
+            "feature": "dias_desde_fin_poliza",
+            "importance": 0.027991064894757875
+          },
+          {
+            "feature": "ratio_reclamado_asegurado",
+            "importance": 0.024558036908420944
+          },
+          {
+            "feature": "dias_desde_inicio_poliza",
+            "importance": 0.024318539760896617
+          },
+          {
+            "feature": "borde_inicio_vigencia",
+            "importance": 0.01559513941048557
+          },
+          {
+            "feature": "docs_entregados",
+            "importance": 0.013191409712171429
+          },
+          {
+            "feature": "monto_zscore_ramo",
+            "importance": 0.01000232352953512
+          }
+        ],
+        "confusion_matrix": [
+          [
+            319,
+            0
+          ],
+          [
+            1,
+            55
+          ]
+        ],
+        "trained": true
+      }
+    },
+    {
+      "step": "Deteccion de Anomalias (Isolation Forest)",
+      "status": "ok",
+      "anomalies_detected": 150
+    }
+  ]
+}
