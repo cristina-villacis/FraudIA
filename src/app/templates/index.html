@@ -8,10 +8,10 @@
     <link rel="apple-touch-icon" href="/static/logo_dark.png">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ingest.css?v=2">
+    <link rel="stylesheet" href="/static/ingest.css?v=3">
     <link rel="stylesheet" href="/static/dashboard-premium.css?v=1">
     <link rel="stylesheet" href="/static/ml-premium.css?v=1">
-    <link rel="stylesheet" href="/static/ml-copilot.css?v=1">
+    <link rel="stylesheet" href="/static/ml-copilot.css?v=2">
     <style>
         :root, [data-theme="dark"] {
             --bg-primary: #0B1120;
@@ -1641,33 +1641,34 @@
             <canvas id="ingestParticles" aria-hidden="true"></canvas>
             <div class="ingest-wrap">
 
-                <section class="ingest-hero">
-                    <div class="ingest-hero-badge">Centro de ingestión IA</div>
-                    <h1>Carga Inteligente de Datos</h1>
-                    <p class="ingest-hero-sub">El sistema interpreta automáticamente estructuras Excel, genera relaciones y activa análisis antifraude con IA.</p>
-                    <div class="ingest-hero-actions">
-                        <a href="/api/download-template" class="btn btn-primary" download>&#11015; Descargar Plantilla</a>
-                        <button type="button" class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar datos aleatorios</button>
+                <section class="ingest-hero ingest-hero-split">
+                    <div class="ingest-hero-main">
+                        <div class="ingest-hero-badge">Centro de ingestión IA</div>
+                        <h1>Carga Inteligente de Datos</h1>
+                        <p class="ingest-hero-sub">El sistema interpreta automáticamente estructuras Excel, genera relaciones y activa análisis antifraude con IA.</p>
+                        <div class="ingest-hero-actions">
+                            <a href="/api/download-template" class="btn btn-primary" download>&#11015; Descargar Plantilla</a>
+                            <button type="button" class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar datos aleatorios</button>
+                        </div>
+                        <div class="ingest-features">
+                            <span class="ok">✓ Excel multihoja</span>
+                            <span class="ok">✓ Modelo ER automático</span>
+                            <span class="ok">✓ Validación IA</span>
+                            <span class="ok">✓ Integración ML</span>
+                        </div>
                     </div>
-                    <div class="ingest-features">
-                        <span class="ok">✓ Excel multihoja</span>
-                        <span class="ok">✓ Validación de esquema</span>
-                        <span class="ok">✓ Validación IA</span>
-                        <span class="ok">✓ Integración ML</span>
+                    <div class="ingest-upload" id="ingestUpload" role="button" tabindex="0" aria-label="Subir archivo Excel o CSV">
+                        <div class="ingest-upload-icon">&#128752;</div>
+                        <h3>Arrastra tu dataset o selecciona un archivo Excel</h3>
+                        <p>Transformamos archivos en estructuras listas para análisis antifraude</p>
+                        <div class="ingest-formats">
+                            <span class="format-tag">.xlsx</span>
+                            <span class="format-tag">.xls</span>
+                            <span class="format-tag">.csv</span>
+                            <span class="format-tag">Multihoja</span>
+                        </div>
                     </div>
                 </section>
-
-                <div class="ingest-upload" id="ingestUpload" role="button" tabindex="0">
-                    <div class="ingest-upload-icon">&#128752;</div>
-                    <h3>Arrastra tu dataset o selecciona un archivo Excel</h3>
-                    <p>Transformamos archivos en estructuras listas para análisis antifraude</p>
-                    <div class="ingest-formats">
-                        <span class="format-tag">.xlsx</span>
-                        <span class="format-tag">.xls</span>
-                        <span class="format-tag">.csv</span>
-                        <span class="format-tag">Multihoja</span>
-                    </div>
-                </div>
                 <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="uploadFile(this)" hidden>
 
                 <div id="datasetLoadStatus" aria-live="polite" style="margin-bottom:1rem;"></div>
@@ -1787,14 +1788,14 @@
         <!-- Agente IA — solo en pestaña Modelo ML -->
         <!-- AI Floating Copilot -->
         <div id="mlChatWidget" class="copilot-widget" aria-hidden="true">
-            <div id="mlCopilotPanel" class="copilot-panel" role="dialog" aria-label="FraudIA Intelligence Engine">
-                <div id="copilotResizeHandle" class="copilot-resize" title="Redimensionar"></div>
+            <div id="mlCopilotPanel" class="copilot-panel" role="dialog" aria-label="Copiloto antifraude">
+                <div id="copilotResizeHandle" class="copilot-resize copilot-resize-nw" title="Arrastre para cambiar tamaño"></div>
+                <div id="copilotResizeHandleSE" class="copilot-resize copilot-resize-se" title="Arrastre para cambiar tamaño"></div>
                 <header class="copilot-header" id="copilotDragHandle">
                     <div class="copilot-header-left">
                         <div class="copilot-avatar" aria-hidden="true">◈</div>
                         <div>
-                            <div class="copilot-name">FraudIA Intelligence Engine</div>
-                            <div class="copilot-status-chips" id="copilotStatusChips"></div>
+                            <div class="copilot-name">Copiloto antifraude</div>
                         </div>
                     </div>
                     <div class="copilot-header-metrics" id="copilotHeaderMetrics"></div>
@@ -2603,14 +2604,22 @@
         messages.innerHTML += `<div class="chat-msg chat-agent" id="${loadId}"><span class="spinner"></span> Analizando...</div>`;
         messages.scrollTop = messages.scrollHeight;
         try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (window.__FRAUDIA_API_KEY__) headers['X-Vercel-API-Key'] = window.__FRAUDIA_API_KEY__;
             const resp = await fetch('/api/agent-query', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ question }),
             });
             const data = await resp.json();
             const loader = document.getElementById(loadId);
             if (loader) loader.remove();
+            if (!resp.ok) {
+                const err = data.error || `Error ${resp.status}`;
+                messages.innerHTML += `<div class="chat-msg chat-agent" style="border-color:var(--red);">${escapeHtml(err)}</div>`;
+                messages.scrollTop = messages.scrollHeight;
+                return;
+            }
             const answer = data.respuesta || data.error || 'Sin respuesta';
             const motor = data.motor
                 ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">Motor: ' + escapeHtml(data.motor) + '</div>'
@@ -2753,7 +2762,7 @@
     }
 </script>
     <script src="/static/ingest.js?v=6"></script>
-    <script src="/static/ml-copilot.js?v=1"></script>
+    <script src="/static/ml-copilot.js?v=3"></script>
     <script src="/static/ml-engine.js?v=1"></script>
     <script src="/static/dashboard.js?v=5"></script>
 </body>

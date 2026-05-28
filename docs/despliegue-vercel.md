@@ -42,14 +42,25 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 
 | Variable | Valor |
 |----------|--------|
-| `OPENAI_API_KEY` | Tu clave `sk-...` |
+| `OPENAI_API_KEY` | Opcional — clave `sk-...` (ChatGPT) |
 | `OPENAI_MODEL` | `gpt-4o-mini` |
-| `OPENAI_ENABLED` | `true` |
+| `GEMINI_API_KEY` | **Recomendado en Vercel** — [Google AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | `gemini-2.0-flash` |
+| `LLM_PROVIDER` | `auto` (OpenAI → Gemini → motor local) o `gemini` / `openai` / `local` |
 | `SECRET_KEY` | Cadena aleatoria |
 | `VERCEL_API_KEY` | Clave opcional para proteger `/api/*` por header `X-Vercel-API-Key` |
 | `DATABASE_URL` | **Obligatoria** si quiere BD real en Vercel (MySQL/TiDB/Postgres) |
 
-Sin `OPENAI_API_KEY` el dashboard funciona; el chat no generará respuestas enriquecidas.
+**¿Qué proveedor usar?**
+
+| Opción | Vercel | Notas |
+|--------|--------|--------|
+| **Gemini** | ✅ Recomendado | Barato, rápido, solo `requests` + `GEMINI_API_KEY` |
+| **OpenAI** | ✅ | Ya soportado con `OPENAI_API_KEY` |
+| **Motor local (reglas)** | ✅ Siempre | Sin API; respuestas sobre tus datos sin redacción LLM |
+| **Cursor API** | ❌ No | Pensada para el IDE Cursor, no para chat embebido en tu app |
+
+Sin ninguna API key el chat **sigue funcionando** con el motor local (reglas + datos del pipeline).
 Sin `DATABASE_URL` en Vercel, el sistema opera en modo bundle/in-memory (demo).
 
 ### TiDB Cloud (recomendado para producción)

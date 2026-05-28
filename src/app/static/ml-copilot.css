@@ -1,23 +1,23 @@
 /* FraudIA — AI Floating Copilot */
 .copilot-widget {
     position: fixed;
-    bottom: 1.25rem;
-    right: 1.25rem;
+    inset: 0;
     z-index: 10060;
     display: none;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.75rem;
     pointer-events: none;
 }
 .copilot-widget.visible {
-    display: flex;
-    pointer-events: auto;
+    display: block;
 }
 
 .copilot-fab {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 10062;
     width: 3.75rem;
     height: 3.75rem;
+    pointer-events: auto;
     border-radius: 50%;
     border: none;
     cursor: pointer;
@@ -29,7 +29,6 @@
     box-shadow: 0 6px 32px rgba(0, 209, 255, 0.45);
     transition: transform 0.25s, box-shadow 0.25s;
     animation: copilot-fab-pulse 2.8s ease-out infinite;
-    position: relative;
     overflow: hidden;
 }
 .copilot-fab::before {
@@ -56,26 +55,31 @@
 .copilot-panel {
     display: none;
     flex-direction: column;
-    width: min(920px, calc(100vw - 1.5rem));
-    height: min(620px, calc(100vh - 2rem));
-    min-width: 340px;
-    min-height: 420px;
+    position: fixed;
+    right: 1.25rem;
+    bottom: 5.5rem;
+    width: min(420px, calc(100vw - 2rem));
+    height: min(520px, calc(100vh - 7rem));
+    min-width: 300px;
+    min-height: 320px;
     max-width: calc(100vw - 1rem);
     max-height: calc(100vh - 1rem);
     border-radius: 16px;
     border: 1px solid rgba(0, 209, 255, 0.28);
-    background: rgba(8, 12, 24, 0.88);
+    background: rgba(8, 12, 24, 0.92);
     backdrop-filter: blur(24px) saturate(1.2);
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 60px rgba(0, 209, 255, 0.08);
     overflow: hidden;
     transform-origin: bottom right;
     animation: copilot-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    position: relative;
+    z-index: 10061;
+    pointer-events: auto;
+    box-sizing: border-box;
 }
 .copilot-panel.open { display: flex; }
-.copilot-panel.expanded {
-    width: min(1100px, calc(100vw - 1rem));
-    height: min(88vh, calc(100vh - 1rem));
+.copilot-panel.expanded:not([style*='width']) {
+    width: min(720px, calc(100vw - 1rem));
+    height: min(78vh, calc(100vh - 1rem));
 }
 @keyframes copilot-slide-in {
     from { opacity: 0; transform: scale(0.94) translateY(12px); }
@@ -84,22 +88,46 @@
 
 .copilot-resize {
     position: absolute;
+    z-index: 25;
+    touch-action: none;
+}
+.copilot-resize-nw {
     top: 0;
     left: 0;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     cursor: nwse-resize;
-    z-index: 20;
 }
-.copilot-resize::before {
+.copilot-resize-nw::after {
     content: '';
     position: absolute;
-    top: 4px;
-    left: 4px;
+    top: 5px;
+    left: 5px;
     width: 8px;
     height: 8px;
-    border-top: 2px solid rgba(0, 209, 255, 0.5);
-    border-left: 2px solid rgba(0, 209, 255, 0.5);
+    border-top: 2px solid rgba(0, 209, 255, 0.55);
+    border-left: 2px solid rgba(0, 209, 255, 0.55);
+}
+.copilot-resize-se {
+    right: 0;
+    bottom: 0;
+    width: 22px;
+    height: 22px;
+    cursor: nwse-resize;
+}
+.copilot-resize-se::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid rgba(0, 209, 255, 0.55);
+    border-bottom: 2px solid rgba(0, 209, 255, 0.55);
+}
+.copilot-panel.is-resizing {
+    user-select: none;
+    transition: none;
 }
 
 /* Header */
@@ -209,7 +237,8 @@
     overflow: hidden;
 }
 .copilot-sidebar {
-    width: 200px;
+    width: min(200px, 38%);
+    min-width: 0;
     flex-shrink: 0;
     border-right: 1px solid var(--border-subtle);
     background: rgba(0, 0, 0, 0.2);

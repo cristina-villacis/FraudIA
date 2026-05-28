@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.ai_agent.openai_client import enhance_agent_answer, is_openai_configured
+from src.ai_agent.llm_router import enhance_with_llm, get_llm_provider, llm_status
 
 
 class ClaimsAgent:
@@ -151,10 +151,8 @@ class ClaimsAgent:
 
         return "\n".join(lines)
 
-    def _use_openai(self) -> bool:
-        if os.getenv("OPENAI_ENABLED", "true").lower() in ("0", "false", "no"):
-            return False
-        return is_openai_configured()
+    def _use_external_llm(self) -> bool:
+        return get_llm_provider() != "local"
 
     def _apply_response_style(self, text: str) -> str:
         """Aplica formato base consistente para respuestas del agente."""
@@ -192,11 +190,13 @@ class ClaimsAgent:
         if result is None:
             result = self._handle_general_query(question_lower)
 
-        result.setdefault("motor", "reglas")
-        result["openai_configured"] = self._use_openai()
+        result.setdefault("motor", "reglas-local")
+        status = llm_status()
+        result.update(status)
         result["openai_used"] = False
+        result["gemini_used"] = False
 
-        if self._use_openai() and result.get("tipo") not in ("ayuda",):
+        if self._use_external_llm() and result.get("tipo") not in ("ayuda",):
             factual = result.get("respuesta", "")
             context = self.build_dataset_context()
             if result.get("datos") and isinstance(result["datos"], dict):
@@ -208,13 +208,14 @@ class ClaimsAgent:
                         "ramo", "cobertura", "monto_reclamado",
                     ) if k in result["datos"]}
                 )
-            enhanced = enhance_agent_answer(question, factual, context)
+            enhanced, motor = enhance_with_llm(question, factual, context)
             if enhanced:
                 result["respuesta"] = enhanced
-                result["motor"] = "chatgpt+datos"
-                result["openai_used"] = True
+                result["motor"] = motor
+                result["openai_used"] = motor.startswith("chatgpt")
+                result["gemini_used"] = motor.startswith("gemini")
             else:
-                result["motor"] = "reglas (OpenAI no disponible)"
+                result["motor"] = motor
 
         result["respuesta"] = self._apply_response_style(result.get("respuesta", ""))
         return result

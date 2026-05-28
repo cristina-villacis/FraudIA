@@ -42,11 +42,26 @@ async def vercel_bootstrap_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+def _is_same_origin_browser_request(request: Request) -> bool:
+    """Peticiones desde la propia UI (mismo host) no requieren clave API."""
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if not host:
+        return False
+    origin = (request.headers.get("origin") or "").lower()
+    referer = (request.headers.get("referer") or "").lower()
+    if origin and host in origin:
+        return True
+    if referer and host in referer:
+        return True
+    return False
+
+
 @app.middleware("http")
 async def vercel_api_key_middleware(request: Request, call_next):
     """
     Seguridad opcional en Vercel para endpoints API.
-    Si VERCEL_API_KEY está definida, exige header X-Vercel-API-Key.
+    Si VERCEL_API_KEY está definida, exige header X-Vercel-API-Key
+    salvo en peticiones same-origin desde el navegador (chat, dashboard, etc.).
     """
     key = (os.getenv("VERCEL_API_KEY") or "").strip()
     path = request.url.path
@@ -56,7 +71,7 @@ async def vercel_api_key_middleware(request: Request, call_next):
         return await call_next(request)
     if path.startswith("/api/"):
         incoming = (request.headers.get("X-Vercel-API-Key") or "").strip()
-        if incoming != key:
+        if incoming != key and not _is_same_origin_browser_request(request):
             return JSONResponse({"error": "Unauthorized API key"}, status_code=401)
     return await call_next(request)
 

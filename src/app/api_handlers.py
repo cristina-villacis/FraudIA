@@ -27,6 +27,7 @@ from src.app.dashboard_service import (
 )
 from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime, load_vercel_bundle
 from src.ai_agent.claims_agent import ClaimsAgent
+from src.ai_agent.llm_router import llm_status
 from src.ai_agent.openai_client import is_openai_configured, get_openai_model
 from src.explainability.explain_score import explain_single_case
 from src.ingestion.load_data import (
@@ -978,6 +979,7 @@ def get_case(case_id: str) -> dict:
 
 def agent_status() -> dict:
     return {
+        **llm_status(),
         "openai_configured": is_openai_configured(),
         "openai_model": get_openai_model() if is_openai_configured() else None,
         "pipeline_ready": app_state.get("agent") is not None,
@@ -985,19 +987,50 @@ def agent_status() -> dict:
     }
 
 
-def agent_query(body: dict) -> dict:
-    agent = app_state.get("agent")
-    if agent is None:
-        if _should_use_live_database():
+def _ensure_agent_ready() -> bool:
+    """Inicializa el agente si hay datos en memoria, /tmp o BD."""
+    if app_state.get("agent") is not None:
+        return True
+
+    if is_vercel_runtime():
+        _hydrate_runtime_analysis()
+    if app_state.get("agent") is not None:
+        return True
+
+    if app_state.get("df_scored") is not None:
+        app_state["agent"] = ClaimsAgent(
+            app_state["df_scored"], extra_context=build_agent_context()
+        )
+        return True
+
+    if _should_use_live_database():
+        try:
             datasets = normalize_datasets_columns(load_all_datasets())
             if datasets:
                 app_state["datasets"] = datasets
                 _hydrate_agent_from_scored_if_available()
-                agent = app_state.get("agent")
-    if agent is None:
-        raise ValueError(
-            "Agente no inicializado. Ejecute el pipeline o cargue desde BD una tabla siniestros con score_hibrido/semaforo_final."
+        except Exception:
+            pass
+    if app_state.get("agent") is not None:
+        return True
+
+    sin = (app_state.get("datasets") or {}).get("siniestros")
+    if sin is not None and len(sin) > 0 and "id_siniestro" in sin.columns:
+        app_state["df_scored"] = sin.copy()
+        app_state["agent"] = ClaimsAgent(
+            app_state["df_scored"], extra_context=build_agent_context()
         )
+        return True
+
+    return False
+
+
+def agent_query(body: dict) -> dict:
+    if not _ensure_agent_ready():
+        raise ValueError(
+            "Agente no inicializado. Cargue un Excel, pulse «Activar motor IA» o espere a que termine el análisis."
+        )
+    agent = app_state["agent"]
     question = (body or {}).get("question", "")
     if not question:
         raise ValueError("Pregunta vacía")

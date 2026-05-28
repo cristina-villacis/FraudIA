@@ -34,6 +34,31 @@ const MlCopilot = (function () {
     let activeInvestigation = 'crit';
     let selectedCaseId = null;
     let dragState = null;
+    const SIZE_KEY = 'fraudia_copilot_size';
+    const POS_KEY = 'fraudia_copilot_pos';
+    const MIN_W = 300;
+    const MIN_H = 320;
+
+    async function apiFetch(url, options = {}) {
+        const headers = { ...(options.headers || {}) };
+        if (options.body && !headers['Content-Type']) {
+            headers['Content-Type'] = 'application/json';
+        }
+        const apiKey = window.__FRAUDIA_API_KEY__ || '';
+        if (apiKey) headers['X-Vercel-API-Key'] = apiKey;
+        return fetch(url, { ...options, headers });
+    }
+
+    function showAgentError(message) {
+        removeLoading();
+        const el = messagesEl();
+        if (!el) return;
+        el.insertAdjacentHTML(
+            'beforeend',
+            `<div class="copilot-msg agent"><div class="copilot-msg-body" style="border-color:var(--red);">${escapeHtml(message)}</div></div>`
+        );
+        scrollMessages();
+    }
 
     const FAB_ICON_BOT = '<path d="M12 2a7 7 0 0 0-7 7v4a7 7 0 0 0 7 7c.9 0 1.76-.12 2.55-.35L20 24l-1.15-3.45C21.2 19.2 22 17.1 22 15V9a7 7 0 0 0-7-7zm-2.5 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>';
     const FAB_ICON_CLOSE = '<path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.41z"/>';
@@ -55,13 +80,7 @@ const MlCopilot = (function () {
         return `
             <div class="copilot-msg agent">
                 <div class="copilot-msg-body">
-                    <strong style="color:var(--cyan);">FraudIA Intelligence Engine</strong> conectado a TiDB, motor ML, NLP y reglas antifraude.
-                    <div class="copilot-kpi-row" style="margin-top:0.75rem;">
-                        <div class="copilot-kpi"><label>Modo</label><span>Copiloto</span></div>
-                        <div class="copilot-kpi"><label>ML</label><span>RF + ISO</span></div>
-                        <div class="copilot-kpi"><label>NLP</label><span>Activo</span></div>
-                    </div>
-                    <p style="margin:0.65rem 0 0;font-size:0.78rem;color:var(--text-muted);">Use la barra lateral o acciones rápidas para iniciar una investigación.</p>
+                    Hola. Puedo ayudarte con casos sospechosos, scores y alertas. Escribe tu pregunta o elige una acción rápida abajo.
                 </div>
             </div>`;
     }
@@ -264,35 +283,70 @@ const MlCopilot = (function () {
         }
     }
 
+    function clampPanelToViewport(panel) {
+        if (!panel) return;
+        const w = panel.offsetWidth;
+        const h = panel.offsetHeight;
+        const maxR = Math.max(8, window.innerWidth - w - 8);
+        const maxB = Math.max(8, window.innerHeight - h - 8);
+        let r = parseFloat(panel.style.right);
+        let b = parseFloat(panel.style.bottom);
+        if (Number.isNaN(r)) r = 20;
+        if (Number.isNaN(b)) b = 88;
+        panel.style.right = Math.min(maxR, Math.max(8, r)) + 'px';
+        panel.style.bottom = Math.min(maxB, Math.max(8, b)) + 'px';
+    }
+
+    function savePanelLayout(panel) {
+        if (!panel || !window.localStorage) return;
+        try {
+            localStorage.setItem(
+                SIZE_KEY,
+                JSON.stringify({ w: panel.offsetWidth, h: panel.offsetHeight })
+            );
+            localStorage.setItem(
+                POS_KEY,
+                JSON.stringify({
+                    r: parseInt(panel.style.right, 10) || 20,
+                    b: parseInt(panel.style.bottom, 10) || 88,
+                })
+            );
+        } catch (e) { /* ignore */ }
+    }
+
+    function loadPanelLayout(panel) {
+        if (!panel || !window.localStorage) return;
+        try {
+            const size = JSON.parse(localStorage.getItem(SIZE_KEY) || 'null');
+            const pos = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+            if (size && size.w && size.h) {
+                panel.style.width = Math.min(window.innerWidth - 16, Math.max(MIN_W, size.w)) + 'px';
+                panel.style.height = Math.min(window.innerHeight - 16, Math.max(MIN_H, size.h)) + 'px';
+            }
+            if (pos && typeof pos.r === 'number') {
+                panel.style.right = pos.r + 'px';
+                panel.style.bottom = pos.b + 'px';
+            }
+            clampPanelToViewport(panel);
+        } catch (e) { /* ignore */ }
+    }
+
     async function refreshHeaderMetrics() {
         const metricsEl = $('copilotHeaderMetrics');
-        const chipsEl = $('copilotStatusChips');
         try {
-            const [status, dash, ml] = await Promise.all([
-                fetch('/api/agent-status').then((r) => r.json()).catch(() => ({})),
+            const [dash, ml] = await Promise.all([
                 fetch('/api/dashboard-data').then((r) => r.json()).catch(() => ({})),
                 fetch('/api/model-metrics').then((r) => r.json()).catch(() => ({})),
             ]);
             const rojos = dash.semaforo?.Rojo ?? dash.executive_kpis?.riesgo_alto ?? 0;
             const alerts = (dash.signals_summary || []).reduce((a, s) => a + (s.count || 0), 0) || rojos;
             const inferMs = ml.inference_ms ?? 48;
-            const modelName = ml.active_model || 'Random Forest';
 
             if (metricsEl) {
                 metricsEl.innerHTML = `
-                    <span class="copilot-metric-pill">🔴<strong>${Number(rojos).toLocaleString()}</strong> críticos</span>
-                    <span class="copilot-metric-pill">🟡<strong>${Number(alerts).toLocaleString()}</strong> alertas</span>
-                    <span class="copilot-metric-pill">🟢<strong>${escapeHtml(modelName)}</strong></span>
+                    <span class="copilot-metric-pill">🔴<strong>${Number(rojos).toLocaleString()}</strong></span>
+                    <span class="copilot-metric-pill">🟡<strong>${Number(alerts).toLocaleString()}</strong></span>
                     <span class="copilot-metric-pill">⚡<strong>${inferMs}ms</strong></span>
-                `;
-            }
-            if (chipsEl) {
-                const online = status.pipeline_ready ? 'on' : 'warn';
-                chipsEl.innerHTML = `
-                    <span class="copilot-chip ${online}">● Online</span>
-                    <span class="copilot-chip on">TiDB</span>
-                    <span class="copilot-chip ${ml.trained !== false ? 'on' : ''}">ML</span>
-                    <span class="copilot-chip on">NLP</span>
                 `;
             }
         } catch (e) { /* ignore */ }
@@ -307,24 +361,47 @@ const MlCopilot = (function () {
         appendLoading();
         const t0 = performance.now();
         try {
-            const resp = await fetch('/api/agent-query', {
+            const statusResp = await apiFetch('/api/agent-status').catch(() => null);
+            if (statusResp && statusResp.ok) {
+                const st = await statusResp.json();
+                if (!st.pipeline_ready) {
+                    showAgentError(
+                        'El motor aún no tiene datos analizados. Cargue un Excel y active el motor IA (o espere a que termine el pipeline).'
+                    );
+                    return;
+                }
+            }
+
+            const resp = await apiFetch('/api/agent-query', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: q }),
             });
-            const data = await resp.json();
+            let data = {};
+            try {
+                data = await resp.json();
+            } catch (parseErr) {
+                data = {};
+            }
             const ms = Math.round(performance.now() - t0);
             const inferEl = $('copilotInferLive');
             if (inferEl) inferEl.textContent = ms + 'ms';
+
+            if (!resp.ok) {
+                const err =
+                    data.error ||
+                    (Array.isArray(data.detail) ? data.detail[0]?.msg : data.detail) ||
+                    `Error del servidor (${resp.status})`;
+                if (resp.status === 401) {
+                    showAgentError('API no autorizada. Revise VERCEL_API_KEY en el despliegue o contacte al administrador.');
+                } else {
+                    showAgentError(String(err));
+                }
+                return;
+            }
             appendAgent(data, q);
         } catch (e) {
-            removeLoading();
-            const el = messagesEl();
-            if (el) {
-                el.insertAdjacentHTML('beforeend', `<div class="copilot-msg agent"><div class="copilot-msg-body" style="border-color:var(--red);">Error de conexión con el motor IA.</div></div>`);
-            }
+            showAgentError('Error de conexión con el motor IA. Compruebe que el servidor está en marcha (puerto 5001).');
         }
-        scrollMessages();
     }
 
     function toggle(forceOpen) {
@@ -337,6 +414,7 @@ const MlCopilot = (function () {
         fab.classList.toggle('open', open);
         if (icon) icon.innerHTML = open ? FAB_ICON_CLOSE : FAB_ICON_BOT;
         if (open) {
+            loadPanelLayout(panel);
             refreshHeaderMetrics();
             const inp = $('mlCopilotInput');
             if (inp) setTimeout(() => inp.focus(), 150);
@@ -355,16 +433,15 @@ const MlCopilot = (function () {
     function bindDrag() {
         const panel = $('mlCopilotPanel');
         const header = $('copilotDragHandle');
-        const widget = $('mlChatWidget');
-        if (!panel || !header || !widget) return;
+        if (!panel || !header) return;
 
         header.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.copilot-icon-btn')) return;
+            if (e.target.closest('.copilot-icon-btn') || e.target.closest('.copilot-resize')) return;
             dragState = {
                 startX: e.clientX,
                 startY: e.clientY,
-                right: parseInt(widget.style.right, 10) || 20,
-                bottom: parseInt(widget.style.bottom, 10) || 20,
+                right: parseInt(panel.style.right, 10) || 20,
+                bottom: parseInt(panel.style.bottom, 10) || 88,
             };
             e.preventDefault();
         });
@@ -372,36 +449,75 @@ const MlCopilot = (function () {
             if (!dragState) return;
             const dx = dragState.startX - e.clientX;
             const dy = dragState.startY - e.clientY;
-            widget.style.right = Math.max(8, dragState.right + dx) + 'px';
-            widget.style.bottom = Math.max(8, dragState.bottom + dy) + 'px';
+            panel.style.right = dragState.right + dx + 'px';
+            panel.style.bottom = dragState.bottom + dy + 'px';
+            clampPanelToViewport(panel);
         });
-        window.addEventListener('mouseup', () => { dragState = null; });
+        window.addEventListener('mouseup', () => {
+            if (dragState) savePanelLayout(panel);
+            dragState = null;
+        });
     }
 
-    function bindResize() {
+    function bindResizeHandle(handle, mode) {
         const panel = $('mlCopilotPanel');
-        const handle = $('copilotResizeHandle');
         if (!panel || !handle) return;
         let resizing = false;
-        let sx, sy, sw, sh;
+        let sx;
+        let sy;
+        let sw;
+        let sh;
+        let sr;
+        let sb;
+
         handle.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault();
+            e.stopPropagation();
             resizing = true;
+            panel.classList.add('is-resizing');
             sx = e.clientX;
             sy = e.clientY;
             sw = panel.offsetWidth;
             sh = panel.offsetHeight;
+            sr = parseInt(panel.style.right, 10) || 20;
+            sb = parseInt(panel.style.bottom, 10) || 88;
             document.body.style.userSelect = 'none';
         });
+
         window.addEventListener('mousemove', (e) => {
             if (!resizing) return;
-            panel.style.width = Math.max(340, Math.min(window.innerWidth - 16, sw - (e.clientX - sx))) + 'px';
-            panel.style.height = Math.max(420, Math.min(window.innerHeight - 16, sh - (e.clientY - sy))) + 'px';
+            const dx = e.clientX - sx;
+            const dy = e.clientY - sy;
+            if (mode === 'nw') {
+                const nw = Math.max(MIN_W, Math.min(window.innerWidth - 16, sw - dx));
+                const nh = Math.max(MIN_H, Math.min(window.innerHeight - 16, sh - dy));
+                panel.style.width = nw + 'px';
+                panel.style.height = nh + 'px';
+                panel.style.right = sr + (sw - nw) + 'px';
+                panel.style.bottom = sb + (sh - nh) + 'px';
+            } else {
+                panel.style.width = Math.max(MIN_W, Math.min(window.innerWidth - 16, sw + dx)) + 'px';
+                panel.style.height = Math.max(MIN_H, Math.min(window.innerHeight - 16, sh + dy)) + 'px';
+            }
+            clampPanelToViewport(panel);
         });
+
         window.addEventListener('mouseup', () => {
+            if (!resizing) return;
             resizing = false;
+            panel.classList.remove('is-resizing');
             document.body.style.userSelect = '';
+            savePanelLayout(panel);
+        });
+    }
+
+    function bindResize() {
+        bindResizeHandle($('copilotResizeHandle'), 'nw');
+        bindResizeHandle($('copilotResizeHandleSE'), 'se');
+        window.addEventListener('resize', () => {
+            const panel = $('mlCopilotPanel');
+            if (panel && panel.classList.contains('open')) clampPanelToViewport(panel);
         });
     }
 
@@ -443,6 +559,7 @@ const MlCopilot = (function () {
         bindDrag();
         bindResize();
         bindControls();
+        loadPanelLayout($('mlCopilotPanel'));
         startPlaceholderRotation();
         const msg = messagesEl();
         if (msg && !msg.dataset.inited) {

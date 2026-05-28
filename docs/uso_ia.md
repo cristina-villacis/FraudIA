@@ -66,19 +66,31 @@ Un ciclo **self-training** completo (Fases 2–4) sería:
 
 | Aspecto | Implementación |
 |---------|----------------|
-| **Tipo** | Motor de reglas sobre `df_scored` + **ChatGPT opcional** (OpenAI API) |
+| **Tipo** | Motor de reglas sobre `df_scored` + **LLM opcional** (OpenAI o **Gemini** en Vercel) |
 | **Entrada** | DataFrame post-pipeline con scores, ML, anomalías, alertas |
 | **API** | `POST /api/agent-query`, `GET /api/agent-status` |
 | **Código** | `src/ai_agent/claims_agent.py`, `src/ai_agent/openai_client.py` |
+
+### Configurar LLM en Vercel (recomendado: Gemini)
+
+1. Cree una API key en [Google AI Studio](https://aistudio.google.com/apikey).
+2. En Vercel → **Settings → Environment Variables**:
+   - `GEMINI_API_KEY=...`
+   - `LLM_PROVIDER=gemini` (o deje `auto` si no usa OpenAI)
+3. Redeploy.
 
 ### Configurar ChatGPT (OpenAI)
 
 1. Copie `.env.example` a `.env` (el archivo `.env` no se sube a git).
 2. Defina `OPENAI_API_KEY=sk-...` (clave nueva; revoque cualquier clave expuesta).
 3. Opcional: `OPENAI_MODEL=gpt-4o-mini` (o `gpt-4o`, etc.).
-4. `pip install openai` y reinicie Flask.
+4. `pip install openai` y reinicie el servidor.
 
-Flujo: el motor calcula la respuesta factual desde los datos → ChatGPT la redacta sin inventar cifras.
+### Sin API externa (motor local)
+
+Si no hay `OPENAI_API_KEY` ni `GEMINI_API_KEY`, el chat responde con **reglas sobre tus datos** (casos, top riesgo, ML, alertas). No requiere LLM en la nube.
+
+Flujo con LLM: el motor calcula la respuesta factual desde los datos → OpenAI o Gemini la redacta sin inventar cifras.
 
 ### Datos que usa el agente
 

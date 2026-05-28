@@ -40,7 +40,7 @@
     align-items: center;
 }
 
-/* Hero */
+/* Hero + upload integrado */
 .ingest-hero {
     background: linear-gradient(135deg, rgba(0,209,255,0.08) 0%, rgba(17,24,39,0.85) 40%, rgba(11,17,32,0.9) 100%);
     border: 1px solid rgba(0,209,255,0.2);
@@ -51,6 +51,28 @@
     box-shadow: var(--shadow-glow), 0 0 60px rgba(0,209,255,0.06);
     position: relative;
     overflow: hidden;
+}
+.ingest-hero-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
+    gap: 1.75rem 2rem;
+    align-items: stretch;
+}
+.ingest-hero-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    z-index: 1;
+}
+@media (max-width: 960px) {
+    .ingest-hero-split {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+    .ingest-hero-split .ingest-upload {
+        min-height: 200px;
+    }
 }
 .ingest-hero::before {
     content: '';
@@ -89,7 +111,7 @@
     color: var(--text-secondary);
     font-size: 1rem;
     line-height: 1.6;
-    max-width: 640px;
+    max-width: 52ch;
     margin-bottom: 1.25rem;
 }
 .ingest-hero-actions {
@@ -109,7 +131,19 @@
 .ingest-features span { display: flex; align-items: center; gap: 0.35rem; }
 .ingest-features .ok { color: var(--green); }
 
-/* Upload zone premium */
+/* Upload zone (columna derecha del hero) */
+.ingest-hero-split .ingest-upload {
+    margin-bottom: 0;
+    z-index: 1;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 1.5rem 1.25rem;
+    border-radius: var(--radius-md);
+}
 .ingest-upload {
     border: 2px dashed rgba(0,209,255,0.35);
     border-radius: var(--radius-lg);
@@ -148,10 +182,39 @@
     font-size: 2rem;
     border: 1px solid rgba(0,209,255,0.3);
     box-shadow: 0 0 30px rgba(0,209,255,0.2);
+    flex-shrink: 0;
 }
-.ingest-upload h3 { font-size: 1.1rem; margin-bottom: 0.35rem; }
+.ingest-hero-split .ingest-upload-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+.ingest-upload h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.35rem;
+    line-height: 1.35;
+}
+.ingest-hero-split .ingest-upload h3 {
+    font-size: 0.95rem;
+}
 .ingest-upload p { color: var(--text-muted); font-size: 0.85rem; }
-.ingest-formats { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+.ingest-hero-split .ingest-upload p {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    max-width: 28ch;
+}
+.ingest-formats {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+.ingest-hero-split .ingest-formats {
+    margin-top: 0.75rem;
+    gap: 0.35rem;
+}
 
 /* ETL Pipeline */
 .ingest-etl {
@@ -386,6 +449,9 @@
 }
 .header-status-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 
+[data-theme="light"] .ingest-hero-split .ingest-upload {
+    background: rgba(3, 105, 161, 0.04);
+}
 [data-theme="light"] .ingest-hero {
     background: linear-gradient(135deg, rgba(3,105,161,0.08) 0%, rgba(248,250,252,0.95) 50%, #fff 100%);
     border-color: rgba(3,105,161,0.2);
