@@ -15,11 +15,7 @@ BUNDLE_DIR = os.path.join("data", "processed", "vercel_bundle")
 
 
 def is_vercel_runtime() -> bool:
-    return bool(
-        os.getenv("VERCEL")
-        or os.getenv("VERCEL_DEPLOYMENT_ID")
-        or os.getenv("VERCEL_ENV")
-    )
+    return bool(os.getenv("VERCEL_ENV") or os.getenv("VERCEL_DEPLOYMENT_ID"))
 
 
 def _project_root() -> str:

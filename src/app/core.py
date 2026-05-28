@@ -62,16 +62,35 @@ def build_agent_context() -> dict:
     }
 
 
-def merge_uploaded_tables(new_tables: dict) -> None:
+STANDARD_TABLES = frozenset(
+    {"siniestros", "polizas", "asegurados", "vehiculos", "proveedores", "documentos"}
+)
+
+
+def is_standard_workbook(tables: dict) -> bool:
+    """Workbook completo (plantilla aseguradora): reemplaza todo el estado, no mezcla."""
+    if not tables or "siniestros" not in tables:
+        return False
+    return len(set(tables.keys()) & STANDARD_TABLES) >= 2
+
+
+def apply_loaded_datasets(new_tables: dict) -> None:
+    """
+    Asigna tablas cargadas sin duplicar datasets previos.
+    Workbooks con siniestros + tablas relacionadas reemplazan el estado completo.
+    """
     if not new_tables:
         return
-    known = {"siniestros", "polizas", "asegurados", "vehiculos", "proveedores", "documentos"}
-    known_in_file = set(new_tables.keys()) & known
-    is_full_workbook = "siniestros" in new_tables and len(known_in_file) >= 3
-    if is_full_workbook:
-        app_state["datasets"] = new_tables
+    filtered = {k: v for k, v in new_tables.items() if k in STANDARD_TABLES}
+    if is_standard_workbook(filtered):
+        app_state["datasets"] = filtered
         return
     if not app_state.get("datasets"):
         app_state["datasets"] = {}
-    for name, df in new_tables.items():
+    for name, df in filtered.items():
         app_state["datasets"][name] = df
+
+
+def merge_uploaded_tables(new_tables: dict) -> None:
+    """Compatibilidad: delega en apply_loaded_datasets."""
+    apply_loaded_datasets(new_tables)

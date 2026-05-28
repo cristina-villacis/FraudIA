@@ -4,6 +4,7 @@ Módulo de Procesamiento de Lenguaje Natural (NLP).
 - Extracción de entidades
 - Resúmenes automáticos
 """
+import os
 import re
 from collections import Counter
 from typing import Dict, List, Tuple
@@ -24,9 +25,22 @@ STOPWORDS_ES = {
 }
 
 
+def _nlp_max_rows() -> int:
+    try:
+        return max(100, int(os.getenv("NLP_MAX_ROWS", "2000")))
+    except ValueError:
+        return 2000
+
+
 def compute_text_similarity(descriptions: pd.Series, threshold: float = 0.70) -> Dict:
     if descriptions is None or len(descriptions) < 2:
         return {"similarity_matrix": None, "pairs": [], "max_similarities": {}}
+
+    truncated = False
+    max_rows = _nlp_max_rows()
+    if len(descriptions) > max_rows:
+        descriptions = descriptions.iloc[:max_rows]
+        truncated = True
 
     clean_texts = descriptions.fillna("").apply(_preprocess_text)
 
@@ -49,13 +63,14 @@ def compute_text_similarity(descriptions: pd.Series, threshold: float = 0.70) ->
         max_sim = sim_matrix[i].max()
         max_similarities[indices[i]] = round(float(max_sim), 4)
 
-        for j in range(i + 1, len(sim_matrix)):
-            if sim_matrix[i][j] >= threshold:
-                similar_pairs.append({
-                    "idx_1": indices[i],
-                    "idx_2": indices[j],
-                    "similarity": round(float(sim_matrix[i][j]), 4),
-                })
+    upper = np.triu(sim_matrix, k=1)
+    rows_i, cols_j = np.where(upper >= threshold)
+    for i, j in zip(rows_i, cols_j):
+        similar_pairs.append({
+            "idx_1": indices[i],
+            "idx_2": indices[j],
+            "similarity": round(float(sim_matrix[i, j]), 4),
+        })
 
     similar_pairs.sort(key=lambda x: x["similarity"], reverse=True)
 
@@ -65,6 +80,8 @@ def compute_text_similarity(descriptions: pd.Series, threshold: float = 0.70) ->
         "max_similarities": max_similarities,
         "n_pairs_above_threshold": len(similar_pairs),
         "threshold": threshold,
+        "truncated": truncated,
+        "max_rows": max_rows if truncated else len(descriptions),
     }
 
 
@@ -77,14 +94,18 @@ def get_similarity_scores_by_id(
     if desc_col not in df.columns or id_col not in df.columns:
         return {}
 
-    clean_desc = df[desc_col].fillna("").apply(_preprocess_text)
+    work = df
+    if len(df) > _nlp_max_rows():
+        work = df.iloc[: _nlp_max_rows()].copy()
+
+    clean_desc = work[desc_col].fillna("").apply(_preprocess_text)
     clean_counts = clean_desc.value_counts().to_dict()
 
-    result = compute_text_similarity(df[desc_col], threshold)
+    result = compute_text_similarity(work[desc_col], threshold)
     max_sims = result.get("max_similarities", {})
 
     id_to_sim = {}
-    for idx, sin_id, clean in zip(df.index.tolist(), df[id_col].tolist(), clean_desc.tolist()):
+    for idx, sin_id, clean in zip(work.index.tolist(), work[id_col].tolist(), clean_desc.tolist()):
         if idx in max_sims:
             sim = float(max_sims[idx])
             tokens = [w for w in clean.split() if len(w) > 2]

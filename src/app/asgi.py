@@ -3,10 +3,11 @@ API web FraudIA — FastAPI (Python / ASGI) para Vercel y desarrollo local.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import traceback
+from functools import partial
 
-from dotenv import load_dotenv
 from typing import List, Optional
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -14,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-load_dotenv()
+import src.db.config  # noqa: F401 — carga .env del proyecto antes que el resto
 
 from src.app.core import APP_DIR  # noqa: E402
 from src.app import api_handlers as h  # noqa: E402
@@ -90,8 +91,8 @@ async def api_deployment_info():
 
 
 @app.get("/api/db-status")
-async def api_db_status():
-    return h.db_status()
+async def api_db_status(quick: bool = True):
+    return h.db_status(quick=quick)
 
 
 @app.post("/api/db-init")
@@ -116,7 +117,9 @@ async def api_download_template():
 async def api_upload(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        return h.upload_dataset(file.filename or "upload.xlsx", content)
+        loop = asyncio.get_running_loop()
+        run = partial(h.upload_dataset, file.filename or "upload.xlsx", content)
+        return await loop.run_in_executor(None, run)
     except ValueError as e:
         return _err(e, 400)
     except Exception as e:
@@ -126,16 +129,24 @@ async def api_upload(file: UploadFile = File(...)):
 @app.post("/api/load-synthetic")
 async def api_load_synthetic():
     try:
-        return h.load_synthetic()
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, h.load_synthetic)
     except Exception as e:
         return _err(e)
 
 
-@app.post("/api/load-insurer")
-async def api_load_insurer():
+@app.get("/api/schema")
+async def api_schema():
+    from src.ingestion.schema import FIELD_DESCRIPTIONS
+
+    return {"tables": FIELD_DESCRIPTIONS}
+
+
+@app.post("/api/persist-datasets")
+async def api_persist_datasets():
     try:
-        return h.load_insurer_dataset()
-    except (ValueError, FileNotFoundError) as e:
+        return h.persist_datasets_to_db()
+    except ValueError as e:
         return _err(e, 400)
     except Exception as e:
         return _err(e)
@@ -197,6 +208,11 @@ async def api_run_pipeline():
 
         app_state["pipeline_status"] = "error"
         return _err(e)
+
+
+@app.get("/api/pipeline-status")
+async def api_pipeline_status():
+    return h.get_pipeline_job_status()
 
 
 @app.get("/api/dashboard-filters")

@@ -1,6 +1,6 @@
 """
-Mapeo del dataset oficial de la aseguradora (Evento Datasets_Sinteticos_Fraude_500_v2.xlsx)
-a las tablas canónicas del proyecto.
+Mapeo de Excel de prueba/demo a tablas canónicas (ver schema.py).
+No incluye datos: solo transformación de columnas.
 """
 from __future__ import annotations
 
@@ -12,16 +12,9 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
-# Hojas del Excel de la aseguradora → tablas internas
-INSURER_SHEET_ALIASES: Dict[str, str] = {
-    "1_siniestros": "siniestros",
-    "2_polizas": "polizas",
-    "3_asegurados": "asegurados",
-    "4_proveedores": "proveedores",
-    "5_documentos": "documentos",
-    "readme": "readme",
-    "6_indice_documentos": "indice_documentos",
-}
+from src.ingestion.schema import EXPECTED_COLUMNS, SHEET_ALIASES, SKIP_SHEETS
+
+INSURER_SHEET_ALIASES = SHEET_ALIASES
 
 # Renombre explícito: columna normalizada (sin acentos) → columna canónica
 COLUMN_RENAMES: Dict[str, Dict[str, str]] = {
@@ -46,7 +39,9 @@ COLUMN_RENAMES: Dict[str, Dict[str, str]] = {
         "sucursal": "sucursal",
         "id_proveedor": "id_proveedor",
         "descripcion_del_evento": "descripcion",
+        "descripcion": "descripcion",
         "docs_completos": "documentos_completos",
+        "beneficiario": "beneficiario",
         "prov_lista_restrictiva": "prov_en_lista_restrictiva",
         "prov._lista_restrictiva": "prov_en_lista_restrictiva",
         "dias_desde_inicio_poliza": "dias_desde_inicio_poliza",
@@ -95,12 +90,21 @@ COLUMN_RENAMES: Dict[str, Dict[str, str]] = {
         "motivo_restriccion": "motivo_restriccion",
         "promedio_monto": "monto_promedio_reclamado",
         "promedio_monto_": "monto_promedio_reclamado",
+        "n_siniestros_asociados": "reclamos_asociados",
+        "porcentaje_casos_observados": "porcentaje_casos_observados",
+        "antiguedad": "antiguedad_anos",
+        "antiguedad_anos": "antiguedad_anos",
     },
     "documentos": {
         "id_documento": "id_documento",
         "id_siniestro": "id_siniestro",
         "tipo_documento": "tipo_documento",
         "nombre_archivo_pdf": "nombre_archivo_pdf",
+        "entregado": "entregado",
+        "legible": "legible",
+        "fecha_emision": "fecha_emision",
+        "inconsistencia_detectada": "inconsistencia_detectada",
+        "observacion": "observacion",
     },
 }
 
@@ -163,7 +167,7 @@ def _postprocess_siniestros(df: pd.DataFrame) -> pd.DataFrame:
     if "similitud_narrativa_max" in df.columns:
         df["similitud_narrativa_max"] = pd.to_numeric(df["similitud_narrativa_max"], errors="coerce").fillna(0)
     if "beneficiario" not in df.columns and "id_proveedor" in df.columns:
-        df["beneficiario"] = df["id_proveedor"]
+        df["beneficiario"] = df["id_proveedor"].astype(str)
     if "etiqueta_fraude_simulada" not in df.columns:
         df["etiqueta_fraude_simulada"] = derive_fraud_label(df)
     return df
@@ -253,7 +257,9 @@ def derive_fraud_label(df: pd.DataFrame) -> pd.Series:
 
 def is_insurer_workbook(sheet_names) -> bool:
     names = {_normalize_col_name(k) for k in sheet_names}
-    return "1_siniestros" in names
+    if "siniestros" in names or "1_siniestros" in names:
+        return len(names & {"polizas", "2_polizas", "asegurados", "3_asegurados", "proveedores", "4_proveedores"}) >= 1
+    return False
 
 
-INSURER_DEFAULT_XLSX = os.path.join("data", "raw", "Evento_Datasets_Sinteticos_Fraude_500_v2.xlsx")
+EVENTO_SHEET_NAMES: Dict[str, str] = {t: t.capitalize() for t in ("siniestros", "polizas", "asegurados", "proveedores", "documentos")}

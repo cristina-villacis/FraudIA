@@ -282,131 +282,382 @@ function populateFilterControls(opts) {
 
 function buildDashboardShell() {
     return `
-        <div class="card dashboard-toolbar">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
-                <div class="card-title" style="margin:0;">Filtros interactivos</div>
-                <div class="dashboard-filter-actions">
-                    <button type="button" class="btn btn-primary" id="btnApplyFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Aplicar</button>
-                    <button type="button" class="btn btn-secondary" id="btnResetFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Limpiar filtros</button>
+        <div class="dash-soc-title">
+            <div>
+                <h2>Centro de Inteligencia Antifraude</h2>
+                <div class="dash-soc-meta">
+                    <span>Motor IA: <strong id="dashIaStatus">Activo</strong></span>
+                    <span>AUC-ROC: <strong id="kpiAuc">—</strong></span>
+                    <span>Actualizado: <strong id="dashNow">—</strong></span>
                 </div>
             </div>
-            <div class="dashboard-toolbar-grid">
-                <div class="dashboard-filter"><label>Semáforo</label>
-                    <select id="filterSemaforo"><option value="all">Todos</option><option value="Verde">Verde (0-40)</option><option value="Amarillo">Amarillo (41-75)</option><option value="Rojo">Rojo (76-100)</option></select>
-                </div>
-                <div class="dashboard-filter"><label>Ramo</label><select id="filterRamo"></select></div>
-                <div class="dashboard-filter"><label>Cobertura</label><select id="filterCobertura"></select></div>
-                <div class="dashboard-filter"><label>Sucursal</label><select id="filterSucursal"></select></div>
-                <div class="dashboard-filter"><label>Estado</label><select id="filterEstado"></select></div>
-                <div class="dashboard-filter"><label>ID Siniestro</label><input type="text" id="filterSearch" placeholder="Buscar SIN-..."></div>
-                <div class="dashboard-filter"><label>Desde</label><input type="date" id="filterFechaDesde"></div>
-                <div class="dashboard-filter"><label>Hasta</label><input type="date" id="filterFechaHasta"></div>
-                <div class="dashboard-filter score-range-wrap"><label>Score mín. <span id="scoreMinLabel">0</span></label>
-                    <input type="range" id="filterScoreMinRange"><input type="number" id="filterScoreMin" min="0" max="100" style="margin-top:0.35rem;">
-                </div>
-                <div class="dashboard-filter score-range-wrap"><label>Score máx. <span id="scoreMaxLabel">100</span></label>
-                    <input type="range" id="filterScoreMaxRange"><input type="number" id="filterScoreMax" min="0" max="100" style="margin-top:0.35rem;">
-                </div>
+            <span class="dash-panel-badge">SOC · Tiempo real</span>
+        </div>
+
+        <div class="dash-soc-kpis">
+            <div class="dash-kpi-card">
+                <div class="dash-kpi-label">Total siniestros</div>
+                <div class="dash-kpi-value" id="kpiTotal" style="color:var(--cyan);">—</div>
+                <div class="dash-kpi-sub" id="kpiTotalSub">Analizados</div>
             </div>
-            <div class="dashboard-semaforo-pills">
-                <button type="button" class="semaforo-pill active" data-semaforo="all">Todos</button>
-                <button type="button" class="semaforo-pill pill-verde" data-semaforo="Verde">🟢 Verde</button>
-                <button type="button" class="semaforo-pill pill-amarillo" data-semaforo="Amarillo">🟡 Amarillo</button>
-                <button type="button" class="semaforo-pill pill-rojo" data-semaforo="Rojo">🔴 Rojo</button>
+            <div class="dash-kpi-card accent-red">
+                <div class="dash-kpi-label">Casos críticos</div>
+                <div class="dash-kpi-value" id="kpiRojo" style="color:var(--red);">—</div>
+                <div class="dash-kpi-sub" id="kpiRojoPct">—</div>
+                <span class="dash-kpi-trend up" id="kpiCriticalTrend">▲ Prioridad alta</span>
+            </div>
+            <div class="dash-kpi-card">
+                <div class="dash-kpi-label">Riesgo promedio</div>
+                <div class="dash-kpi-value" id="kpiScore">—</div>
+                <div class="dash-kpi-sub">Score híbrido / 100</div>
+            </div>
+            <div class="dash-kpi-card accent-yellow">
+                <div class="dash-kpi-label">Monto comprometido</div>
+                <div class="dash-kpi-value" id="kpiMonto" style="color:var(--yellow);">—</div>
+                <div class="dash-kpi-sub">Exposición en filtro</div>
+            </div>
+            <div class="dash-kpi-card accent-green">
+                <div class="dash-kpi-label">Alertas activas</div>
+                <div class="dash-kpi-value" id="kpiAlerts" style="color:var(--green);">—</div>
+                <div class="dash-kpi-sub" id="kpiProbFraude">Prob. fraude —</div>
             </div>
         </div>
+
+        <details class="dash-panel dash-filters-panel" open>
+            <summary>▸ Filtros inteligentes · clic en gráficos para explorar</summary>
+            <div class="dash-filters-body">
+                <div class="card dashboard-toolbar" style="margin:0;border:none;background:transparent;box-shadow:none;">
+                    <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.75rem;">
+                        <button type="button" class="btn btn-primary" id="btnApplyFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Aplicar</button>
+                        <button type="button" class="btn btn-secondary" id="btnResetFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Limpiar</button>
+                    </div>
+                    <div class="dashboard-toolbar-grid">
+                        <div class="dashboard-filter"><label>Semáforo</label>
+                            <select id="filterSemaforo"><option value="all">Todos</option><option value="Verde">Verde (0-40)</option><option value="Amarillo">Amarillo (41-75)</option><option value="Rojo">Rojo (76-100)</option></select>
+                        </div>
+                        <div class="dashboard-filter"><label>Ramo</label><select id="filterRamo"></select></div>
+                        <div class="dashboard-filter"><label>Cobertura</label><select id="filterCobertura"></select></div>
+                        <div class="dashboard-filter"><label>Sucursal</label><select id="filterSucursal"></select></div>
+                        <div class="dashboard-filter"><label>Estado</label><select id="filterEstado"></select></div>
+                        <div class="dashboard-filter"><label>ID Siniestro</label><input type="text" id="filterSearch" placeholder="Buscar SIN-..."></div>
+                        <div class="dashboard-filter"><label>Desde</label><input type="date" id="filterFechaDesde"></div>
+                        <div class="dashboard-filter"><label>Hasta</label><input type="date" id="filterFechaHasta"></div>
+                        <div class="dashboard-filter score-range-wrap"><label>Score mín. <span id="scoreMinLabel">0</span></label>
+                            <input type="range" id="filterScoreMinRange"><input type="number" id="filterScoreMin" min="0" max="100" style="margin-top:0.35rem;">
+                        </div>
+                        <div class="dashboard-filter score-range-wrap"><label>Score máx. <span id="scoreMaxLabel">100</span></label>
+                            <input type="range" id="filterScoreMaxRange"><input type="number" id="filterScoreMax" min="0" max="100" style="margin-top:0.35rem;">
+                        </div>
+                    </div>
+                    <div class="dashboard-semaforo-pills">
+                        <button type="button" class="semaforo-pill active" data-semaforo="all">Todos</button>
+                        <button type="button" class="semaforo-pill pill-verde" data-semaforo="Verde">Verde</button>
+                        <button type="button" class="semaforo-pill pill-amarillo" data-semaforo="Amarillo">Amarillo</button>
+                        <button type="button" class="semaforo-pill pill-rojo" data-semaforo="Rojo">Rojo</button>
+                    </div>
+                </div>
+            </div>
+        </details>
         <div id="dashboardChips" class="dashboard-chips"></div>
         <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
-        <div class="dashboard-kpi-row" id="dashKpiRow">
-            <div class="card metric-card card-accent-cyan" style="padding:1.1rem;"><div class="card-title">Total Siniestros</div><div class="metric-value" id="kpiTotal" style="color:var(--cyan);font-size:1.75rem;">—</div><div class="metric-label" id="kpiTotalSub">Analizados</div></div>
-            <div class="card metric-card card-accent-red" style="padding:1.1rem;"><div class="card-title">Alto Riesgo</div><div class="metric-value" id="kpiRojo" style="color:var(--red);font-size:1.75rem;">—</div><div class="metric-label" id="kpiRojoPct">—</div></div>
-            <div class="card metric-card card-accent-yellow" style="padding:1.1rem;"><div class="card-title">Monto Alto Riesgo</div><div class="metric-value" id="kpiMonto" style="color:var(--yellow);font-size:1.75rem;">—</div><div class="metric-label">Casos filtrados</div></div>
-            <div class="card metric-card card-accent-green" style="padding:1.1rem;"><div class="card-title">Precisión IA</div><div class="metric-value" id="kpiAuc" style="color:var(--green);font-size:1.75rem;">—</div><div class="metric-label">AUC-ROC</div></div>
-            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Score Promedio</div><div class="metric-value" id="kpiScore" style="font-size:1.75rem;">—</div><div class="metric-label">sobre 100</div></div>
-            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Clasificación de Riesgo</div><div class="metric-value" id="kpiClasificacion" style="font-size:1rem;line-height:1.4;">—</div><div class="metric-label">Alto · Medio · Bajo</div></div>
-            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Prob. Fraude Promedio</div><div class="metric-value" id="kpiProbFraude" style="font-size:1.75rem;">—</div><div class="metric-label">Modelo supervisado</div></div>
-        </div>
-        <div class="dashboard-main-grid">
-            <div style="display:flex;flex-direction:column;gap:1.25rem;">
-                <div class="card card-chart">
-                <div class="card-title">Distribución de Scores por Nivel de Riesgo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra para filtrar (0-40 / 41-75 / 76-100)</span><button type="button" class="chart-reset-btn" data-reset-scope="score" title="Limpiar filtros del gráfico">✕</button></div>
-                <div id="chartScores" class="chart-area" style="min-height:280px;"></div>
-            </div>
-                <div class="card card-chart"><div class="card-title">Tendencia de Siniestros <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en punto para filtrar mes</span><button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar filtros del gráfico">✕</button></div><div id="chartTemporal" class="chart-area" style="min-height:260px;"></div></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:1.25rem;">
-                <div class="card" style="flex:1;"><div class="card-title">Principales Anomalías <span style="font-size:0.7rem;color:var(--text-muted);">— clic para ver caso</span></div><div id="topAnomaliesList"></div></div>
-                <div class="card"><div class="card-title">Similitud NLP</div><div id="nlpPanel"></div></div>
-            </div>
-        </div>
-        <div class="dashboard-bottom-grid">
-            <div class="card card-chart">
-                <div class="card-title">Estado de Reclamaciones <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en segmento</span><button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar filtros del gráfico">✕</button></div>
-                <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
-            </div>
-            <div class="card card-chart">
-                <div class="card-title">Análisis por Ramo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra</span><button type="button" class="chart-reset-btn" data-reset-scope="ramo" title="Limpiar filtros del gráfico">✕</button></div>
-                <div id="chartRamo" class="chart-area chart-area-ramo"></div>
-                <div class="chart-legend-below" id="ramoChartLegend">
-                    <span><i style="background:var(--green);"></i> Verde (0-40)</span>
-                    <span><i style="background:var(--yellow);"></i> Amarillo (41-75)</span>
-                    <span><i style="background:var(--red);"></i> Rojo (76-100)</span>
+        <span id="kpiClasificacion" style="display:none;"></span>
+
+        <div class="dash-layout-main">
+            <section class="dash-panel">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Casos críticos · priorización IA</h3>
+                    <span class="dash-panel-badge">Top riesgo</span>
+                </div>
+                <div class="dash-table-wrap">
+                    <table class="dash-table">
+                        <thead><tr>
+                            <th></th><th>ID</th><th>Score IA</th><th>Riesgo</th><th>Proveedor</th><th>Asegurado</th><th>Monto</th><th>Reglas</th><th>Estado</th><th></th>
+                        </tr></thead>
+                        <tbody id="criticalCasesTable"></tbody>
+                    </table>
+                </div>
+                <div id="topAnomaliesList" style="display:none;"></div>
+            </section>
+            <div class="dash-stack">
+                <div class="dash-panel card-chart">
+                    <div class="dash-panel-head">
+                        <h3 class="dash-panel-title">Distribución score · ML</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="score" title="Limpiar">✕</button>
+                    </div>
+                    <div id="chartScores" class="chart-area" style="min-height:240px;"></div>
+                </div>
+                <div class="dash-panel card-chart">
+                    <div class="dash-panel-head">
+                        <h3 class="dash-panel-title">Timeline antifraude</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar">✕</button>
+                    </div>
+                    <div id="chartTemporal" class="chart-area" style="min-height:220px;"></div>
                 </div>
             </div>
-            <div class="card card-alerts">
-                <div class="card-title">Alertas Automáticas</div>
-                <div id="alertsPanel" class="alerts-panel"></div>
+        </div>
+
+        <div class="dash-layout-triple">
+            <div class="dash-panel card-chart">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Semáforo de riesgo</h3>
+                    <button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar">✕</button>
+                </div>
+                <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
+            </div>
+            <div class="dash-panel card-chart">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Mapa calor · sucursales</h3>
+                    <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
+                </div>
+                <div id="chartGeoOperacion" class="chart-area" style="min-height:260px;"></div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Red de relaciones</h3>
+                    <span class="dash-panel-badge">PK/FK</span>
+                </div>
+                <div class="dash-graph-wrap" id="dashRelationGraph"></div>
             </div>
         </div>
-        <div class="grid-2" style="margin-top:1rem;">
-            <div class="card card-chart">
-                <div class="card-title">Motor de señales de fraude</div>
-                <div class="table-container" style="max-height:300px;overflow:auto;">
-                    <table>
+
+        <div class="dash-layout-duo">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">NLP · similitud narrativa</h3></div>
+                <div id="nlpPanel"></div>
+                <div class="dash-nlp-cluster" id="nlpKeywords"></div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">IA explicable · caso activo</h3></div>
+                <div id="explainabilityPanel" class="dash-xai-hero">
+                    Seleccione un caso crítico para ver la explicación automática del motor antifraude.
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-layout-duo">
+            <div class="dash-panel card-chart">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Heatmap ramo × riesgo</h3>
+                    <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
+                </div>
+                <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:260px;"></div>
+            </div>
+            <div class="dash-panel card-chart">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Análisis por ramo</h3>
+                    <button type="button" class="chart-reset-btn" data-reset-scope="ramo" title="Limpiar">✕</button>
+                </div>
+                <div id="chartRamo" class="chart-area chart-area-ramo" style="min-height:260px;"></div>
+                <div class="chart-legend-below" id="ramoChartLegend" style="margin-top:0.5rem;">
+                    <span><i style="background:var(--green);"></i> Bajo</span>
+                    <span><i style="background:var(--yellow);"></i> Medio</span>
+                    <span><i style="background:var(--red);"></i> Alto</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-layout-duo">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">Ranking proveedores sospechosos</h3></div>
+                <div class="dash-table-wrap" style="max-height:300px;">
+                    <table class="dash-table">
+                        <thead><tr><th>Proveedor</th><th>Casos</th><th>Score prom.</th><th>Monto</th><th>Alertas</th></tr></thead>
+                        <tbody id="providerRiskTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">Panel ML · anomalías</h3></div>
+                <div id="dashMlPanel"></div>
+            </div>
+        </div>
+
+        <div class="dash-layout-duo">
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">Motor de señales</h3></div>
+                <div class="dash-table-wrap" style="max-height:280px;">
+                    <table class="dash-table">
                         <thead><tr><th>Señal</th><th>Casos</th><th>Severidad</th><th>Acción</th></tr></thead>
                         <tbody id="fraudSignalsTable"></tbody>
                     </table>
                 </div>
                 <div id="signalCasesPanel" style="margin-top:0.65rem;font-size:0.78rem;color:var(--text-secondary);">
-                    Seleccione una señal para visualizar los siniestros relacionados.
+                    Seleccione una señal para ver siniestros relacionados.
                 </div>
             </div>
-            <div class="card card-chart">
-                <div class="card-title">Reglas críticas RF-01..RF-07</div>
+            <div class="dash-panel">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Reglas críticas RF-01..RF-07</h3>
+                    <span class="dash-panel-badge" id="dashCriticalCount">0</span>
+                </div>
                 <div id="criticalRulesPanel"></div>
             </div>
         </div>
-        <div class="grid-2" style="margin-top:1rem;">
-            <div class="card card-chart">
-                <div class="card-title">Heatmap · Ramo vs Riesgo <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar filtros del gráfico">✕</button></div>
-                <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:280px;"></div>
-            </div>
-            <div class="card card-chart">
-                <div class="card-title">Mapa operacional por sucursal <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar filtros del gráfico">✕</button></div>
-                <div id="chartGeoOperacion" class="chart-area" style="min-height:280px;"></div>
-            </div>
+
+        <div class="dash-panel" style="margin-bottom:1.25rem;">
+            <div class="dash-panel-head"><h3 class="dash-panel-title">Alertas automáticas · tiempo real</h3></div>
+            <div id="alertsPanel" class="alerts-panel"></div>
         </div>
-        <div class="grid-2" style="margin-top:1rem;">
-            <div class="card">
-                <div class="card-title">Riesgo por proveedores</div>
-                <div class="table-container" style="max-height:280px;overflow:auto;">
-                    <table>
-                        <thead><tr><th>Beneficiario</th><th>Casos</th><th>Score prom.</th><th>Monto</th></tr></thead>
-                        <tbody id="providerRiskTable"></tbody>
-                    </table>
-                </div>
+
+        <div class="dash-panel dash-chat-panel">
+            <div class="dash-panel-head">
+                <h3 class="dash-panel-title">Asistente IA antifraude</h3>
+                <span class="dash-panel-badge">Datos en vivo</span>
             </div>
-            <div class="card">
-                <div class="card-title">Explicabilidad IA · Caso seleccionado</div>
-                <div id="explainabilityPanel" style="font-size:0.82rem;color:var(--text-secondary);line-height:1.6;">
-                    Seleccione un caso de la lista para visualizar evidencia, alertas y variables de impacto.
-                </div>
+            <div class="dash-chat-suggestions">
+                <button type="button" data-dash-q="¿Qué casos revisar primero?">¿Qué casos revisar primero?</button>
+                <button type="button" data-dash-q="¿Qué ciudad tiene más fraude?">¿Qué sucursal concentra alertas?</button>
+                <button type="button" data-dash-q="Resume los casos críticos del dashboard.">Resume casos críticos</button>
+            </div>
+            <div class="dash-chat-messages" id="dashChatMessages">
+                <div class="chat-msg chat-agent">Soy FraudIA. Pregúntame sobre casos críticos, patrones, proveedores o riesgo geográfico usando los datos del dashboard.</div>
+            </div>
+            <div class="dash-chat-input">
+                <input type="text" id="dashChatInput" placeholder="Ej: ¿Cuáles son los 5 casos de mayor riesgo?" onkeypress="if(event.key==='Enter')sendDashChatQuery()">
+                <button type="button" class="btn btn-primary" id="btnDashChatSend" onclick="sendDashChatQuery()">Enviar</button>
             </div>
         </div>
     `;
 }
 
+const DASH_ER_NODES = [
+    { id: 'sin', label: 'Siniestros', x: 200, y: 150 },
+    { id: 'pol', label: 'Pólizas', x: 80, y: 70 },
+    { id: 'ase', label: 'Asegurados', x: 320, y: 70 },
+    { id: 'pro', label: 'Proveedores', x: 80, y: 230 },
+    { id: 'doc', label: 'Documentos', x: 320, y: 230 },
+];
+const DASH_ER_EDGES = [
+    ['sin', 'pol'], ['sin', 'ase'], ['sin', 'pro'], ['doc', 'sin'], ['pol', 'ase'],
+];
+
+function renderCriticalCasesTable(cases) {
+    const tbody = document.getElementById('criticalCasesTable');
+    if (!tbody) return;
+    if (!cases || !cases.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:1.5rem;">Sin casos con los filtros actuales.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = cases.slice(0, 15).map((c) => {
+        const sc = Number(c.score_hibrido ?? c.score_reglas ?? 0);
+        const sem = c.semaforo_final || c.semaforo_reglas || 'Verde';
+        const sevCls = sem === 'Rojo' ? 'rojo' : sem === 'Amarillo' ? 'amarillo' : 'verde';
+        const bcls = sem === 'Rojo' ? 'badge-red' : sem === 'Amarillo' ? 'badge-yellow' : 'badge-green';
+        const prov = String(c.beneficiario || c.ramo || '—').slice(0, 22);
+        const aseg = String(c.id_asegurado || c.cobertura || '—').slice(0, 18);
+        const reglas = String(c.alertas_reglas || '').split('|').map((x) => x.trim()).filter(Boolean);
+        const reglaShort = reglas[0] ? reglas[0].slice(0, 28) + (reglas[0].length > 28 ? '…' : '') : '—';
+        const estado = c.estado || 'En revisión';
+        const monto = '$' + Number(c.monto_reclamado || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        const fillW = Math.min(100, sc);
+        const fillColor = sem === 'Rojo' ? 'var(--red)' : sem === 'Amarillo' ? 'var(--yellow)' : 'var(--green)';
+        return `<tr class="dash-case-tr" data-case-id="${c.id_siniestro}">
+            <td><div class="dash-sev ${sevCls}"></div></td>
+            <td><strong style="color:var(--cyan);font-size:0.75rem;">${c.id_siniestro}</strong>
+                <div class="dash-score-bar"><div class="dash-score-fill" style="width:${fillW}%;background:${fillColor};"></div></div></td>
+            <td><span class="badge ${bcls}">${sc.toFixed(0)}</span></td>
+            <td><span class="badge ${bcls}" style="font-size:0.65rem;">${sem}</span></td>
+            <td title="${prov}">${prov}</td>
+            <td>${aseg}</td>
+            <td>${monto}</td>
+            <td style="font-size:0.7rem;color:var(--text-muted);max-width:120px;" title="${reglas.join(' | ')}">${reglaShort}</td>
+            <td style="font-size:0.7rem;">${estado}</td>
+            <td><button type="button" class="dash-btn-analyze" data-analyze="${c.id_siniestro}">Analizar</button></td>
+        </tr>`;
+    }).join('');
+    tbody.querySelectorAll('.dash-case-tr').forEach((row) => {
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.dash-btn-analyze')) return;
+            const id = row.dataset.caseId;
+            const c = cases.find((x) => x.id_siniestro === id);
+            renderExplainability(c);
+        });
+    });
+    tbody.querySelectorAll('.dash-btn-analyze').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.analyze;
+            const c = cases.find((x) => x.id_siniestro === id);
+            renderExplainability(c);
+            if (typeof viewCase === 'function') viewCase(id);
+        });
+    });
+}
+
+function renderDashRelationGraph(data) {
+    const wrap = document.getElementById('dashRelationGraph');
+    if (!wrap) return;
+    const provN = (data.provider_risk || []).length;
+    const crit = data.rojos || 0;
+    const byId = Object.fromEntries(DASH_ER_NODES.map((n) => [n.id, n]));
+    let edges = '';
+    DASH_ER_EDGES.forEach(([a, b]) => {
+        const n1 = byId[a];
+        const n2 = byId[b];
+        if (!n1 || !n2) return;
+        edges += `<line class="er-edge" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}"/>`;
+    });
+    const nodes = DASH_ER_NODES.map((n) => {
+        const pulse = n.id === 'sin' && crit > 0 ? ' filter="url(#glow)"' : '';
+        return `<g class="er-node"${pulse}>
+            <circle cx="${n.x}" cy="${n.y}" r="34"/>
+            <text x="${n.x}" y="${n.y + 4}" text-anchor="middle">${n.label}</text>
+        </g>`;
+    }).join('');
+    wrap.innerHTML = `<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
+        <defs><filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        ${edges}${nodes}
+        <text x="200" y="285" text-anchor="middle" fill="var(--text-muted)" font-size="8">${provN} proveedores · ${crit} casos críticos en vista</text>
+    </svg>`;
+}
+
+async function renderDashMlPanel() {
+    const el = document.getElementById('dashMlPanel');
+    if (!el) return;
+    try {
+        const m = await (await fetch('/api/model-metrics')).json();
+        if (m.error) {
+            el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Ejecute el pipeline para activar métricas ML.</div>';
+            return;
+        }
+        const auc = Number(m.auc_roc || 0).toFixed(2);
+        const features = m.top_features || m.feature_importance || [];
+        const featRows = (Array.isArray(features) ? features : []).slice(0, 6).map((f) => {
+            const name = f.feature || f.name || 'feature';
+            const imp = Number(f.importance ?? f.value ?? 0);
+            const pct = Math.min(100, imp * (imp <= 1 ? 100 : 1));
+            return `<div class="dash-shap-bar"><span style="min-width:90px;">${String(name).slice(0, 14)}</span><div class="track"><div class="fill" style="width:${pct}%;"></div></div></div>`;
+        }).join('');
+        el.innerHTML = `
+            <div class="dash-ml-grid">
+                <div class="dash-ml-stat"><label>AUC-ROC</label><span>${auc}</span></div>
+                <div class="dash-ml-stat"><label>Predicción fraude</label><span>${m.trained ? 'Activa' : 'Reglas'}</span></div>
+                <div class="dash-ml-stat"><label>Anomalías</label><span>${m.anomalies_detected ?? '—'}</span></div>
+                <div class="dash-ml-stat"><label>Precisión</label><span>${m.precision != null ? (m.precision * 100).toFixed(0) + '%' : '—'}</span></div>
+            </div>
+            <div style="margin-top:0.85rem;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Feature importance (SHAP)</div>
+            ${featRows || '<div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">Sin importancias disponibles.</div>'}
+        `;
+        dashboardState.metricsAuc = auc;
+        const aucEl = document.getElementById('kpiAuc');
+        if (aucEl) aucEl.textContent = auc;
+    } catch (e) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">ML no disponible.</div>';
+    }
+}
+
+function sendDashChatQuery(prefill) {
+    const input = document.getElementById('dashChatInput');
+    const q = typeof prefill === 'string' ? prefill : (input && input.value.trim());
+    if (!q) return;
+    if (input && typeof prefill !== 'string') input.value = '';
+    if (typeof sendAgentQuery === 'function') sendAgentQuery(q, 'dashChatMessages', 'dashChat');
+}
+
 function bindDashboardEvents() {
+    document.querySelectorAll('.dash-chat-suggestions button').forEach((btn) => {
+        btn.addEventListener('click', () => sendDashChatQuery(btn.dataset.dashQ || ''));
+    });
     document.getElementById('btnApplyFilters').addEventListener('click', () => {
         syncFiltersFromForm();
         dashboardState.filters.semaforo = document.getElementById('filterSemaforo').value;
@@ -845,17 +1096,28 @@ if (typeof window !== 'undefined') {
 
 async function loadNlpPanel() {
     const el = document.getElementById('nlpPanel');
+    const kwEl = document.getElementById('nlpKeywords');
     if (!el) return;
     try {
         const nlp = await (await fetch('/api/nlp-summary')).json();
         if (!nlp.error && nlp.high_similarity_pairs) {
-            el.innerHTML = nlp.high_similarity_pairs.slice(0, 4).map(p =>
-                `<div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);">
-                    <span class="mono" style="font-size:0.78rem;color:var(--text-secondary);">${p.id_1} ↔ ${p.id_2}</span>
-                    <span class="badge ${p.similarity >= 0.85 ? 'badge-red' : p.similarity >= 0.70 ? 'badge-yellow' : 'badge-green'}" style="font-size:0.7rem;">${(p.similarity * 100).toFixed(0)}%</span>
+            const pairs = nlp.high_similarity_pairs.slice(0, 6);
+            el.innerHTML = pairs.map((p) =>
+                `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--border-subtle);">
+                    <div>
+                        <div class="mono" style="font-size:0.78rem;color:var(--cyan);">${p.id_1} ↔ ${p.id_2}</div>
+                        <div style="font-size:0.68rem;color:var(--text-muted);">Reclamo clonado · embedding</div>
+                    </div>
+                    <span class="badge ${p.similarity >= 0.85 ? 'badge-red' : p.similarity >= 0.70 ? 'badge-yellow' : 'badge-green'}" style="font-size:0.7rem;">${(p.similarity * 100).toFixed(0)}% sim.</span>
                 </div>`
             ).join('') || '<div style="color:var(--text-muted);font-size:0.82rem;">Sin pares similares.</div>';
-        } else el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Sin datos NLP.</div>';
+            if (kwEl) {
+                const tags = ['narrativa', 'similitud', 'embedding', 'cluster', 'fraude', 'clonado'];
+                kwEl.innerHTML = tags.map((t) => `<span class="dash-nlp-tag">${t}</span>`).join('');
+            }
+        } else {
+            el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Sin datos NLP. Ejecute el pipeline.</div>';
+        }
     } catch (e) {
         el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">NLP no disponible.</div>';
     }
@@ -865,18 +1127,22 @@ function renderExplainability(caseItem) {
     const el = document.getElementById('explainabilityPanel');
     if (!el) return;
     if (!caseItem) {
-        el.innerHTML = 'Seleccione un caso de la lista para visualizar evidencia, alertas y variables de impacto.';
+        el.className = 'dash-xai-hero';
+        el.innerHTML = 'Seleccione un caso crítico para ver la explicación automática del motor antifraude.';
         return;
     }
     const score = Number(caseItem.score_hibrido ?? caseItem.score_reglas ?? 0).toFixed(1);
     const sem = caseItem.semaforo_final || caseItem.semaforo_reglas || 'N/A';
-    const alertas = String(caseItem.alertas_reglas || 'Sin alertas').split('|').map(x => x.trim()).filter(Boolean).slice(0, 5);
+    const nivel = sem === 'Rojo' ? 'ALTO' : sem === 'Amarillo' ? 'MEDIO' : 'BAJO';
+    const alertas = String(caseItem.alertas_reglas || '').split('|').map((x) => x.trim()).filter(Boolean).slice(0, 6);
+    const bullets = alertas.length
+        ? alertas.map((a) => `<li>${a}</li>`).join('')
+        : '<li>Score híbrido elevado según reglas de negocio</li><li>Patrón detectado por motor de anomalías</li>';
+    el.className = 'dash-xai-hero';
     el.innerHTML = `
-        <div style="margin-bottom:0.4rem;"><strong>Caso:</strong> ${caseItem.id_siniestro || 'N/A'}</div>
-        <div style="margin-bottom:0.4rem;"><strong>Score:</strong> ${score}/100 · <strong>Riesgo:</strong> ${sem}</div>
-        <div style="margin-bottom:0.35rem;"><strong>Variables de impacto:</strong></div>
-        <ul style="margin:0;padding-left:1.1rem;">${alertas.map(a => `<li>${a}</li>`).join('')}</ul>
-        <div style="margin-top:0.5rem;color:var(--text-muted);">La decisión final requiere validación documental y criterio del analista antifraude.</div>
+        <p>El caso <span class="xai-case-id">${caseItem.id_siniestro || 'N/A'}</span> fue clasificado como <strong>${nivel}</strong> riesgo (score ${score}/100) debido a:</p>
+        <ul class="dash-xai-list">${bullets}</ul>
+        <p style="margin-top:0.65rem;font-size:0.75rem;color:var(--text-muted);">Proveedor: ${caseItem.beneficiario || '—'} · Monto: $${Number(caseItem.monto_reclamado || 0).toLocaleString()} · Validación analista requerida.</p>
     `;
 }
 
@@ -900,24 +1166,35 @@ function renderDashboardData(data) {
         ? `de ${data.total_unfiltered.toLocaleString()} totales` : 'Analizados';
     document.getElementById('kpiRojo').textContent = rojo.toLocaleString();
     document.getElementById('kpiRojoPct').textContent = `${pctOf(rojo)}% del filtro`;
-    document.getElementById('kpiMonto').textContent = '$' + ((data.monto_rojo || 0) / 1000000).toFixed(1) + 'M';
-    document.getElementById('kpiAuc').textContent = dashboardState.metricsAuc;
+    const ek = data.executive_kpis || {};
+    const montoComp = ek.monto_potencial_riesgo ?? data.monto_rojo ?? 0;
+    document.getElementById('kpiMonto').textContent = montoComp >= 1e6
+        ? '$' + (montoComp / 1e6).toFixed(1) + 'M'
+        : '$' + Number(montoComp).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    const aucEl = document.getElementById('kpiAuc');
+    if (aucEl) aucEl.textContent = dashboardState.metricsAuc;
     document.getElementById('kpiScore').textContent = data.score_promedio;
+    const alertCount = (data.signals_summary || []).reduce((a, s) => a + (s.count || 0), 0) || rojo + amarillo;
+    const alertsEl = document.getElementById('kpiAlerts');
+    if (alertsEl) alertsEl.textContent = alertCount.toLocaleString();
     const now = document.getElementById('dashNow');
     if (now) now.textContent = new Date().toLocaleString('es-EC');
     const iaStatus = document.getElementById('dashIaStatus');
     if (iaStatus) iaStatus.textContent = (dashboardState.metricsAuc !== '--' && Number(dashboardState.metricsAuc) > 0) ? 'Modelo supervisado activo' : 'Reglas + anomalías';
 
-    const ek = data.executive_kpis || {};
     const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-    setText('kpiProbFraude', (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
+    setText('kpiProbFraude', 'Prob. fraude ' + (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
     setText(
         'kpiClasificacion',
         `🔴 ${(ek.riesgo_alto || 0).toLocaleString()} · 🟡 ${(ek.riesgo_medio || 0).toLocaleString()} · 🟢 ${(ek.riesgo_bajo || 0).toLocaleString()}`
     );
 
     updateFilterChips();
-    renderAnomaliesList(data.top_cases || []);
+    const topCases = data.top_cases || [];
+    renderCriticalCasesTable(topCases);
+    renderAnomaliesList(topCases);
+    renderDashRelationGraph(data);
+    if (topCases[0]) renderExplainability(topCases[0]);
     renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf);
 
     const alerts = document.getElementById('alertsPanel');
@@ -1049,17 +1326,21 @@ function renderDashboardData(data) {
 
     const providerEl = document.getElementById('providerRiskTable');
     if (providerEl) {
-        providerEl.innerHTML = (data.provider_risk || []).map(p => `
-            <tr>
-                <td title="${p.beneficiario || ''}">${String(p.beneficiario || '').slice(0, 32)}</td>
+        providerEl.innerHTML = (data.provider_risk || []).map((p) => {
+            const sc = Number(p.score_prom || 0);
+            const alertCls = sc >= 70 ? 'badge-red' : sc >= 45 ? 'badge-yellow' : 'badge-green';
+            return `<tr>
+                <td title="${p.beneficiario || ''}"><strong>${String(p.beneficiario || '').slice(0, 28)}</strong></td>
                 <td>${(p.casos || 0).toLocaleString()}</td>
-                <td>${Number(p.score_prom || 0).toFixed(1)}</td>
+                <td><span class="badge ${alertCls}">${sc.toFixed(1)}</span></td>
                 <td>$${Number(p.monto || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-            </tr>
-        `).join('');
+                <td><span class="badge ${alertCls}" style="font-size:0.65rem;">${sc >= 70 ? 'Alta' : sc >= 45 ? 'Media' : 'Baja'}</span></td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="5" style="color:var(--text-muted);">Sin datos de proveedores.</td></tr>';
     }
 
     renderDashboardCharts(data);
+    renderDashMlPanel();
 }
 
 async function refreshDashboard() {
@@ -1090,7 +1371,7 @@ async function initDashboard() {
         setFilterDefaultsFromOptions(opts);
         if (!dashboardState.initialized) {
             dashboardState.filters = emptyDashboardFilters();
-            container.innerHTML = '<div id="dashboardShell">' + buildDashboardShell() + '</div>';
+            container.innerHTML = '<div id="dashboardShell" class="dash-premium">' + buildDashboardShell() + '</div>';
             bindDashboardEvents();
             populateFilterControls(opts);
             updateSemaforoPills();
@@ -1110,3 +1391,4 @@ async function initDashboard() {
 
 // Compatibilidad con llamadas anteriores
 function loadDashboard() { initDashboard(); }
+if (typeof window !== 'undefined') window.sendDashChatQuery = sendDashChatQuery;

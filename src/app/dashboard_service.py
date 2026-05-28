@@ -247,6 +247,9 @@ def build_dashboard_payload(
         ramo_data = ramo_stats.to_dict("records")
 
     cols_top = ["id_siniestro", "ramo", "cobertura", "monto_reclamado", score_col, semaforo_col, "alertas_reglas"]
+    for extra in ("beneficiario", "estado", "id_asegurado"):
+        if extra in df.columns and extra not in cols_top:
+            cols_top.append(extra)
     cols_top = [c for c in cols_top if c in df.columns]
     top_cases = df.nlargest(20, score_col)[cols_top].to_dict("records") if score_col in df.columns else []
 

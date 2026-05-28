@@ -349,27 +349,31 @@ def generate_documentos(siniestros_df):
     return pd.DataFrame(records)
 
 
-def main(seed: Optional[int] = None, output_dir: Optional[str] = None) -> int:
-    """Genera datasets sintéticos. Retorna la semilla usada."""
+def generate_datasets(seed: Optional[int] = None) -> tuple[int, dict[str, pd.DataFrame]]:
+    """Genera tablas en memoria (sin escribir archivos). Retorna (semilla, datasets)."""
     used_seed = _set_seed(seed)
-    out_dir = output_dir or OUTPUT_DIR
-    os.makedirs(out_dir, exist_ok=True)
 
-    print(f"Generando datos sintéticos (semilla={used_seed})...")
+    n_aseg = random.randint(120, 450)
+    n_veh = random.randint(n_aseg, n_aseg + 200)
+    n_pol = random.randint(n_aseg, n_aseg + 350)
+    n_prov = random.randint(25, 90)
+    n_sin = random.randint(350, 2500)
+
+    print(f"Generando datos sintéticos (semilla={used_seed}, ~{n_sin} siniestros)...")
     print("Generando asegurados...")
-    asegurados = generate_asegurados(500)
+    asegurados = generate_asegurados(n_aseg)
 
     print("Generando vehículos...")
-    vehiculos = generate_vehiculos(asegurados, 600)
+    vehiculos = generate_vehiculos(asegurados, n_veh)
 
     print("Generando pólizas...")
-    polizas = generate_polizas(asegurados, 700)
+    polizas = generate_polizas(asegurados, n_pol)
 
     print("Generando proveedores...")
-    proveedores = generate_proveedores(80)
+    proveedores = generate_proveedores(n_prov)
 
     print("Generando siniestros...")
-    siniestros = generate_siniestros(polizas, asegurados, proveedores, vehiculos, 1500)
+    siniestros = generate_siniestros(polizas, asegurados, proveedores, vehiculos, n_sin)
 
     print("Generando documentos...")
     documentos = generate_documentos(siniestros)
@@ -382,24 +386,34 @@ def main(seed: Optional[int] = None, output_dir: Optional[str] = None) -> int:
         "siniestros": siniestros,
         "documentos": documentos,
     }
+    return used_seed, datasets
+
+
+def main(seed: Optional[int] = None, output_dir: Optional[str] = None) -> int:
+    """CLI: genera y opcionalmente exporta a disco."""
+    from src.ingestion.insurer_mapping import EVENTO_SHEET_NAMES
+
+    used_seed, datasets = generate_datasets(seed=seed)
+    out_dir = output_dir or OUTPUT_DIR
+    os.makedirs(out_dir, exist_ok=True)
 
     for name, df in datasets.items():
         csv_path = os.path.join(out_dir, f"{name}.csv")
         df.to_csv(csv_path, index=False, encoding="utf-8-sig")
         print(f"  {name}: {len(df)} registros -> {csv_path}")
 
-    excel_path = os.path.join(out_dir, "dataset_completo.xlsx")
+    excel_path = os.path.join(out_dir, "dataset_evento.xlsx")
     with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-        for name, df in datasets.items():
-            df.to_excel(writer, sheet_name=name, index=False)
-    print(f"\nDataset completo exportado a: {excel_path}")
+        for table, sheet in EVENTO_SHEET_NAMES.items():
+            if table in datasets:
+                datasets[table].to_excel(writer, sheet_name=sheet, index=False)
+        pd.DataFrame([
+            {"Hoja": "README", "Notas": "Formato estándar FraudIA"},
+        ]).to_excel(writer, sheet_name="README", index=False)
+    print(f"\nExportado: {excel_path}")
 
-    print("\n--- Resumen ---")
-    for name, df in datasets.items():
-        print(f"  {name}: {df.shape[0]} filas x {df.shape[1]} columnas")
-
-    fraud_rate = siniestros["etiqueta_fraude_simulada"].mean() * 100
-    print(f"\n  Tasa de fraude simulada: {fraud_rate:.1f}%")
+    fraud_rate = datasets["siniestros"]["etiqueta_fraude_simulada"].mean() * 100
+    print(f"  Tasa de fraude simulada: {fraud_rate:.1f}%")
     return used_seed
 
 

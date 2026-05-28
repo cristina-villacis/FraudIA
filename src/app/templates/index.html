@@ -8,6 +8,10 @@
     <link rel="apple-touch-icon" href="/static/logo_dark.png">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ingest.css?v=2">
+    <link rel="stylesheet" href="/static/dashboard-premium.css?v=1">
+    <link rel="stylesheet" href="/static/ml-premium.css?v=1">
+    <link rel="stylesheet" href="/static/ml-copilot.css?v=1">
     <style>
         :root, [data-theme="dark"] {
             --bg-primary: #0B1120;
@@ -460,13 +464,111 @@
             border-radius: 2px;
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
-        .grid-3-upload {
+        .grid-2-upload {
             display: grid;
-            grid-template-columns: 1fr 1fr 1.15fr;
+            grid-template-columns: 1.25fr 1fr;
             gap: 1.25rem;
             margin-bottom: 1.5rem;
             align-items: stretch;
         }
+        .card-dataset-hero {
+            border-color: rgba(0, 209, 255, 0.35);
+            box-shadow: 0 0 32px rgba(0, 209, 255, 0.08);
+        }
+        .dataset-hero-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .dataset-hero-sub {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            line-height: 1.55;
+            margin: 0.4rem 0 0;
+            max-width: 36rem;
+        }
+        .dataset-badge {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            background: rgba(0, 209, 255, 0.1);
+            border: 1px solid rgba(0, 209, 255, 0.35);
+            padding: 0.35rem 0.65rem;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        .dataset-sheets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 1.15rem;
+        }
+        .sheet-chip {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 0.28rem 0.55rem;
+            border-radius: 6px;
+            background: rgba(0, 209, 255, 0.08);
+            border: 1px solid rgba(0, 209, 255, 0.2);
+            color: var(--text-secondary);
+        }
+        .sheet-chip strong { color: var(--cyan); font-weight: 700; }
+        .dataset-alt-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+        }
+        .dataset-alt-actions .btn {
+            flex: 1;
+            min-width: 160px;
+            font-size: 0.82rem;
+        }
+        .dataset-hint {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin: 0.65rem 0 0;
+            line-height: 1.5;
+        }
+        .dataset-upload-zone {
+            margin-bottom: 0.75rem;
+            min-height: 120px;
+        }
+        .dataset-upload-zone .upload-hint-formats {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        .format-tag {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+        }
+        .dataset-footer {
+            display: flex;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+        .btn-link-muted {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            padding: 0.35rem;
+        }
+        .btn-link-muted:hover { color: var(--cyan); }
+        #datasetLoadStatus { margin-top: 1rem; }
         .card-docs-featured {
             border-color: rgba(0, 209, 255, 0.45);
             box-shadow: 0 0 24px rgba(0, 209, 255, 0.12);
@@ -526,7 +628,7 @@
         .card-alerts { min-height: 380px; display: flex; flex-direction: column; }
         .card-alerts .alerts-panel { flex: 1; }
         @media (max-width: 768px) {
-            .grid-2, .grid-3, .grid-3-upload, .grid-4 { grid-template-columns: 1fr; }
+            .grid-2, .grid-2-upload, .grid-3, .grid-4 { grid-template-columns: 1fr; }
             .main-content { padding: 1rem; margin-left: 62px !important; }
             .sidebar { width: 62px !important; }
             .sidebar .nav-label { display: none !important; }
@@ -1488,9 +1590,11 @@
                 <div class="header-subtitle">Inteligencia Artificial Antifraude</div>
             </div>
         </div>
-        <div class="header-right">
-            <span id="dbIndicator" class="badge badge-muted"><span class="pulse-dot pulse-dot-cyan"></span> DB: --</span>
-            <span id="statusIndicator" class="badge badge-green"><span class="pulse-dot pulse-dot-green"></span> Operativo</span>
+        <div class="header-right header-status-row">
+            <span id="dbIndicator" class="badge badge-muted"><span class="pulse-dot pulse-dot-cyan"></span> TiDB: --</span>
+            <span id="aiEngineBadge" class="badge badge-cyan"><span class="pulse-dot pulse-dot-cyan"></span> IA: Activa</span>
+            <span id="apiBadge" class="badge badge-green"><span class="pulse-dot pulse-dot-green"></span> API: OK</span>
+            <span id="statusIndicator" class="badge badge-green" style="display:none;"><span class="pulse-dot pulse-dot-green"></span> Operativo</span>
             <div style="display:flex; align-items:center;">
                 <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Cambiar tema">
                     <div class="theme-toggle-knob" id="toggleKnob">&#9790;</div>
@@ -1503,9 +1607,9 @@
     <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-section">Análisis</div>
-        <div class="nav-item active" data-tab="data" title="Datos">
+        <div class="nav-item active" data-tab="data" title="Carga de Datos">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-            <span class="nav-label">Datos</span>
+            <span class="nav-label">Carga de Datos</span>
         </div>
         <div class="nav-item" data-tab="dashboard" title="Dashboard">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
@@ -1517,9 +1621,9 @@
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Inteligencia</div>
-        <div class="nav-item" data-tab="model" title="Modelo ML">
+        <div class="nav-item" data-tab="model" title="IA / ML Engine">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
-            <span class="nav-label">Modelo ML</span>
+            <span class="nav-label">IA / ML Engine</span>
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Salida</div>
@@ -1532,122 +1636,137 @@
     <!-- MAIN CONTENT -->
     <div class="main-content" id="mainContent">
 
-        <!-- ═══════ TAB: DATOS ═══════ -->
-        <div id="tab-data" class="tab-panel active">
-            <div class="section-header">
-                <h2>Carga de Datos</h2>
-                <div class="section-line"></div>
-            </div>
+        <!-- ═══════ TAB: CARGA INTELIGENTE ═══════ -->
+        <div id="tab-data" class="tab-panel active ingest-module">
+            <canvas id="ingestParticles" aria-hidden="true"></canvas>
+            <div class="ingest-wrap">
 
-            <!-- Template banner -->
-            <div class="template-banner">
-                <div class="template-banner-text">
-                    <span style="font-size:1.3rem;">&#9776;</span>
-                    <span><strong>Plantilla:</strong> Descarga el formato Excel con las columnas esperadas por cada entidad del dataset.</span>
-                </div>
-                <a href="/api/download-template" class="btn btn-ghost" download>&#11015; Descargar Plantilla</a>
-            </div>
+                <section class="ingest-hero">
+                    <div class="ingest-hero-badge">Centro de ingestión IA</div>
+                    <h1>Carga Inteligente de Datos</h1>
+                    <p class="ingest-hero-sub">El sistema interpreta automáticamente estructuras Excel, genera relaciones y activa análisis antifraude con IA.</p>
+                    <div class="ingest-hero-actions">
+                        <a href="/api/download-template" class="btn btn-primary" download>&#11015; Descargar Plantilla</a>
+                        <button type="button" class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar datos aleatorios</button>
+                    </div>
+                    <div class="ingest-features">
+                        <span class="ok">✓ Excel multihoja</span>
+                        <span class="ok">✓ Modelo ER automático</span>
+                        <span class="ok">✓ Validación IA</span>
+                        <span class="ok">✓ Integración ML</span>
+                    </div>
+                </section>
 
-            <!-- DB info bar -->
-            <div class="db-bar">
-                <div class="db-bar-left">
-                    <div class="db-bar-icon">&#9741;</div>
-                    <div>
-                        <div style="font-weight:600; font-size:0.9rem;" id="dbTypeLabel">Base de datos: Verificando...</div>
-                        <div style="font-size:0.78rem; color:var(--text-muted);" id="dbHostLabel">--</div>
+                <div class="ingest-upload" id="ingestUpload" role="button" tabindex="0">
+                    <div class="ingest-upload-icon">&#128752;</div>
+                    <h3>Arrastra tu dataset o selecciona un archivo Excel</h3>
+                    <p>Transformamos archivos en estructuras listas para análisis antifraude</p>
+                    <div class="ingest-formats">
+                        <span class="format-tag">.xlsx</span>
+                        <span class="format-tag">.xls</span>
+                        <span class="format-tag">.csv</span>
+                        <span class="format-tag">Multihoja</span>
                     </div>
                 </div>
-                <div style="display:flex; gap:0.5rem; align-items:center;">
-                    <span id="dbStatusBadge" class="badge badge-cyan">Verificando</span>
-                    <button class="btn btn-secondary" onclick="loadFromDB()" id="btnLoadDB" style="font-size:0.82rem;">Cargar desde BD</button>
-                </div>
-            </div>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="uploadFile(this)" hidden>
 
-            <!-- Upload dataset + documentos PDF -->
-            <div class="grid-3-upload">
-                <div class="card">
-                    <div class="card-title">Subir Dataset</div>
-                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-                        <div class="upload-icon">&#128194;</div>
-                        <p style="font-size:1rem; font-weight:600; margin-bottom:0.35rem;">Arrastra o haz clic para subir</p>
-                        <p style="color:var(--text-muted); font-size:0.82rem;">Excel aseguradora (hojas 1_Siniestros&hellip;5_Documentos) o CSV &mdash; se persiste en BD</p>
+                <div id="datasetLoadStatus" aria-live="polite" style="margin-bottom:1rem;"></div>
+
+                <div id="ingestActionsBar" class="ingest-actions-bar" style="display:none;">
+                    <p class="ingest-actions-hint">Tras el análisis: guardado en TiDB, scores en siniestros, dashboard y ML listos.</p>
+                    <div class="ingest-actions-btns">
+                        <button type="button" class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipelineMain" disabled>Activar motor IA</button>
+                        <button type="button" class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDBTop">Guardar en TiDB</button>
                     </div>
-                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="uploadFile(this)">
-                    <div id="uploadStatus" style="margin-top:1rem;"></div>
                 </div>
-                <div class="card">
-                    <div class="card-title">Dataset Oficial Aseguradora</div>
-                    <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">Carga el Excel del evento (500 siniestros). También puede subirlo en el panel izquierdo.</p>
-                    <button class="btn btn-primary" onclick="loadInsurer()" id="btnInsurer" style="margin-right:0.5rem;">Cargar Dataset Aseguradora</button>
-                    <button class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar Sintéticos (demo)</button>
-                    <div id="syntheticStatus" style="margin-top:1rem;"></div>
+
+                <div class="ingest-etl" id="ingestEtl">
+                    <div class="ingest-panel-title">Pipeline de ingestión inteligente</div>
+                    <div class="etl-track" id="etlTrack"></div>
                 </div>
-                <div class="card card-docs-featured">
-                    <div class="card-title">Documentos PDF (análisis independiente)</div>
-                    <p style="color:var(--text-secondary); margin:0.65rem 0; line-height:1.55; font-size:0.85rem;">Suba declaraciones de accidente, facturas o partes policiales. El sistema extrae datos, guarda en BD y analiza cada archivo por separado.</p>
-                    <div class="upload-zone" id="docUploadZone" onclick="document.getElementById('docFileInput').click()">
-                        <div class="upload-icon">&#128196;</div>
-                        <p style="font-size:0.95rem; font-weight:600; margin-bottom:0.3rem;">PDF individuales o carpeta</p>
-                        <p style="color:var(--text-muted); font-size:0.78rem;">DA_*, PP_*, facturas &mdash; uno o varios archivos</p>
+
+                <div class="ingest-grid" id="ingestInsights" style="display:none;">
+                    <div class="ingest-panel">
+                        <div class="ingest-panel-title">&#128202; Hojas detectadas</div>
+                        <div class="sheet-list" id="sheetList"></div>
                     </div>
-                    <input type="file" id="docFileInput" accept=".pdf,application/pdf" multiple onchange="uploadDocuments(this)">
-                    <div class="doc-upload-options">
-                        <label><input type="checkbox" id="linkToDataset" checked> Vincular al dataset cargado</label>
-                        <label>Tipo
-                            <select id="docTipoSelect">
-                                <option value="">Detectar automático</option>
-                                <option value="declaracion_accidente">Declaración de Accidente</option>
-                                <option value="factura">Factura</option>
-                                <option value="parte_policial">Parte Policial</option>
-                            </select>
-                        </label>
+                    <div class="ingest-panel">
+                        <div class="ingest-panel-title">&#9670; Modelo entidad-relación</div>
+                        <div class="er-graph" id="erGraph"></div>
                     </div>
-                    <button class="btn btn-primary" style="width:100%; margin-top:0.35rem;" onclick="document.getElementById('docFileInput').click()" id="btnUploadDocs">Subir y Analizar PDFs</button>
-                    <div id="docUploadStatus" style="margin-top:0.75rem;"></div>
+                    <div class="ingest-panel">
+                        <div class="ingest-panel-title">&#10003; Validaciones inteligentes</div>
+                        <div class="val-grid" id="valGrid"></div>
+                    </div>
+                    <div class="ingest-panel">
+                        <div class="ingest-panel-title">&#9889; Acciones</div>
+                        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">Persistencia opcional y análisis completo.</p>
+                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                            <button class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDB">Guardar en TiDB</button>
+                            <button class="btn btn-ghost" onclick="loadFromDB()" id="btnLoadDB">Cargar desde TiDB</button>
+                            <button class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipeline" disabled style="margin-top:0.5rem;">Activar motor IA</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div id="docResultsPanel" class="card" style="display:none; margin-bottom:1.5rem;">
-                <div class="card-title">Documentos analizados</div>
-                <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.5rem;">Cada PDF se evalúa de forma independiente; si vinculó el dataset, se contrasta placa, montos y narrativa.</p>
-                <div id="docResultsList" class="doc-results-list"></div>
-            </div>
-
-            <!-- Tables info -->
-            <div id="tablesInfo" style="display:none;">
-                <div class="section-header" style="margin-top:0.5rem;">
-                    <h2 style="font-size:1rem;">Tablas Cargadas</h2>
-                    <div class="section-line"></div>
+                <div class="ingest-ai" id="ingestAi">
+                    <div class="ingest-panel-title"><span class="ai-pulse"></span> Motor IA antifraude</div>
+                    <div class="ai-modules">
+                        <div class="ai-mod"><strong>Variables derivadas</strong><span>Features de riesgo calculadas</span></div>
+                        <div class="ai-mod"><strong>Embeddings NLP</strong><span>Similitud narrativa activa</span></div>
+                        <div class="ai-mod"><strong>Reglas de negocio</strong><span>Motor de alertas cargado</span></div>
+                        <div class="ai-mod"><strong>Score engine</strong><span>Semáforo híbrido listo</span></div>
+                        <div class="ai-mod"><strong>ML supervisado</strong><span>Modelo antifraude entrenado</span></div>
+                        <div class="ai-mod"><strong>Dashboard</strong><span>Payload analítico generado</span></div>
+                    </div>
                 </div>
-                <div id="tablesGrid" class="grid-4"></div>
-            </div>
 
-            <!-- Run pipeline -->
-            <div style="margin-top:2rem; text-align:center;">
-                <button class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipeline" disabled>
-                    Ejecutar Análisis Completo
-                </button>
-                <p style="color:var(--text-muted); font-size:0.78rem; margin-top:0.75rem;">Feature Engineering &bull; NLP &bull; Reglas de Negocio &bull; ML Supervisado &bull; Anomalías &bull; Score Híbrido</p>
-            </div>
+                <div id="tablesInfo" style="display:none; margin-bottom:1.5rem;">
+                    <div class="ingest-panel-title" style="margin-bottom:0.75rem;">Resumen de tablas</div>
+                    <div id="tablesGrid" class="grid-4"></div>
+                </div>
 
-            <!-- Pipeline progress -->
-            <div id="pipelineProgress" style="display:none; margin-top:1.5rem;">
-                <div class="card">
-                    <div class="card-title">Progreso del Pipeline</div>
-                    <div id="pipelineSteps" class="progress-steps" style="margin-top:0.75rem;"></div>
+                <div id="pipelineProgress" style="display:none; margin-bottom:1.5rem;">
+                    <div class="ingest-panel">
+                        <div class="ingest-panel-title">Progreso del análisis</div>
+                        <div id="pipelineSteps" class="progress-steps" style="margin-top:0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div class="ingest-secondary">
+                    <div class="ingest-db-bar">
+                        <div>
+                            <div style="font-weight:600; font-size:0.9rem;" id="dbTypeLabel">TiDB Cloud</div>
+                            <div style="font-size:0.78rem; color:var(--text-muted);" id="dbHostLabel">--</div>
+                        </div>
+                        <span id="dbStatusBadge" class="badge badge-cyan">Verificando</span>
+                    </div>
+                    <details class="ingest-panel" style="margin-bottom:0;">
+                        <summary style="cursor:pointer; font-weight:600; color:var(--cyan);">Documentos PDF (opcional)</summary>
+                        <p style="color:var(--text-secondary); margin:0.75rem 0; font-size:0.85rem;">Declaraciones, facturas o partes policiales — análisis independiente por archivo.</p>
+                        <div class="upload-zone" id="docUploadZone" onclick="document.getElementById('docFileInput').click()" style="padding:1.5rem;">
+                            <p style="font-weight:600;">Arrastrar PDFs aquí</p>
+                        </div>
+                        <input type="file" id="docFileInput" accept=".pdf,application/pdf" multiple onchange="uploadDocuments(this)">
+                        <div class="doc-upload-options" style="margin-top:0.75rem;">
+                            <label><input type="checkbox" id="linkToDataset" checked> Vincular al dataset</label>
+                            <label>Tipo <select id="docTipoSelect"><option value="">Auto</option><option value="declaracion_accidente">Declaración</option><option value="factura">Factura</option><option value="parte_policial">Parte policial</option></select></label>
+                        </div>
+                        <button class="btn btn-secondary" style="width:100%; margin-top:0.5rem;" onclick="document.getElementById('docFileInput').click()" id="btnUploadDocs">Subir PDFs</button>
+                        <div id="docUploadStatus" style="margin-top:0.5rem;"></div>
+                    </details>
+                    <div id="docResultsPanel" class="ingest-panel" style="display:none; margin-top:1rem;">
+                        <div class="card-title">Documentos analizados</div>
+                        <div id="docResultsList" class="doc-results-list"></div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- ═══════ TAB: DASHBOARD ═══════ -->
-        <div id="tab-dashboard" class="tab-panel">
-            <div class="section-header">
-                <h2>Dashboard Ejecutivo de Riesgo</h2>
-                <div class="section-line"></div>
-                <span style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;">Filtros dinámicos · clic en gráficos</span>
-            </div>
+        <div id="tab-dashboard" class="tab-panel dash-premium-module">
             <div id="dashboardContent">
-                <div class="alert alert-info">Ejecute el pipeline de análisis desde la pestaña "Datos" para visualizar el dashboard.</div>
+                <div class="alert alert-info">Ejecute el pipeline de análisis desde la pestaña «Carga de Datos» para activar el centro de inteligencia antifraude.</div>
             </div>
         </div>
 
@@ -1663,53 +1782,53 @@
         </div>
 
         <!-- ═══════ TAB: MODEL ═══════ -->
-        <div id="tab-model" class="tab-panel">
-            <div class="section-header">
-                <h2>Modelo de Machine Learning</h2>
-                <div class="section-line"></div>
-            </div>
+        <div id="tab-model" class="tab-panel ml-engine-module">
             <div id="modelContent">
-                <div class="alert alert-info">Ejecute el pipeline para visualizar las métricas del modelo. Use el botón de chat (esquina inferior derecha) para <strong>Agente IA — Consultas en Lenguaje Natural</strong>.</div>
+                <div class="alert alert-info">Ejecute el pipeline desde <strong>Carga de Datos</strong> para activar el AI / ML Engine.</div>
             </div>
         </div>
 
         <!-- Agente IA — solo en pestaña Modelo ML -->
-        <div id="mlChatWidget" class="ml-chat-widget" aria-hidden="true">
-            <div id="mlChatPanel" class="ml-chat-panel" role="dialog" aria-label="Agente IA — Consultas en Lenguaje Natural">
-                <div id="mlChatResizeHandle" class="ml-chat-resize-handle" title="Arrastra para redimensionar"></div>
-                <div class="ml-chat-panel-header">
-                    <div>
-                        <h3><span class="ml-chat-status-dot" id="mlChatStatusDot"></span> Agente IA &mdash; Consultas en Lenguaje Natural</h3>
-                        <span id="mlChatStatusText">Asistente de fraude</span>
+        <!-- AI Floating Copilot -->
+        <div id="mlChatWidget" class="copilot-widget" aria-hidden="true">
+            <div id="mlCopilotPanel" class="copilot-panel" role="dialog" aria-label="FraudIA Intelligence Engine">
+                <div id="copilotResizeHandle" class="copilot-resize" title="Redimensionar"></div>
+                <header class="copilot-header" id="copilotDragHandle">
+                    <div class="copilot-header-left">
+                        <div class="copilot-avatar" aria-hidden="true">◈</div>
+                        <div>
+                            <div class="copilot-name">FraudIA Intelligence Engine</div>
+                            <div class="copilot-status-chips" id="copilotStatusChips"></div>
+                        </div>
                     </div>
-                    <button type="button" class="btn btn-ghost" style="padding:0.25rem 0.5rem;font-size:1.1rem;" onclick="toggleMlChatPanel(false)" aria-label="Cerrar chat">&times;</button>
+                    <div class="copilot-header-metrics" id="copilotHeaderMetrics"></div>
+                    <div class="copilot-header-actions">
+                        <button type="button" class="copilot-icon-btn" id="copilotBtnMin" title="Minimizar">−</button>
+                        <button type="button" class="copilot-icon-btn" id="copilotBtnExpand" title="Expandir">⤢</button>
+                        <button type="button" class="copilot-icon-btn" id="copilotBtnClose" title="Cerrar">×</button>
+                    </div>
+                </header>
+                <div class="copilot-body">
+                    <aside class="copilot-sidebar" id="copilotSidebar" aria-label="Investigaciones"></aside>
+                    <main class="copilot-main">
+                        <div class="copilot-context" id="copilotContextBar"></div>
+                        <div class="copilot-messages" id="mlCopilotMessages"></div>
+                        <div class="copilot-dossier" id="copilotDossier">
+                            <button type="button" class="copilot-icon-btn" id="copilotDossierClose" style="float:right;margin-bottom:0.5rem;" title="Cerrar dossier">×</button>
+                        </div>
+                    </main>
                 </div>
-                <div class="ml-chat-messages" id="mlChatMessages">
-                    <div class="chat-msg chat-agent">Hola, soy FraudIA Claims. Estoy aquí para ayudarte con análisis antifraude de forma clara y rápida.
-
-Puedes preguntarme, por ejemplo:
-• Detalle del siniestro SIN-000001
-• ¿Cuál es el panorama general?
-• ¿Cuáles son los 10 casos más riesgosos?
-• ¿Qué proveedores tienen más riesgo?
-• ¿Qué asegurados tienen más reclamos?
-• Análisis por ramo o cobertura
-• ¿Qué patrones se detectaron?
-• ¿Cuántas alertas hay?
-• ¿Cuál es el monto total reclamado?
-• ¿Qué vehículos tienen más siniestros?
-• ¿Cuál es la probabilidad de fraude del modelo?
-
-Motor actual: reglas</div>
-                </div>
-                <div class="ml-chat-input-row">
-                    <input type="text" id="mlChatInput" placeholder="Escribe tu consulta sobre los siniestros..." onkeypress="if(event.key==='Enter')sendMlChatQuery()">
-                    <button type="button" class="btn btn-primary" onclick="sendMlChatQuery()">Enviar</button>
-                </div>
+                <footer class="copilot-footer">
+                    <div class="copilot-quick-actions" id="copilotQuickActions"></div>
+                    <div class="copilot-input-wrap">
+                        <textarea id="mlCopilotInput" rows="1" placeholder="Analiza patrones sospechosos…"></textarea>
+                        <button type="button" class="copilot-send-btn" id="mlCopilotSend" title="Enviar" aria-label="Enviar">➤</button>
+                    </div>
+                </footer>
             </div>
-            <button type="button" id="mlChatFab" class="ml-chat-fab" onclick="toggleMlChatPanel()" aria-label="Abrir Agente IA — Consultas en Lenguaje Natural" title="Agente IA — Consultas en Lenguaje Natural">
+            <button type="button" id="mlChatFab" class="copilot-fab" aria-label="Abrir FraudIA Copilot" title="FraudIA Copilot">
                 <svg id="mlChatFabIcon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3c-4.42 0-8 2.69-8 6v5c0 3.31 3.58 6 8 6 .92 0 1.8-.12 2.62-.34L18 22l-1.2-3.6C19.45 16.9 20 15 20 14V9c0-3.31-3.58-6-8-6zm-3 8.5a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm3 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm3 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/>
+                    <path d="M12 2a7 7 0 0 0-7 7v4a7 7 0 0 0 7 7c.9 0 1.76-.12 2.55-.35L20 24l-1.15-3.45C21.2 19.2 22 17.1 22 15V9a7 7 0 0 0-7-7zm-2.5 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                 </svg>
             </button>
         </div>
@@ -1818,20 +1937,181 @@ Motor actual: reglas</div>
     const PLOTLY_LAYOUT = getPlotlyLayout();
     const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
 
-    // ── DB Status ──
-    async function checkDBStatus() {
+    // ── Fetch con timeout (evita pantalla colgada si TiDB no responde) ──
+    async function fetchWithTimeout(url, options = {}, ms = 10000) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
         try {
-            const resp = await fetch('/api/db-status');
+            return await fetch(url, { ...options, signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    let _pipelinePollTimer = null;
+
+    function setPipelineButtonsEnabled(enabled) {
+        ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+            const b = document.getElementById(id);
+            if (b) b.disabled = !enabled;
+        });
+    }
+
+    function showIngestActionsBar(show, uploading) {
+        const bar = document.getElementById('ingestActionsBar');
+        if (!bar) return;
+        bar.style.display = show ? 'block' : 'none';
+        const hint = bar.querySelector('.ingest-actions-hint');
+        if (hint) {
+            hint.textContent = uploading
+                ? 'Subiendo Excel… después: guardado en TiDB y análisis (dashboard + ML).'
+                : 'Dataset listo. Al analizar se guarda en TiDB y se generan scores.';
+        }
+    }
+
+    async function startBackgroundAnalysis() {
+        const progress = document.getElementById('pipelineProgress');
+        if (progress) progress.style.display = 'block';
+        setPipelineUiRunning('Iniciando motor IA…');
+        try {
+            const resp = await fetchWithTimeout('/api/run-pipeline', { method: 'POST' }, 20000);
+            const data = await resp.json();
+            if (data.error) {
+                document.getElementById('pipelineSteps').innerHTML =
+                    '<div class="step step-error"><div class="step-icon">&#10007;</div> ' + data.error + '</div>';
+                setPipelineButtonsEnabled(true);
+                ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                    const b = document.getElementById(id);
+                    if (b) b.textContent = 'Activar motor IA';
+                });
+                return;
+            }
+            if (data.pipeline_async || data.status === 'running') {
+                pollPipelineUntilDone();
+                return;
+            }
+            handlePipelineComplete(data);
+        } catch (e) {
+            const steps = document.getElementById('pipelineSteps');
+            if (steps) {
+                steps.innerHTML = '<div class="step step-warn"><div class="step-icon">!</div> No se pudo iniciar el análisis automático. Use «Activar motor IA».</div>';
+            }
+            setPipelineButtonsEnabled(true);
+            ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                const b = document.getElementById(id);
+                if (b) b.textContent = 'Activar motor IA';
+            });
+        }
+    }
+
+    function setPipelineUiRunning(msg) {
+        const progress = document.getElementById('pipelineProgress');
+        const steps = document.getElementById('pipelineSteps');
+        const aiBadge = document.getElementById('aiEngineBadge');
+        setPipelineButtonsEnabled(false);
+        ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.innerHTML = '<span class="spinner"></span> Analizando…';
+        });
+        if (progress) progress.style.display = 'block';
+        if (steps) {
+            steps.innerHTML = '<div class="step step-ok"><div class="step-icon">&#8987;</div> <strong>' +
+                (msg || 'Motor IA: feature engineering, reglas, ML y NLP…') + '</strong></div>';
+        }
+        if (aiBadge) {
+            aiBadge.className = 'badge badge-yellow';
+            aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-yellow"></span> IA: Procesando';
+        }
+        const statusTxt = document.getElementById('statusText');
+        if (statusTxt) statusTxt.textContent = msg || 'Análisis en segundo plano…';
+    }
+
+    function _stopPipelinePoll() {
+        if (_pipelinePollTimer) {
+            clearInterval(_pipelinePollTimer);
+            _pipelinePollTimer = null;
+        }
+    }
+
+    async function pollPipelineUntilDone() {
+        if (_pipelinePollTimer) return;
+        setPipelineUiRunning();
+        const maxMs = 900000;
+        const start = Date.now();
+
+        const tick = async () => {
+            if (Date.now() - start > maxMs) {
+                _stopPipelinePoll();
+                setPipelineButtonsEnabled(true);
+                ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                    const b = document.getElementById(id);
+                    if (b) b.textContent = 'Activar motor IA';
+                });
+                return true;
+            }
+            try {
+                const resp = await fetchWithTimeout('/api/pipeline-status', {}, 12000);
+                const s = await resp.json();
+                if (s.status === 'running') {
+                    setPipelineUiRunning(s.progress_message || 'Análisis en curso…');
+                    return false;
+                }
+                _stopPipelinePoll();
+                if (s.status === 'completed' && s.result) {
+                    handlePipelineComplete(s.result);
+                    return true;
+                }
+                if (s.status === 'error') {
+                    const steps = document.getElementById('pipelineSteps');
+                    if (steps) {
+                        steps.innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> ' +
+                            (s.error || 'Error en análisis') + '</div>';
+                    }
+                    setPipelineButtonsEnabled(true);
+                    ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                        const b = document.getElementById(id);
+                        if (b) b.textContent = 'Activar motor IA';
+                    });
+                    return true;
+                }
+            } catch (_) { /* reintenta */ }
+            return false;
+        };
+
+        if (await tick()) return;
+        _pipelinePollTimer = setInterval(async () => {
+            if (await tick()) _stopPipelinePoll();
+        }, 2000);
+    }
+
+    async function checkPipelineOnLoad() {
+        try {
+            const resp = await fetchWithTimeout('/api/pipeline-status', {}, 5000);
+            const s = await resp.json();
+            if (s.status === 'running') pollPipelineUntilDone();
+            else if (s.status === 'completed' && s.result && s.auto_analyzed) handlePipelineComplete(s.result);
+        } catch (_) {}
+    }
+
+    // ── DB Status ──
+    async function checkDBStatus(full) {
+        try {
+            const q = full ? '?quick=false' : '?quick=true';
+            const resp = await fetchWithTimeout('/api/db-status' + q, {}, 8000);
             const data = await resp.json();
             const dbInd = document.getElementById('dbIndicator');
             const dbType = document.getElementById('dbTypeLabel');
             const dbHost = document.getElementById('dbHostLabel');
             const dbBadge = document.getElementById('dbStatusBadge');
             if(data.status === 'ok') {
-                dbInd.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> DB: ' + data.type;
+                dbInd.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> TiDB: ' + data.type;
                 dbInd.className = 'badge badge-green';
                 dbType.textContent = 'Base de datos: ' + data.type;
-                dbHost.textContent = data.host;
+                let hostLine = (data.user ? data.user + ' · ' : '') + data.host + (data.database ? ' / ' + data.database : '');
+                if (data.local && data.app_url) {
+                    hostLine = 'Servidor local: ' + data.app_url + ' · ' + hostLine;
+                }
+                dbHost.textContent = hostLine;
                 dbBadge.textContent = 'Conectada';
                 dbBadge.className = 'badge badge-green';
                 if(data.stats && data.stats.tables) {
@@ -1842,13 +2122,28 @@ Motor actual: reglas</div>
                 dbInd.innerHTML = '<span class="pulse-dot pulse-dot-red"></span> DB: Error';
                 dbInd.className = 'badge badge-red';
                 dbType.textContent = 'Base de datos: Error de conexión';
-                dbHost.textContent = data.message || 'Verifique DATABASE_URL';
+                const who = data.user ? 'Usuario: ' + data.user + ' — ' : '';
+                dbHost.textContent = who + (data.message || 'Verifique DATABASE_URL en .env y reinicie el servidor');
                 dbBadge.textContent = 'Error'; dbBadge.className = 'badge badge-red';
             }
         } catch(e) { console.error('DB status error:', e); }
     }
     checkDBStatus();
+    checkPipelineOnLoad();
     refreshDocList();
+
+    async function persistToDB() {
+        const btn = document.getElementById('btnSaveDB');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando...';
+        try {
+            const resp = await fetch('/api/persist-datasets', { method: 'POST' });
+            const data = await resp.json();
+            if(data.error) { alert(data.error); return; }
+            document.getElementById('datasetLoadStatus').innerHTML = '<div class="alert alert-success" style="margin:0;">' + (data.message || 'Guardado en TiDB') + '</div>';
+            checkDBStatus();
+        } catch(e) { alert('Error: ' + e.message); }
+        btn.disabled = false; btn.textContent = 'Guardar en BD';
+    }
 
     async function loadFromDB() {
         const btn = document.getElementById('btnLoadDB');
@@ -1859,7 +2154,7 @@ Motor actual: reglas</div>
             if(data.error) { alert(data.error); btn.disabled = false; btn.textContent = 'Cargar desde BD'; return; }
             showTablesInfo(data.tables);
             document.getElementById('btnPipeline').disabled = false;
-            document.getElementById('syntheticStatus').innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
+            document.getElementById('datasetLoadStatus').innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
         } catch(e) { alert('Error: ' + e.message); }
         btn.disabled = false; btn.textContent = 'Cargar desde BD';
     }
@@ -1872,8 +2167,8 @@ Motor actual: reglas</div>
             item.classList.add('active');
             document.getElementById('tab-' + item.dataset.tab).classList.add('active');
             if (item.dataset.tab === 'dashboard') initDashboard();
-            if (item.dataset.tab === 'model') {
-                loadModelMetrics();
+            if (item.dataset.tab === 'model') loadModelMetrics();
+            if (item.dataset.tab === 'model' || item.dataset.tab === 'dashboard') {
                 updateMlChatWidgetVisibility(true);
             } else {
                 updateMlChatWidgetVisibility(false);
@@ -1883,11 +2178,6 @@ Motor actual: reglas</div>
 
 
     // ── Upload ──
-    const uploadZone = document.getElementById('uploadZone');
-    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
-    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-    uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); if(e.dataTransfer.files.length) uploadFileObj(e.dataTransfer.files[0]); });
-
     const docUploadZone = document.getElementById('docUploadZone');
     docUploadZone.addEventListener('dragover', e => { e.preventDefault(); docUploadZone.classList.add('dragover'); });
     docUploadZone.addEventListener('dragleave', () => docUploadZone.classList.remove('dragover'));
@@ -1970,99 +2260,126 @@ Motor actual: reglas</div>
 
     function uploadFile(input) { if(input.files.length) uploadFileObj(input.files[0]); }
 
+    function handleDatasetLoadResponse(data) {
+        const status = document.getElementById('datasetLoadStatus');
+        const canAnalyze = data.has_siniestros !== false;
+        let html = '<div class="alert ' + (canAnalyze ? 'alert-success' : 'alert-warning') + '" style="margin:0;">' + (data.message || 'Dataset procesado') + '</div>';
+        if (data.warnings && data.warnings.length) {
+            html += '<div class="alert alert-warning" style="margin-top:0.5rem;">' +
+                data.warnings.map(w => '<div>• ' + w + '</div>').join('') + '</div>';
+        }
+        if (status) status.innerHTML = html;
+        showIngestActionsBar(true, false);
+        const insights = document.getElementById('ingestInsights');
+        if (insights) insights.style.display = 'grid';
+        if (window.IngestUI) IngestUI.onLoadComplete(data);
+        else if (data.tables) showTablesInfo(data.tables);
+        setPipelineButtonsEnabled(canAnalyze || (data.pipeline && data.pipeline.auto_analyzed));
+        if (canAnalyze || (data.pipeline && data.pipeline.auto_analyzed)) {
+            const done = data.pipeline && data.pipeline.auto_analyzed;
+            const aiBadge = document.getElementById('aiEngineBadge');
+            if (aiBadge) {
+                aiBadge.className = done ? 'badge badge-green' : 'badge badge-cyan';
+                aiBadge.innerHTML = done
+                    ? '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo'
+                    : '<span class="pulse-dot pulse-dot-cyan"></span> IA: Datos listos';
+            }
+        }
+        if (data.pipeline && data.pipeline.auto_analyzed && !data.pipeline.pipeline_error) {
+            handlePipelineComplete(data.pipeline);
+        } else if (data.pipeline_async) {
+            pollPipelineUntilDone();
+        } else if (canAnalyze && data.auto_pipeline) {
+            startBackgroundAnalysis();
+        } else {
+            applyAutoPipelineFromApiResponse(data);
+        }
+        setTimeout(() => checkDBStatus(false), 4000);
+    }
+
     async function uploadFileObj(file) {
-        const status = document.getElementById('uploadStatus');
+        const status = document.getElementById('datasetLoadStatus');
         const fileInput = document.getElementById('fileInput');
-        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Procesando ' + file.name + '...</span>';
+        showIngestActionsBar(true, true);
+        if (window.IngestUI) IngestUI.onUploadStart(file.name);
         const formData = new FormData();
         formData.append('file', file);
         try {
-            const resp = await fetch('/api/upload', { method: 'POST', body: formData });
-            const data = await resp.json();
+            const resp = await fetchWithTimeout('/api/upload', { method: 'POST', body: formData }, 90000);
+            let data;
+            try {
+                data = await resp.json();
+            } catch (_) {
+                throw new Error('Respuesta inválida del servidor (¿reinició el servidor?)');
+            }
             if (fileInput) fileInput.value = '';
-            if(data.error) {
-                status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>';
+            if (!resp.ok || data.error) {
+                if (window.IngestUI) IngestUI.onUploadEnd();
+                setPipelineButtonsEnabled(false);
+                if (status) {
+                    status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' +
+                        (data.error || ('HTTP ' + resp.status)) + '</div>';
+                }
                 return;
             }
-            const canAnalyze = data.has_siniestros !== false;
-            let html = '<div class="alert ' + (canAnalyze ? 'alert-success' : 'alert-danger') + '" style="margin:0;">' + data.message + '</div>';
-            if (data.warnings && data.warnings.length) {
-                html += '<div class="alert alert-danger" style="margin-top:0.5rem;">' +
-                    data.warnings.map(w => '<div>• ' + w + '</div>').join('') +
-                    '<div style="margin-top:0.35rem;font-size:0.82rem;">Use la plantilla Excel con hoja <strong>siniestros</strong> o un CSV con columna <code>id_siniestro</code>.</div></div>';
+            handleDatasetLoadResponse(data);
+        } catch (e) {
+            if (window.IngestUI) IngestUI.onUploadEnd();
+            setPipelineButtonsEnabled(false);
+            ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                const b = document.getElementById(id);
+                if (b) b.textContent = 'Activar motor IA';
+            });
+            if (status) {
+                status.innerHTML = '<div class="alert alert-danger" style="margin:0;">' +
+                    (e.name === 'AbortError'
+                        ? 'Tiempo de espera agotado al subir el archivo. Verifique que el servidor esté en marcha (http://localhost:5001) y reinícielo.'
+                        : ('Error: ' + e.message)) +
+                    '</div>';
             }
-            status.innerHTML = html;
-            if (data.tables) showTablesInfo(data.tables);
-            document.getElementById('btnPipeline').disabled = !canAnalyze;
-            if (canAnalyze) {
-                document.getElementById('statusText').textContent = data.pipeline && data.pipeline.auto_analyzed
-                    ? 'Análisis completo. Revise Dashboard y Modelo ML.'
-                    : 'Datos listos. Ejecute el análisis.';
-                document.getElementById('statusIndicator').className = data.pipeline && data.pipeline.auto_analyzed ? 'badge badge-green' : 'badge badge-cyan';
-                document.getElementById('statusIndicator').innerHTML = data.pipeline && data.pipeline.auto_analyzed
-                    ? '<span class="pulse-dot pulse-dot-green"></span> Análisis completo'
-                    : '<span class="pulse-dot pulse-dot-green"></span> Datos cargados';
-            }
-            applyAutoPipelineFromApiResponse(data);
-            checkDBStatus();
-        } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
-    }
-
-    async function loadInsurer() {
-        const btn = document.getElementById('btnInsurer');
-        const status = document.getElementById('syntheticStatus');
-        btn.disabled = true;
-        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Cargando dataset de la aseguradora...</span>';
-        try {
-            const resp = await fetch('/api/load-insurer', { method: 'POST' });
-            const data = await resp.json();
-            if(data.error) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>'; btn.disabled = false; return; }
-            status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
-            if(data.warnings && data.warnings.length) status.innerHTML += '<div class="alert alert-warning" style="margin-top:0.5rem;">' + data.warnings.join('<br>') + '</div>';
-            showTablesInfo(data.tables);
-            document.getElementById('btnPipeline').disabled = false;
-            document.getElementById('statusText').textContent = data.pipeline && data.pipeline.auto_analyzed
-                ? 'Dataset cargado y analizado. Dashboard y ML actualizados.'
-                : 'Dataset aseguradora listo. Ejecute el análisis.';
-            applyAutoPipelineFromApiResponse(data);
-            checkDBStatus();
-        } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
-        btn.disabled = false;
+        }
     }
 
     async function loadSynthetic() {
         const btn = document.getElementById('btnSynthetic');
-        const status = document.getElementById('syntheticStatus');
+        const status = document.getElementById('datasetLoadStatus');
         btn.disabled = true;
-        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Generando datos sintéticos...</span>';
+        if (window.IngestUI) IngestUI.onUploadStart('datos-aleatorios.xlsx');
+        if (status) status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Generando datos aleatorios...</span>';
         try {
             const resp = await fetch('/api/load-synthetic', { method: 'POST' });
             const data = await resp.json();
-            if(data.error) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>'; btn.disabled = false; return; }
-            status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
-            showTablesInfo(data.tables);
-            document.getElementById('btnPipeline').disabled = false;
-            applyAutoPipelineFromApiResponse(data);
-            checkDBStatus();
-        } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
-        btn.disabled = false;
+            if (data.error) {
+                status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>';
+                return;
+            }
+            data.has_siniestros = true;
+            handleDatasetLoadResponse(data);
+        } catch (e) {
+            status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>';
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     function showTablesInfo(tables) {
         const container = document.getElementById('tablesGrid');
+        if (!container || !tables) return;
         container.innerHTML = '';
-        for(const [name, info] of Object.entries(tables)) {
+        for (const [name, info] of Object.entries(tables)) {
+            const cols = Array.isArray(info.columns) ? info.columns.length : (info.cols || info.columns || 0);
             container.innerHTML += `<div class="card metric-card card-accent-cyan">
                 <div class="card-title">${name}</div>
-                <div class="metric-value" style="color:var(--cyan);">${info.rows.toLocaleString()}</div>
-                <div class="metric-label">${info.columns} columnas</div>
+                <div class="metric-value" style="color:var(--cyan);">${(info.rows || 0).toLocaleString()}</div>
+                <div class="metric-label">${cols} columnas</div>
             </div>`;
         }
-        document.getElementById('tablesInfo').style.display = 'block';
+        const wrap = document.getElementById('tablesInfo');
+        if (wrap) wrap.style.display = 'block';
     }
 
     function handlePipelineComplete(data) {
-        const btn = document.getElementById('btnPipeline');
+        showIngestActionsBar(true, false);
         document.getElementById('pipelineProgress').style.display = 'block';
         let stepsHtml = '';
         const pipelineSteps = Array.isArray(data.steps) ? data.steps : [];
@@ -2075,25 +2392,45 @@ Motor actual: reglas</div>
             stepsHtml = '<div class="step step-ok"><div class="step-icon">&#10003;</div> <strong>Pipeline completado</strong></div>';
         }
         document.getElementById('pipelineSteps').innerHTML = stepsHtml;
-        document.getElementById('statusIndicator').className = 'badge badge-green';
-        document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-green"></span> Análisis completo';
+        const aiBadge = document.getElementById('aiEngineBadge');
+        if (aiBadge) {
+            aiBadge.className = 'badge badge-green';
+            aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis completo';
+        }
         const totalRecords = Number(data.total_records || 0);
         const duration = Number(data.duration_seconds || 0);
-        document.getElementById('statusText').textContent = `Pipeline completado: ${totalRecords.toLocaleString()} siniestros · ${duration}s — dashboard y ML listos`;
-        btn.innerHTML = 'Ejecutar Análisis Completo';
-        btn.disabled = false;
+        const statusTxt = document.getElementById('statusText');
+        if (statusTxt) {
+            statusTxt.textContent = `Pipeline: ${totalRecords.toLocaleString()} siniestros · ${duration}s — dashboard y ML listos`;
+        }
+        if (window.IngestUI) IngestUI.showAiPanel();
+        setPipelineButtonsEnabled(true);
+        ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+            const b = document.getElementById(id);
+            if (b) b.textContent = 'Activar motor IA';
+        });
         if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
         initDashboard();
         loadCases();
         loadModelMetrics();
-        if (document.getElementById('tab-model').classList.contains('active')) {
+        if (document.getElementById('tab-model')?.classList.contains('active')
+            || document.getElementById('tab-dashboard')?.classList.contains('active')) {
             updateMlChatWidgetVisibility(true);
         }
         refreshMlChatStatus();
     }
 
     function applyAutoPipelineFromApiResponse(data) {
-        const pipe = data && data.pipeline;
+        if (!data) return;
+        if (data.pipeline_async) {
+            pollPipelineUntilDone();
+            return;
+        }
+        const pipe = data.pipeline;
+        if (pipe && pipe.pipeline_async) {
+            pollPipelineUntilDone();
+            return;
+        }
         if (pipe && pipe.auto_analyzed && !pipe.pipeline_error) {
             handlePipelineComplete(pipe);
         }
@@ -2101,25 +2438,44 @@ Motor actual: reglas</div>
 
     // ── Pipeline ──
     async function runPipeline() {
-        const btn = document.getElementById('btnPipeline');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Analizando...';
-        document.getElementById('statusIndicator').className = 'badge badge-yellow';
-        document.getElementById('statusIndicator').innerHTML = '<span class="pulse-dot pulse-dot-yellow"></span> Procesando';
+        setPipelineButtonsEnabled(false);
+        ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.innerHTML = '<span class="spinner"></span> Analizando...';
+        });
+        const aiBadge = document.getElementById('aiEngineBadge');
+        if (aiBadge) {
+            aiBadge.className = 'badge badge-yellow';
+            aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-yellow"></span> IA: Procesando';
+        }
         document.getElementById('pipelineProgress').style.display = 'block';
-        document.getElementById('statusText').textContent = 'Ejecutando pipeline de análisis...';
+        const statusTxt = document.getElementById('statusText');
+        if (statusTxt) statusTxt.textContent = 'Ejecutando pipeline de análisis...';
 
         try {
             const resp = await fetch('/api/run-pipeline', { method: 'POST' });
             const data = await resp.json();
             if(data.error) {
                 document.getElementById('pipelineSteps').innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> Error: ' + data.error + '</div>';
-                btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false; return;
+                setPipelineButtonsEnabled(true);
+                ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                    const b = document.getElementById(id);
+                    if (b) b.textContent = 'Activar motor IA';
+                });
+                return;
+            }
+            if (data.pipeline_async || data.status === 'running') {
+                pollPipelineUntilDone();
+                return;
             }
             handlePipelineComplete(data);
         } catch(e) {
             document.getElementById('pipelineSteps').innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> Error de conexión: ' + e.message + '</div>';
-            btn.innerHTML = 'Ejecutar Análisis Completo'; btn.disabled = false;
+            setPipelineButtonsEnabled(true);
+            ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
+                const b = document.getElementById(id);
+                if (b) b.textContent = 'Activar motor IA';
+            });
         }
     }
 
@@ -2201,326 +2557,31 @@ Motor actual: reglas</div>
         } catch(e) { alert('Error: ' + e.message); }
     }
 
-    // ── Model Metrics + filtros ──
-    const modelViewState = {
-        initialized: false,
-        filters: { semaforo: 'all', ramo: 'all', search: '' },
-        options: { ramos: [] },
-    };
-
-    function getModelQueryString() {
-        const p = new URLSearchParams();
-        if (modelViewState.filters.semaforo && modelViewState.filters.semaforo !== 'all') p.set('semaforo', modelViewState.filters.semaforo);
-        if (modelViewState.filters.ramo && modelViewState.filters.ramo !== 'all') p.set('ramo', modelViewState.filters.ramo);
-        if (modelViewState.filters.search) p.set('search', modelViewState.filters.search.trim());
-        return p.toString();
-    }
-
-    async function refreshModelDynamicData() {
-        const qs = getModelQueryString();
-        const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''));
-        const data = await resp.json();
-        if (data.error) return;
-
-        const scoreEl = document.getElementById('mlFilterScoreProm');
-        const amountEl = document.getElementById('mlFilterMonto');
-        const countEl = document.getElementById('mlFilterCount');
-        if (scoreEl) scoreEl.textContent = Number(data.score_promedio || 0).toFixed(1);
-        if (amountEl) amountEl.textContent = '$' + Number(data.monto_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-        if (countEl) countEl.textContent = Number(data.total || 0).toLocaleString();
-
-        const topCases = Array.isArray(data.top_cases) ? data.top_cases : [];
-        const tableEl = document.getElementById('mlCasesTableBody');
-        if (tableEl) {
-            tableEl.innerHTML = topCases.length
-                ? topCases.slice(0, 10).map(c => `
-                    <tr>
-                        <td style="color:var(--cyan);font-weight:600;">${c.id_siniestro || ''}</td>
-                        <td>${c.ramo || ''}</td>
-                        <td>${c.cobertura || ''}</td>
-                        <td>${(c.score_hibrido || 0).toFixed(1)}</td>
-                        <td>${c.semaforo_final || ''}</td>
-                    </tr>
-                `).join('')
-                : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Sin casos para los filtros seleccionados</td></tr>';
-        }
-
-        const sem = data.semaforo || {};
-        const semChart = document.getElementById('chartModelSemaforo');
-        if (semChart) {
-            Plotly.newPlot('chartModelSemaforo', [{
-                x: ['Rojo', 'Amarillo', 'Verde'],
-                y: [sem.Rojo || 0, sem.Amarillo || 0, sem.Verde || 0],
-                type: 'bar',
-                marker: { color: ['#ef4444', '#f59e0b', '#22c55e'] },
-                text: [sem.Rojo || 0, sem.Amarillo || 0, sem.Verde || 0].map(String),
-                textposition: 'outside',
-                textfont: { size: 11, color: getColors().text },
-            }], {
-                ...getPlotlyLayout(),
-                margin: { t: 10, b: 40, l: 40, r: 10 },
-                yaxis: { title: 'Casos' },
-                xaxis: { title: 'Nivel de riesgo' },
-                height: 280,
-            }, PLOTLY_CONFIG);
-        }
-    }
-
+  // ── AI / ML Engine (premium) ──
     async function loadModelMetrics() {
-        try {
-            const [metricsResp, filtersResp] = await Promise.all([
-                fetch('/api/model-metrics'),
-                fetch('/api/dashboard-filters'),
-            ]);
-            const data = await metricsResp.json();
-            const filtersData = await filtersResp.json();
-            if(data.error) { document.getElementById('modelContent').innerHTML = '<div class="alert alert-warning">' + data.error + '</div>'; return; }
-
-            modelViewState.options.ramos = filtersData?.ramos || [];
-            const container = document.getElementById('modelContent');
-            container.innerHTML = `
-                <div class="card" style="margin-bottom:1rem;">
-                    <div class="card-title">Modelo ML — interpretación para negocio</div>
-                    <p style="color:var(--text-secondary);font-size:0.84rem;line-height:1.6;margin:0.65rem 0 0.4rem 0;">
-                        Esta sección explica el desempeño del modelo y permite filtrar los casos para entender mejor dónde está el riesgo.
-                    </p>
-                </div>
-
-                <div class="card" style="margin-bottom:1rem;">
-                    <div class="card-title">Filtros de análisis</div>
-                    <div class="dashboard-toolbar-grid" style="margin-top:0.75rem;">
-                        <div class="dashboard-filter"><label>Semáforo</label>
-                            <select id="mlFilterSemaforo">
-                                <option value="all">Todos</option>
-                                <option value="Rojo">Rojo</option>
-                                <option value="Amarillo">Amarillo</option>
-                                <option value="Verde">Verde</option>
-                            </select>
-                        </div>
-                        <div class="dashboard-filter"><label>Ramo</label><select id="mlFilterRamo"><option value="all">Todos</option></select></div>
-                        <div class="dashboard-filter"><label>ID Siniestro</label><input id="mlFilterSearch" type="text" placeholder="Ej: SIN-000123"></div>
-                        <div class="dashboard-filter-actions" style="justify-content:flex-start;align-items:flex-end;">
-                            <button class="btn btn-secondary" id="mlFilterApplyBtn">Aplicar filtros</button>
-                            <button class="btn btn-ghost" id="mlFilterClearBtn">Limpiar</button>
-                        </div>
-                    </div>
-                    <div class="grid-3" style="margin-top:0.8rem;">
-                        <div class="card metric-card"><div class="card-title">Casos visibles</div><div class="metric-value" id="mlFilterCount">0</div></div>
-                        <div class="card metric-card"><div class="card-title">Score promedio</div><div class="metric-value" id="mlFilterScoreProm">0.0</div></div>
-                        <div class="card metric-card"><div class="card-title">Monto total</div><div class="metric-value" id="mlFilterMonto">$0</div></div>
-                    </div>
-                </div>
-
-                <div class="grid-4">
-                    <div class="card metric-card card-accent-cyan">
-                        <div class="card-title">AUC-ROC</div>
-                        <div class="metric-value" style="color:var(--cyan);">${(data.auc_roc||0).toFixed(4)}</div>
-                        <div class="metric-label">Capacidad global para separar fraude y no fraude</div>
-                    </div>
-                    <div class="card metric-card">
-                        <div class="card-title">Precisión (Fraude)</div>
-                        <div class="metric-value">${(data.precision_fraude||0).toFixed(3)}</div>
-                        <div class="metric-label">De los casos marcados como fraude, cuántos acierta</div>
-                    </div>
-                    <div class="card metric-card">
-                        <div class="card-title">Recall (Fraude)</div>
-                        <div class="metric-value">${(data.recall_fraude||0).toFixed(3)}</div>
-                        <div class="metric-label">Qué proporción del fraude total logra detectar</div>
-                    </div>
-                    <div class="card metric-card">
-                        <div class="card-title">F1-Score (Fraude)</div>
-                        <div class="metric-value">${(data.f1_fraude||0).toFixed(3)}</div>
-                        <div class="metric-label">Balance entre precisión y recall</div>
-                    </div>
-                </div>
-                <div class="grid-2">
-                    <div class="card"><div class="card-title">Importancia de variables (Top 10)<button type="button" class="chart-reset-btn" id="mlChartResetImportance" title="Limpiar filtros del gráfico">✕</button></div><div id="chartImportance" class="chart-area"></div></div>
-                    <div class="card"><div class="card-title">Matriz de confusión<button type="button" class="chart-reset-btn" id="mlChartResetConfusion" title="Limpiar filtros del gráfico">✕</button></div><div id="chartConfusion" class="chart-area"></div></div>
-                </div>
-                <div class="grid-2" style="margin-top:0.5rem;">
-                    <div class="card"><div class="card-title">Distribución de riesgo según filtros<button type="button" class="chart-reset-btn" id="mlChartResetRisk" title="Limpiar filtros del gráfico">✕</button></div><div id="chartModelSemaforo" class="chart-area"></div></div>
-                    <div class="card">
-                        <div class="card-title">Casos priorizados (dinámico)</div>
-                        <div class="table-container">
-                            <table>
-                                <thead><tr><th>ID Siniestro</th><th>Ramo</th><th>Cobertura</th><th>Score</th><th>Semáforo</th></tr></thead>
-                                <tbody id="mlCasesTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const ramoSel = document.getElementById('mlFilterRamo');
-            if (ramoSel) {
-                ramoSel.innerHTML = '<option value="all">Todos</option>' + modelViewState.options.ramos.map(r => `<option value="${r}">${r}</option>`).join('');
-            }
-
-            const MC = getColors(), MPL = getPlotlyLayout();
-            if(data.top_features && data.top_features.length) {
-                const feats = data.top_features.slice(0,10).reverse();
-                const barBase = currentTheme === 'light' ? [0,136,204] : [0,209,255];
-                Plotly.newPlot('chartImportance', [{
-                    y: feats.map(f => f.feature), x: feats.map(f => f.importance),
-                    type: 'bar', orientation: 'h',
-                    marker: { color: feats.map((f,i) => `rgba(${barBase.join(',')},${0.3 + i*0.07})`), line: { width: 0 } },
-                    text: feats.map(f => (f.importance || 0).toFixed(3)),
-                    textposition: 'outside',
-                    textfont: { size: 10, color: MC.text },
-                }], { ...MPL, xaxis: { title: 'Importancia', gridcolor: MC.grid }, yaxis: { gridcolor: MC.grid, tickfont: { family: 'JetBrains Mono', size: 10 } }, margin: {t:10,b:40,l:180,r:10}, height: 360 }, PLOTLY_CONFIG);
-            }
-            if(data.confusion_matrix) {
-                const cm = data.confusion_matrix;
-                const cmScale = currentTheme === 'light' ? [[0,'#F7FAFC'],[0.5,'rgba(0,136,204,0.25)'],[1,'#0088CC']] : [[0,MC.bgCard],[0.5,'rgba(0,209,255,0.3)'],[1,MC.cyan]];
-                Plotly.newPlot('chartConfusion', [{
-                    z: cm, x: ['No Fraude', 'Fraude'], y: ['No Fraude', 'Fraude'],
-                    type: 'heatmap', colorscale: cmScale,
-                    text: cm.map(r => r.map(v => v.toString())), texttemplate: '%{text}',
-                    textfont: { size: 18, color: MC.text, family: 'JetBrains Mono' }, showscale: false
-                }], { ...MPL, xaxis: { title: 'Predicción del modelo' }, yaxis: { title: 'Valor real' }, margin: {t:10,b:50,l:80,r:10}, height: 360 }, PLOTLY_CONFIG);
-            }
-
-            const applyFilters = async () => {
-                modelViewState.filters.semaforo = document.getElementById('mlFilterSemaforo')?.value || 'all';
-                modelViewState.filters.ramo = document.getElementById('mlFilterRamo')?.value || 'all';
-                modelViewState.filters.search = document.getElementById('mlFilterSearch')?.value || '';
-                await refreshModelDynamicData();
-            };
-            document.getElementById('mlFilterApplyBtn')?.addEventListener('click', applyFilters);
-            document.getElementById('mlFilterClearBtn')?.addEventListener('click', async () => {
-                modelViewState.filters = { semaforo: 'all', ramo: 'all', search: '' };
-                document.getElementById('mlFilterSemaforo').value = 'all';
-                document.getElementById('mlFilterRamo').value = 'all';
-                document.getElementById('mlFilterSearch').value = '';
-                await refreshModelDynamicData();
-            });
-            document.getElementById('mlFilterSearch')?.addEventListener('keydown', async (e) => {
-                if (e.key === 'Enter') await applyFilters();
-            });
-            const clearModelChartFilters = async (ev) => {
-                if (ev) {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                }
-                modelViewState.filters = { semaforo: 'all', ramo: 'all', search: '' };
-                const semEl = document.getElementById('mlFilterSemaforo');
-                const ramoEl = document.getElementById('mlFilterRamo');
-                const searchEl = document.getElementById('mlFilterSearch');
-                if (semEl) semEl.value = 'all';
-                if (ramoEl) ramoEl.value = 'all';
-                if (searchEl) searchEl.value = '';
-                await refreshModelDynamicData();
-            };
-            document.getElementById('mlChartResetImportance')?.addEventListener('click', clearModelChartFilters);
-            document.getElementById('mlChartResetConfusion')?.addEventListener('click', clearModelChartFilters);
-            document.getElementById('mlChartResetRisk')?.addEventListener('click', clearModelChartFilters);
-            await refreshModelDynamicData();
-        } catch(e) { console.error(e); }
+        if (window.MlEngine) return MlEngine.init();
+        document.getElementById('modelContent').innerHTML =
+            '<div class="alert alert-danger">No se cargó ml-engine.js</div>';
     }
 
-    // ── Agente IA (chat flotante en pestaña Modelo ML) ──
-    const ML_CHAT_FAB_ICON_BOT = '<path d="M12 3c-4.42 0-8 2.69-8 6v5c0 3.31 3.58 6 8 6 .92 0 1.8-.12 2.62-.34L18 22l-1.2-3.6C19.45 16.9 20 15 20 14V9c0-3.31-3.58-6-8-6zm-3 8.5a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm3 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm3 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/>';
-    const ML_CHAT_FAB_ICON_CLOSE = '<path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.41z"/>';
-
-    (function initMlChatResizeHandle() {
-        const panel = document.getElementById('mlChatPanel');
-        const handle = document.getElementById('mlChatResizeHandle');
-        if (!panel || !handle) return;
-
-        let isResizing = false;
-        let startX = 0;
-        let startY = 0;
-        let startWidth = 0;
-        let startHeight = 0;
-
-        const onMouseMove = (event) => {
-            if (!isResizing) return;
-            const dx = event.clientX - startX;
-            const dy = event.clientY - startY;
-            const minWidth = 320;
-            const minHeight = 288;
-            const maxWidth = window.innerWidth - 24;
-            const maxHeight = window.innerHeight - 24;
-            const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth - dx));
-            const nextHeight = Math.max(minHeight, Math.min(maxHeight, startHeight - dy));
-            panel.style.width = `${nextWidth}px`;
-            panel.style.height = `${nextHeight}px`;
-        };
-
-        const onMouseUp = () => {
-            if (!isResizing) return;
-            isResizing = false;
-            document.body.style.userSelect = '';
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
-        };
-
-        handle.addEventListener('mousedown', (event) => {
-            if (event.button !== 0) return;
-            event.preventDefault();
-            isResizing = true;
-            startX = event.clientX;
-            startY = event.clientY;
-            startWidth = panel.offsetWidth;
-            startHeight = panel.offsetHeight;
-            document.body.style.userSelect = 'none';
-            window.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp);
-        });
-    })();
-
+    // ── Agente IA (copiloto flotante + chats embebidos) ──
     function updateMlChatWidgetVisibility(show) {
-        const w = document.getElementById('mlChatWidget');
-        if (!w) return;
-        if (show) {
-            w.classList.add('visible');
-            w.setAttribute('aria-hidden', 'false');
-            refreshMlChatStatus();
-        } else {
-            w.classList.remove('visible');
-            w.setAttribute('aria-hidden', 'true');
-            toggleMlChatPanel(false);
-        }
+        if (window.MlCopilot) MlCopilot.setVisible(show);
     }
 
     function toggleMlChatPanel(forceOpen) {
-        const panel = document.getElementById('mlChatPanel');
-        const fab = document.getElementById('mlChatFab');
-        const icon = document.getElementById('mlChatFabIcon');
-        if (!panel || !fab) return;
-        const open = forceOpen === true ? true : forceOpen === false ? false : !panel.classList.contains('open');
-        panel.classList.toggle('open', open);
-        fab.classList.toggle('open', open);
-        if (icon) icon.innerHTML = open ? ML_CHAT_FAB_ICON_CLOSE : ML_CHAT_FAB_ICON_BOT;
-        if (open) {
-            const inp = document.getElementById('mlChatInput');
-            if (inp) setTimeout(() => inp.focus(), 120);
-        }
+        if (window.MlCopilot) MlCopilot.toggle(forceOpen);
     }
 
     async function refreshMlChatStatus() {
-        const dot = document.getElementById('mlChatStatusDot');
-        const txt = document.getElementById('mlChatStatusText');
-        if (!txt) return;
-        try {
-            const data = await (await fetch('/api/agent-status')).json();
-            if (!data.pipeline_ready) {
-                if (dot) dot.style.background = 'var(--yellow)';
-                txt.textContent = 'Ejecute el pipeline para activar el chat';
-            } else if (data.openai_configured) {
-                if (dot) dot.style.background = 'var(--green)';
-                txt.textContent = 'ChatGPT · ' + (data.openai_model || 'conectado');
-            } else {
-                if (dot) dot.style.background = 'var(--cyan)';
-                txt.textContent = 'Modo reglas · datos del modelo';
-            }
-        } catch (e) {
-            if (dot) dot.style.background = 'var(--red)';
-            txt.textContent = 'Sin conexión al servidor';
-        }
+        if (window.MlCopilot) MlCopilot.refreshHeaderMetrics();
     }
 
     async function sendAgentQuery(question, messagesEl, loadingIdPrefix) {
+        const elId = typeof messagesEl === 'string' ? messagesEl : messagesEl?.id;
+        if (elId === 'mlCopilotMessages' && window.MlCopilot) {
+            return MlCopilot.send(question);
+        }
         const messages = typeof messagesEl === 'string' ? document.getElementById(messagesEl) : messagesEl;
         if (!messages || !question) return;
         const loadId = loadingIdPrefix + 'Loading';
@@ -2648,15 +2709,13 @@ Motor actual: reglas</div>
     }
 
     async function sendMlChatQuery() {
-        const input = document.getElementById('mlChatInput');
-        if (!input) return;
-        const question = input.value.trim();
-        if (!question) return;
-        input.value = '';
-        await sendAgentQuery(question, 'mlChatMessages', 'mlChat');
+        if (window.MlCopilot) {
+            const input = document.getElementById('mlCopilotInput');
+            if (input && input.value.trim()) return MlCopilot.send(input.value);
+            return;
+        }
+        await sendAgentQuery('', 'mlCopilotMessages', 'mlChat');
     }
-
-    refreshMlChatStatus();
 
     // ── Export ──
     async function exportPowerBI() {
@@ -2679,6 +2738,9 @@ Motor actual: reglas</div>
         btn.disabled = false;
     }
 </script>
-    <script src="/static/dashboard.js?v=4"></script>
+    <script src="/static/ingest.js?v=5"></script>
+    <script src="/static/ml-copilot.js?v=1"></script>
+    <script src="/static/ml-engine.js?v=1"></script>
+    <script src="/static/dashboard.js?v=5"></script>
 </body>
 </html>

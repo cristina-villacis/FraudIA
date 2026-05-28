@@ -11,35 +11,7 @@ import numpy as np
 import pandas as pd
 
 
-EXPECTED_COLUMNS = {
-    "siniestros": [
-        "id_siniestro", "id_poliza", "id_asegurado", "ramo", "cobertura",
-        "fecha_ocurrencia", "fecha_reporte", "monto_reclamado", "monto_estimado",
-        "monto_pagado", "estado", "sucursal", "descripcion", "documentos_completos",
-        "beneficiario", "dias_desde_inicio_poliza", "dias_desde_fin_poliza",
-        "dias_entre_ocurrencia_reporte", "historial_siniestros_asegurado",
-        "placa_vehiculo", "similitud_narrativa_max", "numero_parte_policial",
-        "etiqueta_fraude_simulada",
-    ],
-    "polizas": [
-        "id_poliza", "id_asegurado", "ramo", "fecha_inicio", "fecha_fin",
-        "prima", "suma_asegurada",
-    ],
-    "asegurados": [
-        "id_asegurado", "nombres_asegurado", "segmento", "ciudad",
-        "antiguedad_anos", "numero_polizas", "reclamos_ultimos_12m",
-    ],
-    "vehiculos": [
-        "id_vehiculo", "id_asegurado", "placa", "chasis", "motor", "marca", "modelo", "ano",
-    ],
-    "proveedores": [
-        "id_proveedor", "nombre_proveedor", "tipo", "ciudad",
-        "reclamos_asociados", "en_lista_restrictiva",
-    ],
-    "documentos": [
-        "id_documento", "id_siniestro", "tipo_documento", "nombre_archivo_pdf",
-    ],
-}
+from src.ingestion.schema import EXPECTED_COLUMNS, REQUIRED_COLUMNS, SKIP_SHEETS
 
 TABLE_KEY_COLUMNS = {
     "siniestros": "id_siniestro",
@@ -51,13 +23,10 @@ TABLE_KEY_COLUMNS = {
 }
 
 from src.ingestion.insurer_mapping import (
-    INSURER_DEFAULT_XLSX,
     is_insurer_workbook,
     remap_insurer_dataframe,
     resolve_insurer_sheet_name,
 )
-
-SKIP_SHEETS = {"readme", "indice_documentos", "guia"}
 
 NAME_ALIASES = {
     "siniestro": "siniestros",
@@ -115,10 +84,10 @@ def load_excel(filepath: str, sheet_name: Optional[str] = None) -> Dict[str, pd.
 
 
 def validate_dataframe(df: pd.DataFrame, table_name: str) -> Tuple[bool, list]:
-    if table_name not in EXPECTED_COLUMNS:
+    required = REQUIRED_COLUMNS.get(table_name)
+    if not required:
         return True, []
-    expected = EXPECTED_COLUMNS[table_name]
-    missing = [col for col in expected if col not in df.columns]
+    missing = [col for col in required if col not in df.columns]
     return len(missing) == 0, missing
 
 
@@ -196,10 +165,33 @@ def tables_from_sheets(sheets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFram
             table_name = resolve_table_name(sheet_name, df)
         cleaned = clean_dataframe(df, table_name)
         if table_name in datasets:
-            datasets[table_name] = pd.concat([datasets[table_name], cleaned], ignore_index=True)
+            combined = pd.concat([datasets[table_name], cleaned], ignore_index=True)
+            datasets[table_name] = _dedupe_table(combined, table_name)
         else:
             datasets[table_name] = cleaned
+    _enrich_siniestros_beneficiario(datasets)
     return datasets
+
+
+def _enrich_siniestros_beneficiario(datasets: Dict[str, pd.DataFrame]) -> None:
+    """beneficiario = nombre del proveedor según especificación del reto."""
+    sin = datasets.get("siniestros")
+    prov = datasets.get("proveedores")
+    if sin is None or prov is None or "id_proveedor" not in sin.columns:
+        return
+    if "nombre_proveedor" not in prov.columns or "id_proveedor" not in prov.columns:
+        return
+    lookup = prov.set_index("id_proveedor")["nombre_proveedor"].astype(str).to_dict()
+    sin["beneficiario"] = sin["id_proveedor"].astype(str).map(lookup).fillna(
+        sin["id_proveedor"].astype(str)
+    )
+
+
+def _dedupe_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+    key = TABLE_KEY_COLUMNS.get(table_name)
+    if key and key in df.columns:
+        return df.drop_duplicates(subset=[key], keep="last").reset_index(drop=True)
+    return df
 
 
 def load_all_from_directory(directory: str) -> Dict[str, pd.DataFrame]:
@@ -255,27 +247,24 @@ def validate_datasets(datasets: Dict[str, pd.DataFrame]) -> Dict:
     }
 
 
-def load_insurer_default_workbook() -> Dict[str, pd.DataFrame]:
-    """Carga el Excel oficial de la aseguradora desde data/raw/."""
-    if not os.path.isfile(INSURER_DEFAULT_XLSX):
-        raise FileNotFoundError(
-            f"No se encontró {INSURER_DEFAULT_XLSX}. Copie el archivo "
-            "'Evento Datasets_Sinteticos_Fraude_500_v2.xlsx' a data/raw/."
-        )
-    return tables_from_sheets(load_excel(INSURER_DEFAULT_XLSX))
+_SKIP_EXCEL_SHEETS = frozenset(
+    {"readme", "read me", "instrucciones", "guia", "guía", "help", "ayuda", "metadata"}
+)
 
 
 def load_from_upload(file_storage, filename: str) -> Dict[str, pd.DataFrame]:
-    """Carga archivo desde Flask upload (werkzeug FileStorage)."""
+    """Carga archivo desde upload HTTP (BytesIO / FileStorage)."""
     if filename.endswith(".csv"):
         df = pd.read_csv(file_storage, encoding="utf-8-sig")
         raw_name = os.path.splitext(filename)[0]
         table_name = resolve_table_name(raw_name, df)
         return {table_name: clean_dataframe(df, table_name)}
     if filename.endswith((".xlsx", ".xls")):
-        sheets = {}
-        xls = pd.ExcelFile(file_storage)
-        for sheet in xls.sheet_names:
-            sheets[sheet] = pd.read_excel(xls, sheet_name=sheet)
+        all_sheets = pd.read_excel(file_storage, sheet_name=None)
+        sheets = {
+            name: df
+            for name, df in all_sheets.items()
+            if str(name).strip().lower() not in _SKIP_EXCEL_SHEETS and df is not None and len(df) > 0
+        }
         return tables_from_sheets(sheets)
     raise ValueError(f"Formato no soportado: {filename}")

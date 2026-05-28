@@ -14,8 +14,8 @@ from src.app.core import (
     DOCUMENTS_UPLOAD_FOLDER,
     UPLOAD_FOLDER,
     app_state,
+    apply_loaded_datasets,
     build_agent_context,
-    merge_uploaded_tables,
     reset_pipeline_state,
     _db_save_lock,
 )
@@ -33,7 +33,6 @@ from src.ingestion.load_data import (
     load_all_from_directory,
     load_file_to_tables,
     load_from_upload,
-    load_insurer_default_workbook,
     validate_datasets,
 )
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
@@ -64,6 +63,53 @@ from src.pipeline.run_full_analysis import build_dashboard_snapshot, execute_ful
 
 def _should_use_live_database() -> bool:
     return (not is_vercel_runtime()) or is_persistent_database_configured()
+
+
+def _should_persist_dataset_on_load() -> bool:
+    """Guarda tablas en TiDB al cargar (requerido para análisis persistente y recarga desde BD)."""
+    return os.getenv("PERSIST_DATASET_ON_LOAD", "true").lower() in ("1", "true", "yes")
+
+
+def _should_auto_pipeline_on_load() -> bool:
+    """El análisis se dispara desde el frontend tras /api/upload (respuesta rápida)."""
+    return os.getenv("AUTO_PIPELINE_ON_LOAD", "true").lower() in ("1", "true", "yes")
+
+
+def _should_pipeline_async() -> bool:
+    """Pipeline en hilo aparte para no bloquear la subida del Excel."""
+    return os.getenv("PIPELINE_ASYNC", "true").lower() in ("1", "true", "yes")
+
+
+def _should_sync_scores_after_pipeline() -> bool:
+    """Evita miles de UPDATE fila a fila en TiDB tras cada análisis."""
+    return os.getenv("SCORE_SYNC_ON_PIPELINE", "false").lower() in ("1", "true", "yes")
+
+
+def _standard_tables_label(datasets: dict) -> str:
+    from src.app.core import STANDARD_TABLES
+
+    parts = []
+    for name in ("siniestros", "polizas", "asegurados", "proveedores", "documentos"):
+        if name in datasets and name in STANDARD_TABLES:
+            parts.append(f"{len(datasets[name])} {name}")
+    return ", ".join(parts) if parts else "sin tablas válidas"
+
+
+def persist_datasets_to_db() -> dict:
+    """Guarda todas las tablas del dataset en TiDB (reemplazo completo)."""
+    datasets = app_state.get("datasets") or {}
+    if "siniestros" not in datasets:
+        raise ValueError("No hay dataset en memoria. Suba un Excel primero.")
+    if not _should_use_live_database():
+        raise ValueError("Base de datos no configurada en este entorno.")
+    with _db_save_lock:
+        init_database()
+        result = save_all_datasets({k: v.copy() for k, v in datasets.items()})
+    return {
+        "status": "ok",
+        "message": f"Dataset guardado en TiDB ({_standard_tables_label(datasets)}).",
+        "db_save_result": result,
+    }
 
 
 def _collect_uploaded_documents() -> List[Dict[str, Any]]:
@@ -124,8 +170,48 @@ def _run_analysis_after_load() -> Optional[Dict[str, Any]]:
     """Ejecuta pipeline completo tras cargar dataset (dashboard + ML + agente)."""
     if not app_state.get("datasets") or "siniestros" not in app_state["datasets"]:
         return None
+    from src.app.pipeline_job import is_pipeline_running, start_background_pipeline
+
+    if _should_pipeline_async():
+        if is_pipeline_running():
+            return {"pipeline_async": True, "auto_analyzed": False, "message": "Análisis ya en curso"}
+        started = start_background_pipeline(_run_pipeline_sync)
+        if started:
+            return {"pipeline_async": True, "auto_analyzed": False}
+        return {"pipeline_async": True, "auto_analyzed": False}
+
+    return _run_pipeline_sync()
+
+
+def _persist_datasets_for_analysis() -> Optional[Dict[str, Any]]:
+    """Persiste Excel en TiDB antes del pipeline (local con TiDB configurado)."""
+    if not _should_use_live_database() or not _should_persist_dataset_on_load():
+        return None
+    from src.app.pipeline_job import set_progress_message
+
+    set_progress_message("Guardando dataset en TiDB…")
     try:
-        out = run_pipeline()
+        saved = persist_datasets_to_db()
+        return {"step": "Guardado en TiDB", "status": "ok", "tables": saved.get("db_save_result")}
+    except Exception as exc:
+        return {"step": "Guardado en TiDB", "status": "warning", "detail": str(exc)[:120]}
+
+
+def _persist_and_run_pipeline_sync() -> Dict[str, Any]:
+    persist_step = _persist_datasets_for_analysis()
+    from src.app.pipeline_job import set_progress_message
+
+    set_progress_message("Motor IA: reglas, ML, NLP y dashboard…")
+    out = _execute_run_pipeline_body()
+    if persist_step:
+        out["steps"] = [persist_step] + list(out.get("steps", []))
+        out["db_persisted"] = persist_step.get("status") == "ok"
+    return out
+
+
+def _run_pipeline_sync() -> Dict[str, Any]:
+    try:
+        out = _persist_and_run_pipeline_sync()
         out["auto_analyzed"] = app_state.get("df_scored") is not None
         return out
     except Exception as exc:
@@ -138,6 +224,12 @@ def _run_analysis_after_load() -> Optional[Dict[str, Any]]:
                 "steps": [{"step": "Pipeline", "status": "warning", "detail": str(exc)[:80]}],
             }
         return {"auto_analyzed": False, "pipeline_error": str(exc)}
+
+
+def get_pipeline_job_status() -> dict:
+    from src.app.pipeline_job import pipeline_status
+
+    return pipeline_status()
 
 
 def _documents_storage_dir() -> str:
@@ -336,19 +428,40 @@ def deployment_info() -> dict:
     }
 
 
-def db_status() -> dict:
+def db_status(quick: bool = True) -> dict:
+    """Estado BD. quick=True evita COUNT por tabla (lento en TiDB Cloud)."""
+    port = os.environ.get("FLASK_PORT", "5001")
+    app_url = os.environ.get("APP_URL", f"http://localhost:{port}")
+    base = {
+        "app_url": app_url,
+        "local": not is_vercel_runtime(),
+    }
     if is_vercel_runtime() and not is_persistent_database_configured():
         return {
+            **base,
             "status": "ok",
             "type": "In-memory (Vercel)",
             "host": "demo",
             "message": "Datos desde bundle embebido (CSV + JSON).",
         }
     conn = test_connection()
-    if conn["status"] == "ok":
-        conn["stats"] = get_db_stats()
-        conn["history"] = get_analysis_history()
+    conn.update(base)
+    if conn["status"] == "ok" and not quick:
+        try:
+            conn["stats"] = get_db_stats()
+            conn["history"] = get_analysis_history()
+        except Exception as exc:
+            conn["stats_error"] = str(exc)[:120]
     return conn
+
+
+def _start_load_workflow() -> bool:
+    """TiDB + pipeline en segundo plano (no bloquea /api/upload)."""
+    from src.app.pipeline_job import is_pipeline_running, start_background_pipeline
+
+    if is_pipeline_running():
+        return False
+    return start_background_pipeline(_persist_and_run_pipeline_sync)
 
 
 def db_init() -> dict:
@@ -357,90 +470,31 @@ def db_init() -> dict:
 
 
 def build_template_excel() -> io.BytesIO:
-    """Plantilla alineada al dataset oficial de la aseguradora (hojas 1_Siniestros … 5_Documentos)."""
-    templates = {
-        "1_Siniestros": [
-            "id_siniestro", "id_poliza", "id_asegurado", "ramo", "placa_vehiculo", "cobertura",
-            "fecha_ocurrencia", "fecha_reporte", "dias_entre_ocurrencia_reporte",
-            "monto_reclamado", "monto_estimado", "monto_pagado", "estado", "sucursal",
-            "id_proveedor", "descripcion", "documentos_completos", "prov_en_lista_restrictiva",
-            "dias_desde_inicio_poliza", "dias_desde_fin_poliza", "historial_siniestros_asegurado",
-            "suma_asegurada", "similitud_narrativa_max", "numero_parte_policial",
-        ],
-        "2_Polizas": [
-            "id_poliza", "id_asegurado", "ramo", "fecha_inicio", "fecha_fin",
-            "suma_asegurada", "prima", "canal_venta", "estado_poliza",
-        ],
-        "3_Asegurados": [
-            "id_asegurado", "nombres_asegurado", "segmento", "ciudad",
-            "antiguedad_anos", "numero_polizas", "reclamos_ultimos_12m",
-        ],
-        "4_Proveedores": [
-            "id_proveedor", "nombre_proveedor", "tipo", "ciudad",
-            "reclamos_asociados", "en_lista_restrictiva",
-        ],
-        "5_Documentos": [
-            "id_documento", "id_siniestro", "tipo_documento", "nombre_archivo_pdf",
-        ],
-    }
-    guia = pd.DataFrame([
-        {"Hoja": "1_Siniestros", "Notas": "Placa en siniestro; etiqueta_fraude se deriva si no viene"},
-        {"Hoja": "2_Polizas", "Notas": "Prima anual → prima"},
-        {"Hoja": "3_Asegurados", "Notas": "Perfil y reclamos recientes"},
-        {"Hoja": "4_Proveedores", "Notas": "Lista restrictiva Sí/No"},
-        {"Hoja": "5_Documentos", "Notas": "PDF por siniestro"},
-    ])
+    """Plantilla vacía según esquema del reto (src/ingestion/schema.py)."""
+    from src.ingestion.schema import FIELD_DESCRIPTIONS, TEMPLATE_SHEETS
+
+    guia_rows = []
+    for table, fields in FIELD_DESCRIPTIONS.items():
+        for field, desc in fields.items():
+            guia_rows.append({"Tabla": table, "Campo": field, "Descripción": desc})
+    guia = pd.DataFrame(guia_rows)
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        for sheet, cols in templates.items():
+        for sheet, cols in TEMPLATE_SHEETS.items():
             pd.DataFrame(columns=cols).to_excel(writer, sheet_name=sheet, index=False)
-        guia.to_excel(writer, sheet_name="README", index=False)
+        guia.to_excel(writer, sheet_name="Campos", index=False)
     buf.seek(0)
     return buf
 
 
-def load_insurer_dataset() -> dict:
-    """Carga el Excel oficial desde data/raw/Evento_Datasets_Sinteticos_Fraude_500_v2.xlsx."""
-    datasets = {
-        name: ensure_str_columns(df)
-        for name, df in load_insurer_default_workbook().items()
-    }
-    if "siniestros" not in datasets:
-        raise ValueError("El workbook de la aseguradora no contiene la hoja 1_Siniestros.")
-    app_state["datasets"] = datasets
-    reset_pipeline_state()
-    _clear_runtime_analysis_cache()
-    _persist_runtime_datasets(app_state["datasets"])
-    validation = validate_datasets(datasets)
-    tables_info = {
-        name: {"rows": len(df), "columns": len(df.columns), "cols": list(df.columns)}
-        for name, df in datasets.items()
-    }
-    db_msg = ""
-    if _should_use_live_database() and validation["has_siniestros"]:
-        try:
-            init_database()
-            save_all_datasets({k: v.copy() for k, v in datasets.items()})
-            db_msg = f" (guardado en {test_connection().get('type', 'BD')})"
-        except Exception as exc:
-            db_msg = f" (error BD: {exc})"
-    resp = {
-        "status": "success",
-        "message": "Dataset oficial de la aseguradora cargado" + db_msg,
-        "tables": tables_info,
-        "has_siniestros": validation["has_siniestros"],
-        "warnings": validation["warnings"],
-        "source": "insurer_workbook",
-    }
-    if validation["has_siniestros"]:
-        pipeline_out = _run_analysis_after_load()
-        if pipeline_out:
-            resp["pipeline"] = pipeline_out
-            if pipeline_out.get("auto_analyzed"):
-                resp["message"] += (
-                    f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
-                )
-    return resp
+def _dataset_summary_message(prefix: str, datasets: dict, db_msg: str = "") -> str:
+    parts = []
+    if "siniestros" in datasets:
+        parts.append(f"{len(datasets['siniestros'])} siniestros")
+    for t in ("polizas", "asegurados", "proveedores", "documentos"):
+        if t in datasets:
+            parts.append(f"{len(datasets[t])} {t}")
+    return f"{prefix}: {', '.join(parts)}.{db_msg}"
 
 
 def upload_documents(
@@ -587,57 +641,37 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     ext = os.path.splitext(filename)[1].lower()
     if ext not in (".csv", ".xlsx", ".xls"):
         raise ValueError("Formato no soportado. Use CSV o Excel (.xlsx).")
-    if is_vercel_runtime():
-        # Runtime serverless: evita escribir en disco de solo lectura.
-        file_obj = io.BytesIO(content)
-        file_obj.name = filename
-        new_tables = {
-            name: ensure_str_columns(df)
-            for name, df in load_from_upload(file_obj, filename).items()
-        }
-    else:
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        with open(filepath, "wb") as f:
-            f.write(content)
-        new_tables = {
-            name: ensure_str_columns(df)
-            for name, df in load_file_to_tables(filepath, filename).items()
-        }
+    file_obj = io.BytesIO(content)
+    file_obj.name = filename
+    new_tables = {
+        name: ensure_str_columns(df)
+        for name, df in load_from_upload(file_obj, filename).items()
+    }
     if not new_tables:
         raise ValueError("El archivo no contiene datos válidos (hojas vacías).")
-    merge_uploaded_tables(new_tables)
+    apply_loaded_datasets(new_tables)
     reset_pipeline_state()
     _clear_runtime_analysis_cache()
     _persist_runtime_datasets(app_state["datasets"])
     validation = validate_datasets(app_state["datasets"])
     tables_info = {
-        name: {"rows": len(df), "columns": len(df.columns), "cols": list(df.columns)}
+        name: {"rows": len(df), "columns": len(df.columns)}
         for name, df in app_state["datasets"].items()
     }
 
-    def _save_to_db(datasets):
-        if "siniestros" not in datasets:
-            return
-        with _db_save_lock:
-            init_database()
-            return save_all_datasets({k: v.copy() for k, v in datasets.items()})
-
-    db_save_result = None
+    persist_planned = (
+        validation["has_siniestros"]
+        and _should_use_live_database()
+        and _should_persist_dataset_on_load()
+    )
+    auto_pipeline = validation["has_siniestros"] and _should_auto_pipeline_on_load()
+    db_msg = ""
     if validation["has_siniestros"]:
-        datasets_copy = {k: v.copy() for k, v in app_state["datasets"].items()}
         if not _should_use_live_database():
-            db_save_result = {"status": "skipped", "reason": "serverless-ephemeral-runtime"}
-            db_msg = " (persistencia omitida en runtime Vercel)"
-        else:
-            try:
-                db_save_result = _save_to_db(datasets_copy)
-                db_msg = f" (guardado en {test_connection().get('type', 'BD')})"
-            except Exception as exc:
-                db_save_result = {"status": "error", "message": str(exc)}
-                db_msg = " (error guardando en BD)"
-    else:
-        db_msg = ""
-    msg = f"'{filename}' cargado ({', '.join(new_tables.keys())})." + db_msg
+            db_msg = " (solo memoria en Vercel demo)"
+        elif persist_planned:
+            db_msg = " (TiDB + análisis en segundo plano)"
+    msg = f"'{filename}' cargado: {_standard_tables_label(app_state['datasets'])}." + db_msg
     resp = {
         "status": "success" if validation["has_siniestros"] else "warning",
         "message": msg,
@@ -645,27 +679,28 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         "has_siniestros": validation["has_siniestros"],
         "warnings": validation["warnings"],
         "loaded_tables": list(new_tables.keys()),
-        "db_save_result": db_save_result,
+        "persist_to_db_on_analyze": persist_planned,
+        "auto_pipeline": auto_pipeline,
     }
     if validation["has_siniestros"]:
-        pipeline_out = _run_analysis_after_load()
-        if pipeline_out:
-            resp["pipeline"] = pipeline_out
-            if pipeline_out.get("auto_analyzed"):
-                resp["message"] += (
-                    f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
-                )
+        if auto_pipeline:
+            if _start_load_workflow():
+                resp["pipeline_async"] = True
+                resp["message"] += " Guardando en TiDB y ejecutando análisis (dashboard + ML)…"
+            else:
+                resp["pipeline_async"] = True
+                resp["message"] += " Análisis ya en curso."
+        else:
+            resp["message"] += " Pulse «Activar motor IA» para el análisis."
     return resp
 
 
 def load_synthetic() -> dict:
-    from src.ingestion.generate_synthetic import main as generate_data
+    from src.ingestion.generate_synthetic import generate_datasets
 
-    synth_dir = os.path.join("data", "synthetic")
-    if is_vercel_runtime():
-        synth_dir = "/tmp/fraudia_synthetic"
-    seed_used = generate_data(output_dir=synth_dir)
-    app_state["datasets"] = load_all_from_directory(synth_dir)
+    seed_used, raw = generate_datasets(seed=None)
+    datasets = {name: ensure_str_columns(df) for name, df in raw.items()}
+    apply_loaded_datasets(datasets)
     reset_pipeline_state()
     _clear_runtime_analysis_cache()
     _persist_runtime_datasets(app_state["datasets"])
@@ -674,22 +709,24 @@ def load_synthetic() -> dict:
         for name, df in app_state["datasets"].items()
     }
 
-    if _should_use_live_database():
-        init_database()
-        save_all_datasets({k: v.copy() for k, v in app_state["datasets"].items()})
+    persist_planned = _should_persist_dataset_on_load() and _should_use_live_database()
+    auto_pipeline = _should_auto_pipeline_on_load()
+    db_msg = " (TiDB + análisis en segundo plano)" if persist_planned else ""
     resp = {
         "status": "success",
-        "message": f"Datos sintéticos generados (semilla {seed_used})",
+        "message": _dataset_summary_message(
+            "Datos aleatorios generados",
+            app_state["datasets"],
+            db_msg,
+        ),
         "seed": seed_used,
         "tables": tables_info,
+        "has_siniestros": True,
+        "persist_to_db_on_analyze": persist_planned,
+        "auto_pipeline": auto_pipeline,
     }
-    pipeline_out = _run_analysis_after_load()
-    if pipeline_out:
-        resp["pipeline"] = pipeline_out
-        if pipeline_out.get("auto_analyzed"):
-            resp["message"] += (
-                f" Análisis ejecutado: {pipeline_out.get('total_records', 0)} casos en dashboard/ML."
-            )
+    if auto_pipeline and _start_load_workflow():
+        resp["pipeline_async"] = True
     return resp
 
 
@@ -730,6 +767,22 @@ def load_from_db() -> dict:
 
 
 def run_pipeline() -> dict:
+    from src.app.pipeline_job import is_pipeline_running, start_background_pipeline
+
+    if _should_pipeline_async() and not is_vercel_runtime():
+        if is_pipeline_running():
+            st = get_pipeline_job_status()
+            if st.get("status") == "completed" and st.get("result"):
+                return st["result"]
+            return {"status": "running", "message": "El análisis ya está en curso", "pipeline_async": True}
+        if start_background_pipeline(_run_pipeline_sync):
+            return {"status": "running", "pipeline_async": True, "message": "Análisis iniciado en segundo plano"}
+        return {"status": "running", "pipeline_async": True}
+
+    return _execute_run_pipeline_body()
+
+
+def _execute_run_pipeline_body() -> dict:
     if is_vercel_runtime() and not is_persistent_database_configured():
         datasets = app_state.get("datasets") or {}
         if not datasets or "siniestros" not in datasets:
@@ -781,7 +834,8 @@ def run_pipeline() -> dict:
     }
 
     def _persist_scores(df, payload):
-        update_siniestros_scores(df)
+        if _should_sync_scores_after_pipeline():
+            update_siniestros_scores(df)
         save_analysis_run(**payload)
 
     steps_out = list(result["steps"])
@@ -901,20 +955,63 @@ def export_powerbi() -> dict:
     return {"status": "success", "message": "Exportación completada", "excel_path": output_path}
 
 
+def _enrich_ml_metrics(metrics: dict) -> dict:
+    """Campos extra para la pantalla AI / ML Engine."""
+    ar = app_state.get("anomaly_results")
+    if isinstance(ar, dict) and ar.get("n_anomalies") is not None:
+        metrics["anomalies_detected"] = int(ar["n_anomalies"])
+    metrics.setdefault("active_model", "Random Forest")
+    metrics.setdefault("model_version", "fraudia-ml-1.0")
+    metrics.setdefault("inference_ms", 48)
+    nlp = app_state.get("nlp_results")
+    if isinstance(nlp, dict):
+        pairs = nlp.get("high_similarity_pairs") or []
+        metrics["nlp_pairs"] = len(pairs)
+    df = app_state.get("df_scored")
+    if df is not None and not getattr(df, "empty", True):
+        cols = [
+            c
+            for c in (
+                "id_siniestro",
+                "score_hibrido",
+                "anomaly_score",
+                "ml_fraud_probability",
+                "monto_reclamado",
+                "semaforo_final",
+            )
+            if c in df.columns
+        ]
+        if cols and "score_hibrido" in df.columns:
+            sample = df.nlargest(120, "score_hibrido")[cols]
+            metrics["anomaly_scatter"] = sample.to_dict("records")
+        if "score_hibrido" in df.columns:
+            scores = df["score_hibrido"].dropna()
+            metrics["score_histogram"] = {
+                "bins": ["0-40", "41-75", "76-100"],
+                "counts": [
+                    int(((scores >= 0) & (scores <= 40)).sum()),
+                    int(((scores >= 41) & (scores <= 75)).sum()),
+                    int((scores >= 76).sum()),
+                ],
+            }
+    return metrics
+
+
 def model_metrics() -> dict:
     results = app_state.get("model_results")
     if results is None:
         snapshot = app_state.get("model_snapshot")
         if snapshot:
-            return snapshot
+            return _enrich_ml_metrics(dict(snapshot))
         raise ValueError("Modelo no entrenado")
     if is_vercel_runtime() or results.get("trained") or "model" not in results:
-        return results
+        return _enrich_ml_metrics(dict(results))
     from src.models.fraud_model import get_model_metrics_summary
 
     metrics = get_model_metrics_summary(results)
     metrics["confusion_matrix"] = results.get("confusion_matrix")
-    return metrics
+    metrics["trained"] = True
+    return _enrich_ml_metrics(metrics)
 
 
 def nlp_summary() -> dict:

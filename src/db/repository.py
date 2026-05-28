@@ -62,6 +62,9 @@ def _ensure_schema_columns():
 
 
 def init_database():
+    from src.db.config import ensure_tidb_database
+
+    ensure_tidb_database()
     engine = get_engine()
     Base.metadata.create_all(engine)
     _ensure_schema_columns()
@@ -69,6 +72,7 @@ def init_database():
 
 
 def drop_all_data():
+    """Vacía tablas; cada una en su propia transacción (TiDB tolera TRUNCATE fallido sin romper el pool)."""
     engine = get_engine()
     is_mysql = "mysql" in str(engine.url)
     tables_order = [
@@ -76,88 +80,74 @@ def drop_all_data():
         "vehiculos", "proveedores", "asegurados", "analisis_runs",
     ]
 
-    with engine.begin() as conn:
-        if is_mysql:
-            conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
-        for t in tables_order:
-            try:
-                conn.execute(text(f"DELETE FROM {t}"))
-            except Exception:
-                pass
-        if is_mysql:
-            conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+    for t in tables_order:
+        safe = t.replace("`", "")
+        try:
+            with engine.begin() as conn:
+                if is_mysql:
+                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+                try:
+                    if is_mysql:
+                        conn.execute(text(f"TRUNCATE TABLE `{safe}`"))
+                    else:
+                        conn.execute(text(f"DELETE FROM {safe}"))
+                except Exception:
+                    conn.execute(text(f"DELETE FROM {safe}"))
+                if is_mysql:
+                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        except Exception:
+            continue
+
+
+def _save_dataframe_on_connection(conn, df: pd.DataFrame, table_name: str) -> int:
+    df_clean = _prepare_for_db(df, table_name)
+    if table_name == "siniestros" and "id_vehiculo" in df_clean.columns:
+        df_clean["id_vehiculo"] = None
+    df_clean.to_sql(
+        table_name,
+        conn,
+        if_exists="append",
+        index=False,
+        method="multi",
+        chunksize=500,
+    )
+    return len(df_clean)
 
 
 def save_dataframe(df: pd.DataFrame, table_name: str) -> int:
     engine = get_engine()
-    df_clean = _prepare_for_db(df, table_name)
-    is_mysql = "mysql" in str(engine.url)
-
-    if is_mysql:
-        cols = list(df_clean.columns)
-        col_names = ", ".join(cols)
-        placeholders = ", ".join(f":{c}" for c in cols)
-        sql = text(f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})")
-
-        inserted = 0
-        failed = 0
-        with engine.begin() as conn:
-            for _, row in df_clean.iterrows():
-                params = {}
-                for c in cols:
-                    val = row[c]
-                    if val is None or (isinstance(val, float) and val != val):
-                        params[c] = None
-                    elif hasattr(val, "item"):
-                        params[c] = val.item()
-                    else:
-                        params[c] = val
-                try:
-                    conn.execute(sql, params)
-                    inserted += 1
-                except Exception:
-                    failed += 1
-        if failed:
-            print(f"[DB] {table_name}: filas no insertadas={failed}, insertadas={inserted}")
-        return inserted
-    else:
-        df_clean.to_sql(table_name, engine, if_exists="append", index=False, method="multi", chunksize=500)
-        return len(df_clean)
+    with engine.begin() as conn:
+        return _save_dataframe_on_connection(conn, df, table_name)
 
 
 def save_all_datasets(datasets: Dict[str, pd.DataFrame]) -> Dict[str, int]:
+    """Vacía tablas y guarda datasets en orden FK (transacción por tabla, estable en TiDB Cloud)."""
     order = ["asegurados", "vehiculos", "polizas", "proveedores", "siniestros", "documentos"]
-    results = {}
+    results: Dict[str, Any] = {}
     engine = get_engine()
-    is_mysql = "mysql" in str(engine.url)
 
     init_database()
-
-    if is_mysql:
-        with engine.begin() as conn:
-            conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
-
     drop_all_data()
 
     for table_name in order:
-        if table_name in datasets:
-            try:
-                count = save_dataframe(datasets[table_name], table_name)
-                results[table_name] = count
-            except Exception as e:
-                results[table_name] = f"error: {str(e)[:60]}"
+        if table_name not in datasets:
+            continue
+        try:
+            with engine.begin() as conn:
+                results[table_name] = _save_dataframe_on_connection(
+                    conn, datasets[table_name], table_name
+                )
+        except Exception as e:
+            results[table_name] = f"error: {str(e)[:120]}"
 
     for name, df in datasets.items():
-        if name not in order:
-            try:
-                count = save_dataframe(df, name)
-                results[name] = count
-            except Exception as e:
-                results[name] = f"error: {str(e)[:60]}"
-
-    if is_mysql:
-        with engine.begin() as conn:
-            conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        if name in order:
+            continue
+        try:
+            with engine.begin() as conn:
+                results[name] = _save_dataframe_on_connection(conn, df, name)
+        except Exception as e:
+            results[name] = f"error: {str(e)[:120]}"
 
     return results
 
@@ -225,12 +215,16 @@ def update_siniestros_scores(df_scored: pd.DataFrame) -> int:
     with engine.begin() as conn:
         for i in range(0, len(rows), batch_size):
             batch = rows[i:i + batch_size]
-            for params in batch:
-                try:
-                    conn.execute(sql, params)
-                    count += 1
-                except Exception:
-                    failed += 1
+            try:
+                conn.execute(sql, batch)
+                count += len(batch)
+            except Exception:
+                for params in batch:
+                    try:
+                        conn.execute(sql, params)
+                        count += 1
+                    except Exception:
+                        failed += 1
     if failed:
         print(f"[DB] update_siniestros_scores: fallidas={failed}, exitosas={count}")
 
@@ -321,6 +315,10 @@ def _prepare_for_db(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].apply(lambda x: str(x)[:500] if isinstance(x, str) else x)
+        elif pd.api.types.is_integer_dtype(df[col]):
+            df[col] = df[col].apply(lambda x: int(x) if pd.notna(x) else None)
+        elif pd.api.types.is_float_dtype(df[col]):
+            df[col] = df[col].apply(lambda x: float(x) if pd.notna(x) else None)
 
     return df
 

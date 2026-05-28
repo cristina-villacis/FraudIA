@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FraudIA local (localhost:5001)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.app.main",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "FLASK_PORT": "5001",
+        "APP_URL": "http://localhost:5001"
+      },
+      "serverReadyAction": {
+        "pattern": "http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      }
+    }
+  ]
+}

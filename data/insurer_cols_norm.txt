@@ -1,0 +1,5 @@
+﻿["id_siniestro", "id_poliza", "id_asegurado", "ramo", "placa_vehiculo_asegurado", "cobertura", "fecha_ocurrencia", "fecha_reporte", "dias_ocurr_reporte", "monto_reclamado_", "monto_estimado_", "monto_pagado_", "estado", "sucursal", "id_proveedor", "descripcion_del_evento", "docs_completos", "prov._lista_restrictiva", "dias_desde_inicio_poliza", "dias_hasta_fin_poliza", "n_reclamos_previos_asegurado", "suma_asegurada_", "similitud_narrativa_mßx.", "numero_parte_policial"]
+docs {'SÝ': 329, 'No': 171}
+prov ['prov._lista_restrictiva']
+prov._lista_restrictiva ['No', 'No', 'No']
+similitud_narrativa_mßx. [0.15, 0.65, 0.25]
