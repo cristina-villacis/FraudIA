@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FraudIA Claims — Detección Inteligente de Fraude</title>
+    <link rel="icon" type="image/png" href="/static/logo_dark.png">
+    <link rel="apple-touch-icon" href="/static/logo_dark.png">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -376,6 +378,25 @@
         }
         .dashboard-bottom-grid > .card { min-width: 0; }
         .dashboard-bottom-grid .card-chart { overflow: hidden; }
+        .chart-reset-btn {
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: 999px;
+            font-size: 0.7rem;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            margin-left: 0.45rem;
+            transition: all 0.15s ease;
+        }
+        .chart-reset-btn:hover {
+            color: var(--cyan);
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 1px rgba(0,209,255,0.2) inset;
+        }
         #chartRamo {
             width: 100% !important;
             height: 300px !important;
@@ -2014,6 +2035,9 @@ Motor actual: reglas</div>
                 y: [sem.Rojo || 0, sem.Amarillo || 0, sem.Verde || 0],
                 type: 'bar',
                 marker: { color: ['#ef4444', '#f59e0b', '#22c55e'] },
+                text: [sem.Rojo || 0, sem.Amarillo || 0, sem.Verde || 0].map(String),
+                textposition: 'outside',
+                textfont: { size: 11, color: getColors().text },
             }], {
                 ...getPlotlyLayout(),
                 margin: { t: 10, b: 40, l: 40, r: 10 },
@@ -2092,11 +2116,11 @@ Motor actual: reglas</div>
                     </div>
                 </div>
                 <div class="grid-2">
-                    <div class="card"><div class="card-title">Importancia de variables (Top 10)</div><div id="chartImportance" class="chart-area"></div></div>
-                    <div class="card"><div class="card-title">Matriz de confusión</div><div id="chartConfusion" class="chart-area"></div></div>
+                    <div class="card"><div class="card-title">Importancia de variables (Top 10)<button type="button" class="chart-reset-btn" id="mlChartResetImportance" title="Limpiar filtros del gráfico">✕</button></div><div id="chartImportance" class="chart-area"></div></div>
+                    <div class="card"><div class="card-title">Matriz de confusión<button type="button" class="chart-reset-btn" id="mlChartResetConfusion" title="Limpiar filtros del gráfico">✕</button></div><div id="chartConfusion" class="chart-area"></div></div>
                 </div>
                 <div class="grid-2" style="margin-top:0.5rem;">
-                    <div class="card"><div class="card-title">Distribución de riesgo según filtros</div><div id="chartModelSemaforo" class="chart-area"></div></div>
+                    <div class="card"><div class="card-title">Distribución de riesgo según filtros<button type="button" class="chart-reset-btn" id="mlChartResetRisk" title="Limpiar filtros del gráfico">✕</button></div><div id="chartModelSemaforo" class="chart-area"></div></div>
                     <div class="card">
                         <div class="card-title">Casos priorizados (dinámico)</div>
                         <div class="table-container">
@@ -2121,7 +2145,10 @@ Motor actual: reglas</div>
                 Plotly.newPlot('chartImportance', [{
                     y: feats.map(f => f.feature), x: feats.map(f => f.importance),
                     type: 'bar', orientation: 'h',
-                    marker: { color: feats.map((f,i) => `rgba(${barBase.join(',')},${0.3 + i*0.07})`), line: { width: 0 } }
+                    marker: { color: feats.map((f,i) => `rgba(${barBase.join(',')},${0.3 + i*0.07})`), line: { width: 0 } },
+                    text: feats.map(f => (f.importance || 0).toFixed(3)),
+                    textposition: 'outside',
+                    textfont: { size: 10, color: MC.text },
                 }], { ...MPL, xaxis: { title: 'Importancia', gridcolor: MC.grid }, yaxis: { gridcolor: MC.grid, tickfont: { family: 'JetBrains Mono', size: 10 } }, margin: {t:10,b:40,l:180,r:10}, height: 360 }, PLOTLY_CONFIG);
             }
             if(data.confusion_matrix) {
@@ -2152,6 +2179,23 @@ Motor actual: reglas</div>
             document.getElementById('mlFilterSearch')?.addEventListener('keydown', async (e) => {
                 if (e.key === 'Enter') await applyFilters();
             });
+            const clearModelChartFilters = async (ev) => {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                modelViewState.filters = { semaforo: 'all', ramo: 'all', search: '' };
+                const semEl = document.getElementById('mlFilterSemaforo');
+                const ramoEl = document.getElementById('mlFilterRamo');
+                const searchEl = document.getElementById('mlFilterSearch');
+                if (semEl) semEl.value = 'all';
+                if (ramoEl) ramoEl.value = 'all';
+                if (searchEl) searchEl.value = '';
+                await refreshModelDynamicData();
+            };
+            document.getElementById('mlChartResetImportance')?.addEventListener('click', clearModelChartFilters);
+            document.getElementById('mlChartResetConfusion')?.addEventListener('click', clearModelChartFilters);
+            document.getElementById('mlChartResetRisk')?.addEventListener('click', clearModelChartFilters);
             await refreshModelDynamicData();
         } catch(e) { console.error(e); }
     }

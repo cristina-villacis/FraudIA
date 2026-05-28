@@ -342,10 +342,10 @@ function buildDashboardShell() {
         <div class="dashboard-main-grid">
             <div style="display:flex;flex-direction:column;gap:1.25rem;">
                 <div class="card card-chart">
-                <div class="card-title">Distribución de Scores por Nivel de Riesgo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra para filtrar (0-40 / 41-75 / 76-100)</span></div>
+                <div class="card-title">Distribución de Scores por Nivel de Riesgo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra para filtrar (0-40 / 41-75 / 76-100)</span><button type="button" class="chart-reset-btn" data-reset-scope="score" title="Limpiar filtros del gráfico">✕</button></div>
                 <div id="chartScores" class="chart-area" style="min-height:280px;"></div>
             </div>
-                <div class="card card-chart"><div class="card-title">Tendencia de Siniestros <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en punto para filtrar mes</span></div><div id="chartTemporal" class="chart-area" style="min-height:260px;"></div></div>
+                <div class="card card-chart"><div class="card-title">Tendencia de Siniestros <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en punto para filtrar mes</span><button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar filtros del gráfico">✕</button></div><div id="chartTemporal" class="chart-area" style="min-height:260px;"></div></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:1.25rem;">
                 <div class="card" style="flex:1;"><div class="card-title">Principales Anomalías <span style="font-size:0.7rem;color:var(--text-muted);">— clic para ver caso</span></div><div id="topAnomaliesList"></div></div>
@@ -354,12 +354,12 @@ function buildDashboardShell() {
         </div>
         <div class="dashboard-bottom-grid">
             <div class="card card-chart">
-                <div class="card-title">Estado de Reclamaciones <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en segmento</span></div>
+                <div class="card-title">Estado de Reclamaciones <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en segmento</span><button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar filtros del gráfico">✕</button></div>
                 <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
                 <div class="semaforo-legend" id="semaforoLegend"></div>
             </div>
             <div class="card card-chart">
-                <div class="card-title">Análisis por Ramo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra</span></div>
+                <div class="card-title">Análisis por Ramo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra</span><button type="button" class="chart-reset-btn" data-reset-scope="ramo" title="Limpiar filtros del gráfico">✕</button></div>
                 <div id="chartRamo" class="chart-area chart-area-ramo"></div>
                 <div class="chart-legend-below" id="ramoChartLegend">
                     <span><i style="background:var(--green);"></i> Verde (0-40)</span>
@@ -389,11 +389,11 @@ function buildDashboardShell() {
         </div>
         <div class="grid-2" style="margin-top:1rem;">
             <div class="card card-chart">
-                <div class="card-title">Heatmap · Ramo vs Riesgo</div>
+                <div class="card-title">Heatmap · Ramo vs Riesgo <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar filtros del gráfico">✕</button></div>
                 <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:280px;"></div>
             </div>
             <div class="card card-chart">
-                <div class="card-title">Mapa operacional por sucursal</div>
+                <div class="card-title">Mapa operacional por sucursal <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar filtros del gráfico">✕</button></div>
                 <div id="chartGeoOperacion" class="chart-area" style="min-height:280px;"></div>
             </div>
         </div>
@@ -483,6 +483,29 @@ function bindDashboardEvents() {
             updateSemaforoPills();
             updateFilterChips();
             scheduleDashboardRefresh(80);
+        });
+    });
+
+    document.querySelectorAll('.chart-reset-btn').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const scope = btn.dataset.resetScope || 'all';
+            if (scope === 'all') {
+                clearDashboardFilters();
+                return;
+            }
+            if (scope === 'score') {
+                removeDashboardFilter('score_min');
+                removeDashboardFilter('score_max');
+                return;
+            }
+            if (scope === 'fecha') {
+                removeDashboardFilter('fecha_desde');
+                removeDashboardFilter('fecha_hasta');
+                return;
+            }
+            removeDashboardFilter(scope);
         });
     });
 }
@@ -590,7 +613,7 @@ function bindPlotlyDashboardCharts(data) {
                 refreshDashboard();
                 return;
             }
-            const parts = String(label).split('-');
+            const parts = String(pt.x || '').split('-');
             if (parts.length >= 2) {
                 const lo = Number(parts[0]);
                 const hi = Number(parts[1]);
@@ -639,7 +662,8 @@ function renderDashboardCharts(data) {
         labels: ['Rojo', 'Amarillo', 'Verde'],
         type: 'pie', hole: 0.62, sort: false, direction: 'clockwise',
         marker: { colors: [C.red, C.yellow, C.green], line: { color: C.bgCard || C.bg, width: 3 } },
-        textinfo: 'none',
+        textinfo: 'label+value',
+        textfont: { size: 10, color: C.text },
         hovertemplate: '<b>%{label}</b><br>%{value:,} casos<br>%{percent}<extra></extra>',
         pull: rojo > 0 ? [0.04, 0, 0] : [0, 0, 0],
     }], {
@@ -687,9 +711,18 @@ function renderDashboardCharts(data) {
         const amarillos = data.ramo_data.map(r => r.amarillos ?? 0);
         const rojos = data.ramo_data.map(r => r.rojos ?? 0);
         Plotly.react('chartRamo', [
-            { x: ramos, y: verdes, name: 'Verde', type: 'bar', marker: { color: C.green, opacity: 0.9 } },
-            { x: ramos, y: amarillos, name: 'Amarillo', type: 'bar', marker: { color: C.yellow, opacity: 0.9 } },
-            { x: ramos, y: rojos, name: 'Rojo', type: 'bar', marker: { color: C.red, opacity: 0.9 } },
+            {
+                x: ramos, y: verdes, name: 'Verde', type: 'bar', marker: { color: C.green, opacity: 0.9 },
+                text: verdes.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
+            },
+            {
+                x: ramos, y: amarillos, name: 'Amarillo', type: 'bar', marker: { color: C.yellow, opacity: 0.9 },
+                text: amarillos.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
+            },
+            {
+                x: ramos, y: rojos, name: 'Rojo', type: 'bar', marker: { color: C.red, opacity: 0.9 },
+                text: rojos.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
+            },
         ], {
             ...PL,
             barmode: 'stack',
@@ -722,6 +755,9 @@ function renderDashboardCharts(data) {
                 type: 'bar',
                 name: 'Bajo (Verde)',
                 marker: { color: C.green, opacity: 0.9 },
+                text: data.temporal_risk_data.map(t => (t.Verde || 0) > 0 ? String(t.Verde || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
             },
             {
                 x: months,
@@ -729,6 +765,9 @@ function renderDashboardCharts(data) {
                 type: 'bar',
                 name: 'Medio (Amarillo)',
                 marker: { color: C.yellow, opacity: 0.9 },
+                text: data.temporal_risk_data.map(t => (t.Amarillo || 0) > 0 ? String(t.Amarillo || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
             },
             {
                 x: months,
@@ -736,6 +775,9 @@ function renderDashboardCharts(data) {
                 type: 'bar',
                 name: 'Alto (Rojo)',
                 marker: { color: C.red, opacity: 0.9 },
+                text: data.temporal_risk_data.map(t => (t.Rojo || 0) > 0 ? String(t.Rojo || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
             },
         ], {
             ...PL,
@@ -758,6 +800,9 @@ function renderDashboardCharts(data) {
                 ? [[0, '#f8fafc'], [0.5, 'rgba(3,105,161,0.35)'], [1, '#0369a1']]
                 : [[0, '#0b1220'], [0.5, 'rgba(0,209,255,0.35)'], [1, '#00d1ff']],
             showscale: false,
+            text: data.heatmap_ramo_riesgo.z,
+            texttemplate: '%{text}',
+            textfont: { size: 10, color: C.text },
         }], {
             ...PL,
             margin: { t: 10, b: 40, l: 90, r: 10 },
@@ -770,9 +815,27 @@ function renderDashboardCharts(data) {
     if (data.geo_risk_data && data.geo_risk_data.length) {
         const suc = data.geo_risk_data.map(g => g.sucursal);
         Plotly.react('chartGeoOperacion', [
-            { x: suc, y: data.geo_risk_data.map(g => g.Verde || 0), type: 'bar', name: 'Bajo', marker: { color: C.green, opacity: 0.88 } },
-            { x: suc, y: data.geo_risk_data.map(g => g.Amarillo || 0), type: 'bar', name: 'Medio', marker: { color: C.yellow, opacity: 0.88 } },
-            { x: suc, y: data.geo_risk_data.map(g => g.Rojo || 0), type: 'bar', name: 'Alto', marker: { color: C.red, opacity: 0.88 } },
+            {
+                x: suc, y: data.geo_risk_data.map(g => g.Verde || 0), type: 'bar', name: 'Bajo',
+                marker: { color: C.green, opacity: 0.88 },
+                text: data.geo_risk_data.map(g => (g.Verde || 0) > 0 ? String(g.Verde || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
+            },
+            {
+                x: suc, y: data.geo_risk_data.map(g => g.Amarillo || 0), type: 'bar', name: 'Medio',
+                marker: { color: C.yellow, opacity: 0.88 },
+                text: data.geo_risk_data.map(g => (g.Amarillo || 0) > 0 ? String(g.Amarillo || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
+            },
+            {
+                x: suc, y: data.geo_risk_data.map(g => g.Rojo || 0), type: 'bar', name: 'Alto',
+                marker: { color: C.red, opacity: 0.88 },
+                text: data.geo_risk_data.map(g => (g.Rojo || 0) > 0 ? String(g.Rojo || 0) : ''),
+                textposition: 'inside',
+                textfont: { size: 10, color: C.text },
+            },
         ], {
             ...PL,
             barmode: 'stack',
