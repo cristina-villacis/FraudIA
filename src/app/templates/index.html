@@ -2328,7 +2328,7 @@
         let html = '<div class="alert ' + (canAnalyze ? 'alert-success' : 'alert-warning') + '" style="margin:0;">' + (data.message || 'Dataset procesado') + '</div>';
         if (data.db_persist_warning) {
             html += '<div class="alert alert-warning" style="margin-top:0.5rem;">No se pudo guardar en TiDB: ' +
-                escapeHtml(data.db_persist_warning) + '. Pulse «Guardar en Base de datos» o vuelva a subir el Excel.</div>';
+                escapeHtml(data.db_persist_warning) + '. Use la plantilla con todas las hojas (asegurados, pólizas, siniestros, etc.) o pulse «Guardar en Base de datos» tras corregir el Excel.</div>';
         }
         if (data.warnings && data.warnings.length) {
             html += '<div class="alert alert-warning" style="margin-top:0.5rem;">' +

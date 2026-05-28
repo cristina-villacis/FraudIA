@@ -136,11 +136,17 @@ def _try_persist_datasets_early() -> Optional[str]:
                 {k: v.copy() for k, v in datasets.items()},
                 full_replace=False,
             )
+            for key, val in result.items():
+                if isinstance(val, str) and val.startswith("error"):
+                    return val
             sin_result = result.get("siniestros")
             if isinstance(sin_result, str) and sin_result.startswith("error"):
                 return sin_result
             if not sin_result:
                 return "No se guardaron filas en siniestros"
+            dropped = result.get("_fk_rows_dropped", 0)
+            if dropped:
+                return f"ok:{dropped}"
         return "ok"
     except Exception as exc:
         return str(exc)[:160]
@@ -840,9 +846,15 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         "auto_pipeline": auto_pipeline,
         "session_id": session_id,
     }
-    if db_early == "ok":
+    if db_early == "ok" or (isinstance(db_early, str) and db_early.startswith("ok:")):
         resp["db_persisted_on_upload"] = True
         resp["message"] += " Datos guardados en base de datos."
+        if isinstance(db_early, str) and db_early.startswith("ok:"):
+            n_drop = db_early.split(":", 1)[1]
+            resp["db_fk_rows_dropped"] = int(n_drop)
+            resp["warnings"] = list(resp.get("warnings") or []) + [
+                f"Se omitieron {n_drop} siniestros con referencias inválidas (póliza/asegurado no encontrados en el Excel)."
+            ]
     elif db_early:
         resp["db_persist_warning"] = db_early
     if validation["has_siniestros"]:

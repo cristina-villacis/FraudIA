@@ -105,10 +105,71 @@ def _truncate_table(engine, table_name: str, is_mysql: Optional[bool] = None) ->
         pass
 
 
+def _sanitize_datasets_for_db(datasets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+    """
+    Alinea claves foráneas con las tablas del mismo Excel antes de insertar en TiDB.
+    Evita IntegrityError 1452 por id_poliza / id_asegurado huérfanos.
+    """
+    out = {name: df.copy() for name, df in datasets.items()}
+
+    def _id_set(table: str, col: str) -> set:
+        if table not in out or col not in out[table].columns:
+            return set()
+        return set(out[table][col].dropna().astype(str).str.strip())
+
+    aseg_ids = _id_set("asegurados", "id_asegurado")
+    pol_ids = _id_set("polizas", "id_poliza")
+    veh_ids = _id_set("vehiculos", "id_vehiculo")
+    prv_ids = _id_set("proveedores", "id_proveedor")
+
+    if "vehiculos" in out and aseg_ids and "id_asegurado" in out["vehiculos"].columns:
+        v = out["vehiculos"]
+        out["vehiculos"] = v[v["id_asegurado"].astype(str).str.strip().isin(aseg_ids)].copy()
+
+    if "polizas" in out and aseg_ids and "id_asegurado" in out["polizas"].columns:
+        p = out["polizas"]
+        out["polizas"] = p[p["id_asegurado"].astype(str).str.strip().isin(aseg_ids)].copy()
+        pol_ids = _id_set("polizas", "id_poliza")
+
+    if "siniestros" in out:
+        s = out["siniestros"]
+        mask = pd.Series(True, index=s.index)
+        if pol_ids and "id_poliza" in s.columns:
+            mask &= s["id_poliza"].astype(str).str.strip().isin(pol_ids)
+        if aseg_ids and "id_asegurado" in s.columns:
+            mask &= s["id_asegurado"].astype(str).str.strip().isin(aseg_ids)
+        s = s.loc[mask].copy()
+        if "id_vehiculo" in s.columns:
+            if veh_ids:
+                s["id_vehiculo"] = s["id_vehiculo"].apply(
+                    lambda x: str(x).strip()
+                    if pd.notna(x) and str(x).strip() in veh_ids
+                    else None
+                )
+            else:
+                s["id_vehiculo"] = None
+        if prv_ids and "id_proveedor" in s.columns:
+            s["id_proveedor"] = s["id_proveedor"].apply(
+                lambda x: str(x).strip()
+                if pd.notna(x) and str(x).strip() in prv_ids
+                else None
+            )
+        elif "id_proveedor" in s.columns:
+            s["id_proveedor"] = None
+        out["siniestros"] = s
+        sin_ids = _id_set("siniestros", "id_siniestro")
+
+        if "documentos" in out and sin_ids and "id_siniestro" in out["documentos"].columns:
+            d = out["documentos"]
+            out["documentos"] = d[
+                d["id_siniestro"].astype(str).str.strip().isin(sin_ids)
+            ].copy()
+
+    return out
+
+
 def _save_dataframe_on_connection(conn, df: pd.DataFrame, table_name: str) -> int:
     df_clean = _prepare_for_db(df, table_name)
-    if table_name == "siniestros" and "id_vehiculo" in df_clean.columns:
-        df_clean["id_vehiculo"] = None
     df_clean.to_sql(
         table_name,
         conn,
@@ -130,11 +191,11 @@ def save_all_datasets(
     datasets: Dict[str, pd.DataFrame],
     *,
     full_replace: bool = True,
-) -> Dict[str, int]:
+) -> Dict[str, Any]:
     """
-    Guarda datasets en orden FK.
+    Guarda datasets en orden FK (una transacción en MySQL/TiDB).
     full_replace=True: vacía todas las tablas antes (reemplazo total).
-    full_replace=False: solo vacía las tablas que se van a escribir (más seguro tras subir Excel).
+    full_replace=False: solo vacía las tablas que se van a escribir.
     """
     order = ["asegurados", "vehiculos", "polizas", "proveedores", "siniestros", "documentos"]
     results: Dict[str, Any] = {}
@@ -142,37 +203,71 @@ def save_all_datasets(
     is_mysql = "mysql" in str(engine.url)
 
     init_database()
-    if full_replace:
-        drop_all_data()
-    else:
-        for table_name in order:
-            if table_name in datasets:
-                _truncate_table(engine, table_name, is_mysql)
-        for name in datasets:
-            if name not in order:
-                _truncate_table(engine, name, is_mysql)
+    clean = _sanitize_datasets_for_db(datasets)
+    dropped_sin = 0
+    if "siniestros" in datasets and "siniestros" in clean:
+        dropped_sin = len(datasets["siniestros"]) - len(clean["siniestros"])
+    if dropped_sin > 0:
+        results["_fk_rows_dropped"] = dropped_sin
 
-    for table_name in order:
-        if table_name not in datasets:
-            continue
-        try:
-            with engine.begin() as conn:
+    try:
+        with engine.begin() as conn:
+            if is_mysql:
+                conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+
+            if full_replace:
+                for t in [
+                    "documentos_subidos", "documentos", "siniestros", "polizas",
+                    "vehiculos", "proveedores", "asegurados", "analisis_runs",
+                ]:
+                    _truncate_table_on_connection(conn, t, is_mysql)
+            else:
+                for table_name in order:
+                    if table_name in clean:
+                        _truncate_table_on_connection(conn, table_name, is_mysql)
+                for name in clean:
+                    if name not in order:
+                        _truncate_table_on_connection(conn, name, is_mysql)
+
+            for table_name in order:
+                if table_name not in clean:
+                    continue
                 results[table_name] = _save_dataframe_on_connection(
-                    conn, datasets[table_name], table_name
+                    conn, clean[table_name], table_name
                 )
-        except Exception as e:
-            results[table_name] = f"error: {str(e)[:120]}"
 
-    for name, df in datasets.items():
-        if name in order:
-            continue
-        try:
-            with engine.begin() as conn:
+            for name, df in clean.items():
+                if name in order:
+                    continue
                 results[name] = _save_dataframe_on_connection(conn, df, name)
-        except Exception as e:
-            results[name] = f"error: {str(e)[:120]}"
+
+            if is_mysql:
+                conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+    except Exception as e:
+        err = str(e)[:200]
+        for table_name in order:
+            if table_name in clean and table_name not in results:
+                results[table_name] = f"error: {err}"
+        if not any(isinstance(v, str) and str(v).startswith("error") for v in results.values()):
+            results["siniestros"] = f"error: {err}"
 
     return results
+
+
+def _truncate_table_on_connection(conn, table_name: str, is_mysql: bool) -> None:
+    safe = table_name.replace("`", "")
+    try:
+        if is_mysql:
+            conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        try:
+            if is_mysql:
+                conn.execute(text(f"TRUNCATE TABLE `{safe}`"))
+            else:
+                conn.execute(text(f"DELETE FROM {safe}"))
+        except Exception:
+            conn.execute(text(f"DELETE FROM {safe}"))
+    except Exception:
+        pass
 
 
 def load_dataframe(table_name: str) -> Optional[pd.DataFrame]:
