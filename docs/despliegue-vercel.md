@@ -93,6 +93,9 @@ Para un nuevo análisis en producción: ejecute el script local o redeploy (buil
 
 ## Solución de problemas
 
+### Error `functions api/index.py doesn't match any Serverless Functions`
+Vercel **Flask moderno** no usa el bloque `functions` en `vercel.json`. La entrada es `app.py` en la raíz + `pyproject.toml` (`entrypoint = "app:app"`).
+
 ### "This deployment can not be redeployed"
 Vercel **no permite** volver a desplegar un build fallido. Solución:
 1. Haga `git push` con un **commit nuevo** (aunque sea un cambio mínimo).
