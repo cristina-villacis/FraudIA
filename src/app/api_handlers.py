@@ -24,13 +24,11 @@ from src.app.dashboard_service import (
     get_filter_options,
     params_from_request,
 )
-from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime
-from src.pipeline.run_full_analysis import execute_full_pipeline, load_vercel_bundle
+from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime, load_vercel_bundle
 from src.ai_agent.claims_agent import ClaimsAgent
 from src.ai_agent.openai_client import is_openai_configured, get_openai_model
 from src.explainability.explain_score import explain_single_case
 from src.ingestion.load_data import load_all_from_directory, load_file_to_tables, validate_datasets
-from src.models.fraud_model import get_model_metrics_summary
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
 from src.utils.dataframe_columns import ensure_str_columns, normalize_datasets_columns
 from src.db.config import test_connection
@@ -251,6 +249,8 @@ def run_pipeline() -> dict:
         raise ValueError("No hay datos cargados. Suba un archivo o cargue datos sintéticos.")
     t_start = time.time()
     app_state["pipeline_status"] = "running"
+    from src.pipeline.run_full_analysis import execute_full_pipeline
+
     result = execute_full_pipeline(app_state["datasets"])
     df_scored = result["df_scored"]
     app_state.update({
@@ -369,6 +369,8 @@ def model_metrics() -> dict:
         raise ValueError("Modelo no entrenado")
     if is_vercel_runtime() or results.get("trained") or "model" not in results:
         return results
+    from src.models.fraud_model import get_model_metrics_summary
+
     metrics = get_model_metrics_summary(results)
     metrics["confusion_matrix"] = results.get("confusion_matrix")
     return metrics

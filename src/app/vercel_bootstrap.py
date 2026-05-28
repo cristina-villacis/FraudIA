@@ -1,10 +1,8 @@
 """
-Runtime Vercel: carga el bundle generado en build (datos + análisis completo).
-OpenAI usa dashboard_snapshot, model_snapshot y df_scored para explicar/responder.
+Runtime Vercel: carga bundle generado en build (sin importar módulos pesados de ML).
 """
 from __future__ import annotations
 
-import json
 import os
 from typing import Any, Dict
 
@@ -12,7 +10,8 @@ import pandas as pd
 
 from src.ai_agent.claims_agent import ClaimsAgent
 from src.app.dashboard_service import build_dashboard_payload
-from src.pipeline.run_full_analysis import BUNDLE_DIR, load_vercel_bundle
+
+BUNDLE_DIR = os.path.join("data", "processed", "vercel_bundle")
 
 
 def is_vercel_runtime() -> bool:
@@ -38,10 +37,39 @@ def _load_scored_dataframe(root: str) -> pd.DataFrame:
         if path.endswith(".csv"):
             return pd.read_csv(path)
         return pd.read_excel(path, sheet_name="siniestros")
-    raise FileNotFoundError(
-        "No hay análisis empaquetado. El build de Vercel debe ejecutar "
-        "scripts/prepare_vercel_bundle.py (ver buildCommand en vercel.json)."
-    )
+    raise FileNotFoundError("No hay CSV/Excel scored en data/processed")
+
+
+def load_vercel_bundle(root: str | None = None) -> Dict[str, Any]:
+    import json
+
+    root = root or _project_root()
+    bundle_dir = os.path.join(root, BUNDLE_DIR)
+    if not os.path.isdir(bundle_dir):
+        return {}
+    loaded: Dict[str, Any] = {}
+    for name in os.listdir(bundle_dir):
+        if not name.endswith(".json"):
+            continue
+        key = name.replace(".json", "")
+        with open(os.path.join(bundle_dir, name), encoding="utf-8") as f:
+            loaded[key] = json.load(f)
+    return loaded
+
+
+def _build_dashboard_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
+    kpis = payload.get("kpis", {}) if isinstance(payload, dict) else {}
+    return {
+        "records_considered": int(payload.get("records_considered", 0)),
+        "active_filters_count": len(payload.get("active_filters", [])),
+        "score_promedio": float(kpis.get("score_promedio", 0.0)),
+        "monto_total": float(kpis.get("monto_total", 0.0)),
+        "semaforo_counts": {
+            "Rojo": int(kpis.get("casos_rojos", 0)),
+            "Amarillo": int(kpis.get("casos_amarillos", 0)),
+            "Verde": int(kpis.get("casos_verdes", 0)),
+        },
+    }
 
 
 def bootstrap_vercel_demo(app_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,9 +95,7 @@ def bootstrap_vercel_demo(app_state: Dict[str, Any]) -> Dict[str, Any]:
             df_scored, total_unfiltered=len(df_scored), active_filters=[]
         )
     if not dashboard_snapshot:
-        from src.pipeline.run_full_analysis import build_dashboard_snapshot
-
-        dashboard_snapshot = build_dashboard_snapshot(dashboard_payload)
+        dashboard_snapshot = _build_dashboard_snapshot(dashboard_payload)
 
     app_state["datasets"] = {"siniestros": df_scored.copy()}
     app_state["df_features"] = df_scored.copy()
@@ -102,8 +128,5 @@ def bootstrap_vercel_demo(app_state: Dict[str, Any]) -> Dict[str, Any]:
         "seed": manifest.get("seed"),
         "auc_roc": manifest.get("auc_roc"),
         "analysis_at": "build",
-        "message": (
-            "Análisis (reglas + ML + dashboard) cargado desde build. "
-            "OpenAI genera explicaciones sobre estos resultados."
-        ),
+        "message": "Análisis cargado desde bundle (runtime liviano).",
     }
