@@ -12,8 +12,8 @@ Si ves `f712e39` o más antiguo, ese deploy usa `vercel.json` viejo con `functio
 
 1. Proyecto **fraud-ia** → **Settings** → **Build and Deployment**
 2. En cada campo, **desactiva "Override"** (toggle gris):
-   - Framework Preset → **Flask** o **Other**
-   - Build Command → vacío (usa `pyproject.toml`)
+   - Framework Preset → **Other**
+   - Build Command → vacío
    - Output Directory → vacío
    - Install Command → vacío (usa `requirements.txt`)
    - Root Directory → vacío (`.`)
@@ -34,17 +34,17 @@ No uses Redeploy en deployments fallidos viejos.
 
 1. Desconecta el repo o elimina el proyecto en Vercel.
 2. **Add New Project** → importa `cristina-villacis/FraudIA` de nuevo.
-3. Framework: **Other** o **Flask**.
+3. Framework: **Other**.
 4. Añade variables: `OPENAI_API_KEY`, `SECRET_KEY`, `OPENAI_MODEL`.
 
 ## Estructura correcta en Git (sin vercel.json)
 
 ```
 FraudIA/
-  app.py              ← entrada Flask (app)
-  pyproject.toml      ← entrypoint + build
-  requirements.txt    ← dependencias ligeras
-  src/app/main.py     ← aplicación
+  app.py              ← entrada FastAPI (app)
+  requirements.txt    ← dependencias de runtime
+  runtime.txt         ← versión de Python
+  src/app/asgi.py     ← aplicación ASGI
   data/processed/     ← CSV + vercel_bundle/
 ```
 

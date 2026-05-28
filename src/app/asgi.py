@@ -68,8 +68,13 @@ def _err(exc: Exception, status: int = 500):
 @app.get("/", response_class=HTMLResponse)
 async def index():
     index_path = os.path.join(templates_dir, "index.html")
-    with open(index_path, encoding="utf-8") as f:
-        return HTMLResponse(f.read())
+    if os.path.exists(index_path):
+        with open(index_path, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse(
+        "<h2>FraudIA Claims API online</h2>"
+        "<p>UI no encontrada en bundle, pero la API está disponible.</p>"
+    )
 
 
 @app.get("/api/health")

@@ -1,3 +1,2 @@
 # Trigger deploy — Vercel requires a fresh commit (no redeploy of failed builds).
-# Build: pyproject.toml → scripts/vercel-build.sh
-# Runtime: app.py (Flask) — sin vercel.json con functions
+# Runtime: app.py (FastAPI) — sin vercel.json con functions

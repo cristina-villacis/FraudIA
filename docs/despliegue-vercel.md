@@ -35,7 +35,7 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 
 1. [vercel.com](https://vercel.com) → **Add New Project** → `cristina-villacis/FraudIA`
 2. Framework: **Other**
-3. `app.py` + `pyproject.toml` configuran la API Python (FastAPI/ASGI) y el bundle de datos.
+3. `app.py` configura la API Python (FastAPI/ASGI) para Vercel.
 4. **Importante:** `requirements.txt` en la raíz es la versión **ligera** para Vercel.
 
 ## 2. Variables de entorno (chatbot IA)
@@ -55,7 +55,7 @@ Sin `OPENAI_API_KEY` el dashboard funciona; el chat no generará respuestas enri
 ```powershell
 cd FraudIA
 .\venv\Scripts\Activate.ps1
-pip install -r requirements-vercel.txt
+pip install -r requirements.txt
 python scripts/prepare_vercel_bundle.py --synthetic
 # o con datos ya cargados:
 python scripts/prepare_vercel_bundle.py --from-dir data/synthetic
@@ -70,10 +70,8 @@ git push
 1. Coloque Excel/CSV en `data/synthetic/` o `data/raw/` (con `etiqueta_fraude_simulada`).
 2. Local: `python scripts/prepare_vercel_bundle.py --from-dir data/raw`
 3. Suba `data/processed/siniestros_scored.csv` y `data/processed/vercel_bundle/` a Git.
-4. En Vercel, cambie `buildCommand` a:
-   ```json
-   "buildCommand": "python scripts/prepare_vercel_bundle.py --from-dir data/synthetic"
-   ```
+4. Opcional: ejecute el bundle localmente antes del push:
+   `python scripts/prepare_vercel_bundle.py --from-dir data/synthetic`
 
 ## 5. Verificación
 
@@ -95,7 +93,7 @@ Para un nuevo análisis en producción: ejecute el script local o redeploy (buil
 ## Solución de problemas
 
 ### Error `functions api/index.py doesn't match any Serverless Functions`
-Ese error corresponde a una configuración antigua. El proyecto actual usa `app.py` + `pyproject.toml` (`entrypoint = "app:app"`), sin `functions` legacy.
+Ese error corresponde a una configuración antigua. El proyecto actual usa `app.py` (FastAPI) sin `functions` legacy.
 
 ### "This deployment can not be redeployed"
 Vercel **no permite** volver a desplegar un build fallido. Solución:
@@ -111,7 +109,7 @@ Causas frecuentes y corrección:
 | Error en logs | Causa | Solución |
 |---------------|--------|----------|
 | `exceeded maximum size` / timeout install | `torch` en requirements | Ya corregido: `requirements.txt` ligero en repo |
-| `python: command not found` | Build script | Usar `pyproject.toml` + `runtime.txt` python-3.11 |
+| `python: command not found` | Runtime incorrecto | Usar `runtime.txt` con `python-3.11` |
 | `ModuleNotFoundError` | Falta paquete | Revisar `requirements.txt` |
 | Build OK pero 500 al abrir | Falta CSV/bundle | `includeFiles` en `vercel.json` incluye `data/processed/**` |
 
