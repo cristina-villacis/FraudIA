@@ -1,0 +1,990 @@
+/**
+ * Dashboard Ejecutivo de Riesgo — filtros dinámicos e interactividad Plotly.
+ */
+const dashboardState = {
+    initialized: false,
+    options: null,
+    filterDefaults: null,
+    lastData: null,
+    metricsAuc: '--',
+    refreshTimer: null,
+    filters: {
+        semaforo: 'all',
+        ramo: 'all',
+        cobertura: 'all',
+        sucursal: 'all',
+        estado: 'all',
+        search: '',
+        score_min: '',
+        score_max: '',
+        fecha_desde: '',
+        fecha_hasta: '',
+    },
+};
+
+const FILTER_LABELS = {
+    semaforo: 'Semáforo',
+    ramo: 'Ramo',
+    cobertura: 'Cobertura',
+    sucursal: 'Sucursal',
+    estado: 'Estado',
+    search: 'Búsqueda',
+    score_min: 'Score mín.',
+    score_max: 'Score máx.',
+    fecha_desde: 'Desde',
+    fecha_hasta: 'Hasta',
+};
+
+function setFilterDefaultsFromOptions(opts) {
+    dashboardState.filterDefaults = {
+        score_min: String(opts?.score_min ?? 0),
+        score_max: String(opts?.score_max ?? 100),
+        fecha_desde: opts?.fecha_min || '',
+        fecha_hasta: opts?.fecha_max || '',
+    };
+}
+
+function emptyDashboardFilters() {
+    return {
+        semaforo: 'all',
+        ramo: 'all',
+        cobertura: 'all',
+        sucursal: 'all',
+        estado: 'all',
+        search: '',
+        score_min: '',
+        score_max: '',
+        fecha_desde: '',
+        fecha_hasta: '',
+    };
+}
+
+function isFilterActive(key, value) {
+    const v = value == null ? '' : String(value).trim();
+    const d = dashboardState.filterDefaults;
+    if (['semaforo', 'ramo', 'cobertura', 'sucursal', 'estado'].includes(key)) {
+        return v !== '' && v !== 'all';
+    }
+    if (key === 'search') return v !== '';
+    if (key === 'score_min' && d) return v !== '' && v !== String(d.score_min);
+    if (key === 'score_max' && d) return v !== '' && v !== String(d.score_max);
+    if (key === 'fecha_desde' && d) return v !== '' && v !== String(d.fecha_desde);
+    if (key === 'fecha_hasta' && d) return v !== '' && v !== String(d.fecha_hasta);
+    return false;
+}
+
+function getActiveFiltersForUI() {
+    const f = dashboardState.filters;
+    const active = [];
+    Object.keys(FILTER_LABELS).forEach(key => {
+        if (isFilterActive(key, f[key])) {
+            active.push({ key, label: FILTER_LABELS[key], value: String(f[key]) });
+        }
+    });
+    return active;
+}
+
+function buildDashboardQuery() {
+    const f = dashboardState.filters;
+    const p = new URLSearchParams();
+    Object.keys(FILTER_LABELS).forEach(key => {
+        if (isFilterActive(key, f[key])) p.set(key, f[key]);
+    });
+    return p.toString();
+}
+
+function scheduleDashboardRefresh(delay = 280) {
+    clearTimeout(dashboardState.refreshTimer);
+    dashboardState.refreshTimer = setTimeout(refreshDashboard, delay);
+}
+
+function syncFiltersFromForm() {
+    const g = (id) => document.getElementById(id);
+    if (!g('filterRamo')) return;
+    const d = dashboardState.filterDefaults;
+    dashboardState.filters.ramo = g('filterRamo').value;
+    dashboardState.filters.cobertura = g('filterCobertura').value;
+    dashboardState.filters.sucursal = g('filterSucursal').value;
+    dashboardState.filters.estado = g('filterEstado').value;
+    dashboardState.filters.search = g('filterSearch').value.trim();
+    dashboardState.filters.fecha_desde = g('filterFechaDesde').value;
+    dashboardState.filters.fecha_hasta = g('filterFechaHasta').value;
+    const smin = g('filterScoreMin').value;
+    const smax = g('filterScoreMax').value;
+    dashboardState.filters.score_min = (d && String(smin) === String(d.score_min)) ? '' : smin;
+    dashboardState.filters.score_max = (d && String(smax) === String(d.score_max)) ? '' : smax;
+}
+
+function updateSemaforoPills() {
+    const sem = dashboardState.filters.semaforo;
+    document.querySelectorAll('.semaforo-pill').forEach(btn => {
+        const v = btn.dataset.semaforo;
+        btn.classList.toggle('active', sem === v || (sem === 'all' && v === 'all'));
+    });
+    document.querySelectorAll('.semaforo-legend-item.clickable').forEach(el => {
+        const s = el.dataset.semaforo;
+        el.classList.toggle('active-filter', sem === s);
+    });
+}
+
+function resetFilterControlUI(key) {
+    const d = dashboardState.filterDefaults || {};
+    const elMap = {
+        semaforo: 'filterSemaforo',
+        ramo: 'filterRamo',
+        cobertura: 'filterCobertura',
+        sucursal: 'filterSucursal',
+        estado: 'filterEstado',
+        search: 'filterSearch',
+        fecha_desde: 'filterFechaDesde',
+        fecha_hasta: 'filterFechaHasta',
+        score_min: 'filterScoreMin',
+        score_max: 'filterScoreMax',
+    };
+    if (elMap[key]) {
+        const el = document.getElementById(elMap[key]);
+        if (el) {
+            if (key === 'search') el.value = '';
+            else if (['semaforo', 'ramo', 'cobertura', 'sucursal', 'estado'].includes(key)) el.value = 'all';
+            else if (key === 'fecha_desde' || key === 'fecha_hasta') el.value = '';
+        }
+    }
+    if (key === 'score_min') {
+        const v = d.score_min ?? '0';
+        ['filterScoreMin', 'filterScoreMinRange'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = v;
+        });
+        const lbl = document.getElementById('scoreMinLabel');
+        if (lbl) lbl.textContent = v;
+    }
+    if (key === 'score_max') {
+        const v = d.score_max ?? '100';
+        ['filterScoreMax', 'filterScoreMaxRange'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = v;
+        });
+        const lbl = document.getElementById('scoreMaxLabel');
+        if (lbl) lbl.textContent = v;
+    }
+}
+
+function setDashboardFilter(key, value, refresh = true) {
+    dashboardState.filters[key] = value;
+    const elMap = {
+        semaforo: 'filterSemaforo',
+        ramo: 'filterRamo',
+        cobertura: 'filterCobertura',
+        sucursal: 'filterSucursal',
+        estado: 'filterEstado',
+        search: 'filterSearch',
+        fecha_desde: 'filterFechaDesde',
+        fecha_hasta: 'filterFechaHasta',
+        score_min: 'filterScoreMin',
+        score_max: 'filterScoreMax',
+    };
+    if (elMap[key]) {
+        const el = document.getElementById(elMap[key]);
+        if (el) el.value = (value === 'all' || value === '') ? (key === 'search' ? '' : 'all') : value;
+    }
+    if (key === 'score_min' || key === 'score_max') {
+        const r = document.getElementById(key === 'score_min' ? 'filterScoreMinRange' : 'filterScoreMaxRange');
+        const num = document.getElementById(key === 'score_min' ? 'filterScoreMin' : 'filterScoreMax');
+        const lbl = document.getElementById(key === 'score_min' ? 'scoreMinLabel' : 'scoreMaxLabel');
+        if (r) r.value = value;
+        if (num) num.value = value;
+        if (lbl) lbl.textContent = value;
+    }
+    updateSemaforoPills();
+    updateFilterChips();
+    if (refresh) scheduleDashboardRefresh(80);
+}
+
+function removeDashboardFilter(key) {
+    if (['semaforo', 'ramo', 'cobertura', 'sucursal', 'estado'].includes(key)) {
+        dashboardState.filters[key] = 'all';
+    } else {
+        dashboardState.filters[key] = '';
+    }
+    resetFilterControlUI(key);
+    updateSemaforoPills();
+    updateFilterChips();
+    refreshDashboard();
+}
+
+function clearDashboardFilters() {
+    dashboardState.filters = emptyDashboardFilters();
+    populateFilterControls(dashboardState.options);
+    updateSemaforoPills();
+    updateFilterChips();
+    refreshDashboard();
+}
+
+function populateFilterControls(opts) {
+    const fill = (id, items, filterKey) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="all">Todos</option>' +
+            (items || []).map(v => `<option value="${v}">${v}</option>`).join('');
+        const fv = dashboardState.filters[filterKey];
+        sel.value = (fv && fv !== 'all') ? fv : 'all';
+    };
+    fill('filterRamo', opts.ramos, 'ramo');
+    fill('filterCobertura', opts.coberturas, 'cobertura');
+    fill('filterSucursal', opts.sucursales, 'sucursal');
+    fill('filterEstado', opts.estados, 'estado');
+    const fs = document.getElementById('filterSemaforo');
+    if (fs) fs.value = dashboardState.filters.semaforo || 'all';
+
+    const d = dashboardState.filterDefaults || {
+        score_min: String(opts.score_min ?? 0),
+        score_max: String(opts.score_max ?? 100),
+        fecha_desde: opts.fecha_min || '',
+        fecha_hasta: opts.fecha_max || '',
+    };
+
+    const fd = document.getElementById('filterFechaDesde');
+    const fh = document.getElementById('filterFechaHasta');
+    if (fd) {
+        fd.min = opts.fecha_min || '';
+        fd.max = opts.fecha_max || '';
+        fd.value = isFilterActive('fecha_desde', dashboardState.filters.fecha_desde)
+            ? dashboardState.filters.fecha_desde : '';
+    }
+    if (fh) {
+        fh.min = opts.fecha_min || '';
+        fh.max = opts.fecha_max || '';
+        fh.value = isFilterActive('fecha_hasta', dashboardState.filters.fecha_hasta)
+            ? dashboardState.filters.fecha_hasta : '';
+    }
+
+    const smin = document.getElementById('filterScoreMin');
+    const smax = document.getElementById('filterScoreMax');
+    const rmin = document.getElementById('filterScoreMinRange');
+    const rmax = document.getElementById('filterScoreMaxRange');
+    if (smin && smax) {
+        const uiMin = isFilterActive('score_min', dashboardState.filters.score_min) ? dashboardState.filters.score_min : d.score_min;
+        const uiMax = isFilterActive('score_max', dashboardState.filters.score_max) ? dashboardState.filters.score_max : d.score_max;
+        smin.min = smax.min = rmin.min = rmax.min = opts.score_min;
+        smin.max = smax.max = rmin.max = rmax.max = opts.score_max;
+        smin.value = uiMin;
+        smax.value = uiMax;
+        if (rmin) rmin.value = uiMin;
+        if (rmax) rmax.value = uiMax;
+        const lblMin = document.getElementById('scoreMinLabel');
+        const lblMax = document.getElementById('scoreMaxLabel');
+        if (lblMin) lblMin.textContent = uiMin;
+        if (lblMax) lblMax.textContent = uiMax;
+    }
+    const searchEl = document.getElementById('filterSearch');
+    if (searchEl) searchEl.value = dashboardState.filters.search || '';
+}
+
+function buildDashboardShell() {
+    return `
+        <div class="card" style="margin-bottom:1rem;padding:0.9rem 1.1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.8rem;flex-wrap:wrap;">
+                <div>
+                    <div class="card-title" style="margin:0;font-size:1rem;">🚨 FraudIA Claims · Dashboard Ejecutivo de Riesgo</div>
+                    <div style="font-size:0.76rem;color:var(--text-muted);margin-top:0.15rem;">Centro de monitoreo antifraude, trazabilidad y explicación analítica</div>
+                </div>
+                <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap;">
+                    <span class="badge badge-cyan">Motor IA: <strong id="dashIaStatus" style="margin-left:0.25rem;">Activo</strong></span>
+                    <span class="badge badge-red">Alertas críticas: <strong id="dashCriticalCount" style="margin-left:0.25rem;">0</strong></span>
+                    <span class="badge badge-muted" id="dashNow">--</span>
+                </div>
+            </div>
+        </div>
+        <div class="card dashboard-toolbar">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
+                <div class="card-title" style="margin:0;">Filtros interactivos</div>
+                <div class="dashboard-filter-actions">
+                    <button type="button" class="btn btn-primary" id="btnApplyFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Aplicar</button>
+                    <button type="button" class="btn btn-secondary" id="btnResetFilters" style="padding:0.4rem 1rem;font-size:0.8rem;">Limpiar filtros</button>
+                </div>
+            </div>
+            <div class="dashboard-toolbar-grid">
+                <div class="dashboard-filter"><label>Semáforo</label>
+                    <select id="filterSemaforo"><option value="all">Todos</option><option value="Verde">Verde (0-40)</option><option value="Amarillo">Amarillo (41-75)</option><option value="Rojo">Rojo (76-100)</option></select>
+                </div>
+                <div class="dashboard-filter"><label>Ramo</label><select id="filterRamo"></select></div>
+                <div class="dashboard-filter"><label>Cobertura</label><select id="filterCobertura"></select></div>
+                <div class="dashboard-filter"><label>Sucursal</label><select id="filterSucursal"></select></div>
+                <div class="dashboard-filter"><label>Estado</label><select id="filterEstado"></select></div>
+                <div class="dashboard-filter"><label>ID Siniestro</label><input type="text" id="filterSearch" placeholder="Buscar SIN-..."></div>
+                <div class="dashboard-filter"><label>Desde</label><input type="date" id="filterFechaDesde"></div>
+                <div class="dashboard-filter"><label>Hasta</label><input type="date" id="filterFechaHasta"></div>
+                <div class="dashboard-filter score-range-wrap"><label>Score mín. <span id="scoreMinLabel">0</span></label>
+                    <input type="range" id="filterScoreMinRange"><input type="number" id="filterScoreMin" min="0" max="100" style="margin-top:0.35rem;">
+                </div>
+                <div class="dashboard-filter score-range-wrap"><label>Score máx. <span id="scoreMaxLabel">100</span></label>
+                    <input type="range" id="filterScoreMaxRange"><input type="number" id="filterScoreMax" min="0" max="100" style="margin-top:0.35rem;">
+                </div>
+            </div>
+            <div class="dashboard-semaforo-pills">
+                <button type="button" class="semaforo-pill active" data-semaforo="all">Todos</button>
+                <button type="button" class="semaforo-pill pill-verde" data-semaforo="Verde">🟢 Verde</button>
+                <button type="button" class="semaforo-pill pill-amarillo" data-semaforo="Amarillo">🟡 Amarillo</button>
+                <button type="button" class="semaforo-pill pill-rojo" data-semaforo="Rojo">🔴 Rojo</button>
+            </div>
+        </div>
+        <div id="dashboardChips" class="dashboard-chips"></div>
+        <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
+        <div class="dashboard-kpi-row" id="dashKpiRow">
+            <div class="card metric-card card-accent-cyan" style="padding:1.1rem;"><div class="card-title">Total Siniestros</div><div class="metric-value" id="kpiTotal" style="color:var(--cyan);font-size:1.75rem;">—</div><div class="metric-label" id="kpiTotalSub">Analizados</div></div>
+            <div class="card metric-card card-accent-red" style="padding:1.1rem;"><div class="card-title">Alto Riesgo</div><div class="metric-value" id="kpiRojo" style="color:var(--red);font-size:1.75rem;">—</div><div class="metric-label" id="kpiRojoPct">—</div></div>
+            <div class="card metric-card card-accent-yellow" style="padding:1.1rem;"><div class="card-title">Monto Alto Riesgo</div><div class="metric-value" id="kpiMonto" style="color:var(--yellow);font-size:1.75rem;">—</div><div class="metric-label">Casos filtrados</div></div>
+            <div class="card metric-card card-accent-green" style="padding:1.1rem;"><div class="card-title">Precisión IA</div><div class="metric-value" id="kpiAuc" style="color:var(--green);font-size:1.75rem;">—</div><div class="metric-label">AUC-ROC</div></div>
+            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Score Promedio</div><div class="metric-value" id="kpiScore" style="font-size:1.75rem;">—</div><div class="metric-label">sobre 100</div></div>
+            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Clasificación de Riesgo</div><div class="metric-value" id="kpiClasificacion" style="font-size:1rem;line-height:1.4;">—</div><div class="metric-label">Alto · Medio · Bajo</div></div>
+            <div class="card metric-card" style="padding:1.1rem;"><div class="card-title">Prob. Fraude Promedio</div><div class="metric-value" id="kpiProbFraude" style="font-size:1.75rem;">—</div><div class="metric-label">Modelo supervisado</div></div>
+        </div>
+        <div class="dashboard-main-grid">
+            <div style="display:flex;flex-direction:column;gap:1.25rem;">
+                <div class="card card-chart">
+                <div class="card-title">Distribución de Scores por Nivel de Riesgo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra para filtrar (0-40 / 41-75 / 76-100)</span></div>
+                <div id="chartScores" class="chart-area" style="min-height:280px;"></div>
+            </div>
+                <div class="card card-chart"><div class="card-title">Tendencia de Siniestros <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en punto para filtrar mes</span></div><div id="chartTemporal" class="chart-area" style="min-height:260px;"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1.25rem;">
+                <div class="card" style="flex:1;"><div class="card-title">Principales Anomalías <span style="font-size:0.7rem;color:var(--text-muted);">— clic para ver caso</span></div><div id="topAnomaliesList"></div></div>
+                <div class="card"><div class="card-title">Similitud NLP</div><div id="nlpPanel"></div></div>
+            </div>
+        </div>
+        <div class="dashboard-bottom-grid">
+            <div class="card card-chart">
+                <div class="card-title">Estado de Reclamaciones <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en segmento</span></div>
+                <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
+                <div class="semaforo-legend" id="semaforoLegend"></div>
+            </div>
+            <div class="card card-chart">
+                <div class="card-title">Análisis por Ramo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra</span></div>
+                <div id="chartRamo" class="chart-area chart-area-ramo"></div>
+                <div class="chart-legend-below" id="ramoChartLegend">
+                    <span><i style="background:var(--green);"></i> Verde (0-40)</span>
+                    <span><i style="background:var(--yellow);"></i> Amarillo (41-75)</span>
+                    <span><i style="background:var(--red);"></i> Rojo (76-100)</span>
+                </div>
+            </div>
+            <div class="card card-alerts">
+                <div class="card-title">Alertas Automáticas</div>
+                <div id="alertsPanel" class="alerts-panel"></div>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top:1rem;">
+            <div class="card card-chart">
+                <div class="card-title">Motor de señales de fraude</div>
+                <div class="table-container" style="max-height:300px;overflow:auto;">
+                    <table>
+                        <thead><tr><th>Señal</th><th>Casos</th><th>Severidad</th><th>Acción</th></tr></thead>
+                        <tbody id="fraudSignalsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card card-chart">
+                <div class="card-title">Reglas críticas RF-01..RF-07</div>
+                <div id="criticalRulesPanel"></div>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top:1rem;">
+            <div class="card card-chart">
+                <div class="card-title">Heatmap · Ramo vs Riesgo</div>
+                <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:280px;"></div>
+            </div>
+            <div class="card card-chart">
+                <div class="card-title">Mapa operacional por sucursal</div>
+                <div id="chartGeoOperacion" class="chart-area" style="min-height:280px;"></div>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top:1rem;">
+            <div class="card">
+                <div class="card-title">Riesgo por proveedores</div>
+                <div class="table-container" style="max-height:280px;overflow:auto;">
+                    <table>
+                        <thead><tr><th>Beneficiario</th><th>Casos</th><th>Score prom.</th><th>Monto</th></tr></thead>
+                        <tbody id="providerRiskTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Explicabilidad IA · Caso seleccionado</div>
+                <div id="explainabilityPanel" style="font-size:0.82rem;color:var(--text-secondary);line-height:1.6;">
+                    Seleccione un caso de la lista para visualizar evidencia, alertas y variables de impacto.
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function bindDashboardEvents() {
+    document.getElementById('btnApplyFilters').addEventListener('click', () => {
+        syncFiltersFromForm();
+        dashboardState.filters.semaforo = document.getElementById('filterSemaforo').value;
+        updateSemaforoPills();
+        updateFilterChips();
+        refreshDashboard();
+    });
+    document.getElementById('btnResetFilters').addEventListener('click', clearDashboardFilters);
+
+    ['filterRamo', 'filterCobertura', 'filterSucursal', 'filterEstado', 'filterSemaforo'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            syncFiltersFromForm();
+            dashboardState.filters.semaforo = document.getElementById('filterSemaforo').value;
+            updateSemaforoPills();
+            updateFilterChips();
+            scheduleDashboardRefresh();
+        });
+    });
+
+    document.getElementById('filterSearch').addEventListener('input', (e) => {
+        dashboardState.filters.search = e.target.value.trim();
+        updateFilterChips();
+        scheduleDashboardRefresh(450);
+    });
+    document.getElementById('filterFechaDesde').addEventListener('change', (e) => {
+        dashboardState.filters.fecha_desde = e.target.value;
+        updateFilterChips();
+        scheduleDashboardRefresh();
+    });
+    document.getElementById('filterFechaHasta').addEventListener('change', (e) => {
+        dashboardState.filters.fecha_hasta = e.target.value;
+        updateFilterChips();
+        scheduleDashboardRefresh();
+    });
+
+    const syncScore = (rangeId, numId, key, labelId) => {
+        const range = document.getElementById(rangeId);
+        const num = document.getElementById(numId);
+        const applyScore = (val) => {
+            const d = dashboardState.filterDefaults;
+            num.value = val;
+            range.value = val;
+            document.getElementById(labelId).textContent = val;
+            if (d && String(val) === String(d[key])) {
+                dashboardState.filters[key] = '';
+            } else {
+                dashboardState.filters[key] = String(val);
+            }
+            updateFilterChips();
+            scheduleDashboardRefresh();
+        };
+        range.addEventListener('input', () => applyScore(range.value));
+        num.addEventListener('change', () => applyScore(num.value));
+    };
+    syncScore('filterScoreMinRange', 'filterScoreMin', 'score_min', 'scoreMinLabel');
+    syncScore('filterScoreMaxRange', 'filterScoreMax', 'score_max', 'scoreMaxLabel');
+
+    document.querySelectorAll('.semaforo-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const v = btn.dataset.semaforo;
+            dashboardState.filters.semaforo = v;
+            document.getElementById('filterSemaforo').value = v;
+            updateSemaforoPills();
+            updateFilterChips();
+            scheduleDashboardRefresh(80);
+        });
+    });
+}
+
+function updateFilterChips() {
+    const chips = document.getElementById('dashboardChips');
+    if (!chips) return;
+    const active = getActiveFiltersForUI();
+    if (!active.length) {
+        chips.innerHTML = '';
+        return;
+    }
+    chips.innerHTML = active.map(f =>
+        `<span class="dashboard-chip" data-chip-key="${f.key}">
+            ${f.label}: <strong>${f.value}</strong>
+            <button type="button" class="chip-remove" data-chip-key="${f.key}" title="Quitar filtro" aria-label="Quitar filtro">&times;</button>
+        </span>`
+    ).join('');
+    chips.querySelectorAll('.chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeDashboardFilter(btn.dataset.chipKey);
+        });
+    });
+}
+
+function renderAnomaliesList(cases) {
+    const el = document.getElementById('topAnomaliesList');
+    if (!cases.length) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;padding:0.5rem;">Sin casos con los filtros actuales.</div>';
+        return;
+    }
+    el.innerHTML = cases.slice(0, 6).map((c, i) => {
+        const sc = c.score_hibrido || c.score_reglas || 0;
+        const sem = c.semaforo_final || c.semaforo_reglas || 'Verde';
+        const bcls = sem === 'Rojo' ? 'badge-red' : sem === 'Amarillo' ? 'badge-yellow' : 'badge-green';
+        return `<div class="anomaly-row-clickable" data-case-id="${c.id_siniestro}" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.4rem;border-radius:8px;${i % 2 === 0 ? 'background:rgba(0,209,255,0.02);' : ''}">
+            <span class="mono" style="font-size:0.7rem;color:var(--text-muted);width:16px;">${i + 1}</span>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.8rem;font-weight:600;color:var(--text-primary);">${c.id_siniestro}</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);">${c.ramo || ''} · $${((c.monto_reclamado || 0) / 1000).toFixed(0)}K</div>
+            </div>
+            <span class="badge ${bcls}" style="font-size:0.68rem;">${Number(sc).toFixed(0)}</span>
+        </div>`;
+    }).join('');
+    el.querySelectorAll('.anomaly-row-clickable').forEach(row => {
+        row.addEventListener('click', () => {
+            if (typeof viewCase === 'function') viewCase(row.dataset.caseId);
+        });
+    });
+}
+
+function renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf) {
+    const items = [
+        { key: 'Rojo', count: rojo, range: '76-100 · Alto', cls: 'red' },
+        { key: 'Amarillo', count: amarillo, range: '41-75 · Medio', cls: 'yellow' },
+        { key: 'Verde', count: verde, range: '0-40 · Bajo', cls: 'green' },
+    ];
+    document.getElementById('semaforoLegend').innerHTML = items.map(it => `
+        <div class="semaforo-legend-item clickable" data-semaforo="${it.key}" title="Filtrar por ${it.key}">
+            <span class="pulse-dot pulse-dot-${it.cls}" style="animation:none;width:10px;height:10px;margin-top:0.2rem;flex-shrink:0;"></span>
+            <div><strong>${it.key}</strong><span class="legend-range">${it.range}</span>
+            <div class="legend-count">${it.count.toLocaleString()} <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">(${pctOf(it.count)}%)</span></div></div>
+        </div>`).join('');
+    document.querySelectorAll('.semaforo-legend-item.clickable').forEach(el => {
+        el.addEventListener('click', () => {
+            setDashboardFilter('semaforo', el.dataset.semaforo);
+            document.getElementById('filterSemaforo').value = el.dataset.semaforo;
+        });
+    });
+    updateSemaforoPills();
+}
+
+function bindPlotlyDashboardCharts(data) {
+    const chartSemaforo = document.getElementById('chartSemaforo');
+    const chartScores = document.getElementById('chartScores');
+    const chartRamo = document.getElementById('chartRamo');
+    const chartTemporal = document.getElementById('chartTemporal');
+
+    if (chartSemaforo && !chartSemaforo._plotlyClickBound) {
+        chartSemaforo.on('plotly_click', (ev) => {
+            const label = ev.points[0].label;
+            setDashboardFilter('semaforo', label);
+            document.getElementById('filterSemaforo').value = label;
+        });
+        chartSemaforo._plotlyClickBound = true;
+    }
+    if (chartScores && !chartScores._plotlyClickBound) {
+        chartScores.on('plotly_click', (ev) => {
+            const pt = ev.points[0];
+            const ranges = (dashboardState.lastData && dashboardState.lastData.score_distribution && dashboardState.lastData.score_distribution.click_ranges) || [];
+            const band = ranges[pt.pointNumber] || ranges.find(r => r.label === pt.x);
+            if (band) {
+                setDashboardFilter('score_min', String(band.min), false);
+                setDashboardFilter('score_max', String(band.max), false);
+                const smin = document.getElementById('filterScoreMin');
+                const smax = document.getElementById('filterScoreMax');
+                const rmin = document.getElementById('filterScoreMinRange');
+                const rmax = document.getElementById('filterScoreMaxRange');
+                if (smin) smin.value = band.min;
+                if (smax) smax.value = band.max;
+                if (rmin) rmin.value = band.min;
+                if (rmax) rmax.value = band.max;
+                updateFilterChips();
+                refreshDashboard();
+                return;
+            }
+            const parts = String(label).split('-');
+            if (parts.length >= 2) {
+                const lo = Number(parts[0]);
+                const hi = Number(parts[1]);
+                setDashboardFilter('score_min', String(lo), false);
+                setDashboardFilter('score_max', String(hi), false);
+                document.getElementById('filterScoreMin').value = lo;
+                document.getElementById('filterScoreMax').value = hi;
+                document.getElementById('filterScoreMinRange').value = lo;
+                document.getElementById('filterScoreMaxRange').value = hi;
+                updateFilterChips();
+                refreshDashboard();
+            }
+        });
+        chartScores._plotlyClickBound = true;
+    }
+    if (chartRamo && !chartRamo._plotlyClickBound) {
+        chartRamo.on('plotly_click', (ev) => {
+            const ramo = ev.points[0].x;
+            setDashboardFilter('ramo', ramo);
+        });
+        chartRamo._plotlyClickBound = true;
+    }
+    if (chartTemporal && !chartTemporal._plotlyClickBound && data.temporal_data) {
+        chartTemporal.on('plotly_click', (ev) => {
+            const mes = ev.points[0].x;
+            if (!mes) return;
+            const [y, m] = mes.split('-');
+            const lastDay = new Date(y, m, 0).getDate();
+            setDashboardFilter('fecha_desde', `${mes}-01`, false);
+            setDashboardFilter('fecha_hasta', `${mes}-${String(lastDay).padStart(2, '0')}`, false);
+            document.getElementById('filterFechaDesde').value = dashboardState.filters.fecha_desde;
+            document.getElementById('filterFechaHasta').value = dashboardState.filters.fecha_hasta;
+            refreshDashboard();
+        });
+        chartTemporal._plotlyClickBound = true;
+    }
+}
+
+function renderDashboardCharts(data) {
+    const C = getColors(), PL = getPlotlyLayout();
+    const rojo = data.semaforo.Rojo || 0, amarillo = data.semaforo.Amarillo || 0, verde = data.semaforo.Verde || 0;
+    const totalSem = rojo + amarillo + verde || data.total || 1;
+
+    Plotly.react('chartSemaforo', [{
+        values: [rojo, amarillo, verde],
+        labels: ['Rojo', 'Amarillo', 'Verde'],
+        type: 'pie', hole: 0.62, sort: false, direction: 'clockwise',
+        marker: { colors: [C.red, C.yellow, C.green], line: { color: C.bgCard || C.bg, width: 3 } },
+        textinfo: 'none',
+        hovertemplate: '<b>%{label}</b><br>%{value:,} casos<br>%{percent}<extra></extra>',
+        pull: rojo > 0 ? [0.04, 0, 0] : [0, 0, 0],
+    }], {
+        ...PL, showlegend: false, height: 220,
+        margin: { t: 12, b: 12, l: 12, r: 12, autoexpand: true },
+        annotations: [{
+            text: '<b>' + totalSem.toLocaleString() + '</b><br>siniestros',
+            showarrow: false, font: { size: 15, color: C.text, family: 'Inter, sans-serif' },
+            x: 0.5, y: 0.5, xref: 'paper', yref: 'paper', align: 'center',
+        }],
+    }, PLOTLY_CONFIG);
+
+    if (data.score_distribution && data.score_distribution.labels && data.score_distribution.labels.length) {
+        const sd = data.score_distribution;
+        Plotly.react('chartScores', [{
+            x: sd.labels,
+            y: sd.counts,
+            type: 'bar',
+            marker: {
+                color: sd.colors || [],
+                line: { width: 0 },
+                opacity: 0.9,
+            },
+            text: sd.counts.map(String),
+            textposition: 'outside',
+            textfont: { size: 11, color: C.text },
+            hovertemplate: '<b>%{x}</b><br>%{y:,} casos<extra></extra>',
+        }], {
+            ...PL,
+            xaxis: {
+                title: 'Nivel de riesgo (según score híbrido)',
+                gridcolor: C.grid,
+                tickfont: { size: 10 },
+            },
+            yaxis: { title: 'Cantidad de siniestros', gridcolor: C.grid },
+            height: 280,
+            margin: { t: 10, b: 50, l: 50, r: 20 },
+            bargap: 0.35,
+        }, PLOTLY_CONFIG);
+    }
+
+    if (data.ramo_data && data.ramo_data.length) {
+        const ramos = data.ramo_data.map(r => r.ramo);
+        const verdes = data.ramo_data.map(r => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
+        const amarillos = data.ramo_data.map(r => r.amarillos ?? 0);
+        const rojos = data.ramo_data.map(r => r.rojos ?? 0);
+        Plotly.react('chartRamo', [
+            { x: ramos, y: verdes, name: 'Verde', type: 'bar', marker: { color: C.green, opacity: 0.9 } },
+            { x: ramos, y: amarillos, name: 'Amarillo', type: 'bar', marker: { color: C.yellow, opacity: 0.9 } },
+            { x: ramos, y: rojos, name: 'Rojo', type: 'bar', marker: { color: C.red, opacity: 0.9 } },
+        ], {
+            ...PL,
+            barmode: 'stack',
+            showlegend: false,
+            bargap: 0.28,
+            xaxis: {
+                gridcolor: C.grid,
+                tickfont: { size: 10, color: C.muted },
+                tickangle: -35,
+                automargin: true,
+                type: 'category',
+            },
+            yaxis: {
+                title: { text: 'Siniestros', font: { size: 11, color: C.muted } },
+                gridcolor: C.grid,
+                automargin: true,
+                zeroline: false,
+            },
+            height: 300,
+            margin: { t: 16, b: 70, l: 52, r: 16, autoexpand: true },
+        }, { ...PLOTLY_CONFIG, responsive: true });
+    }
+
+    if (data.temporal_risk_data && data.temporal_risk_data.length) {
+        const months = data.temporal_risk_data.map(t => t.mes);
+        Plotly.react('chartTemporal', [
+            {
+                x: months,
+                y: data.temporal_risk_data.map(t => t.Verde || 0),
+                type: 'bar',
+                name: 'Bajo (Verde)',
+                marker: { color: C.green, opacity: 0.9 },
+            },
+            {
+                x: months,
+                y: data.temporal_risk_data.map(t => t.Amarillo || 0),
+                type: 'bar',
+                name: 'Medio (Amarillo)',
+                marker: { color: C.yellow, opacity: 0.9 },
+            },
+            {
+                x: months,
+                y: data.temporal_risk_data.map(t => t.Rojo || 0),
+                type: 'bar',
+                name: 'Alto (Rojo)',
+                marker: { color: C.red, opacity: 0.9 },
+            },
+        ], {
+            ...PL,
+            barmode: 'stack',
+            xaxis: { gridcolor: C.grid, title: 'Mes' },
+            yaxis: { title: 'Casos por nivel de riesgo', gridcolor: C.grid, side: 'left' },
+            height: 260,
+            showlegend: true,
+            legend: { orientation: 'h', y: -0.25, x: 0 },
+        }, PLOTLY_CONFIG);
+    }
+
+    if (data.heatmap_ramo_riesgo && data.heatmap_ramo_riesgo.ramos && data.heatmap_ramo_riesgo.ramos.length) {
+        Plotly.react('chartHeatmapRamoRiesgo', [{
+            z: data.heatmap_ramo_riesgo.z,
+            x: data.heatmap_ramo_riesgo.semaforos,
+            y: data.heatmap_ramo_riesgo.ramos,
+            type: 'heatmap',
+            colorscale: currentTheme === 'light'
+                ? [[0, '#f8fafc'], [0.5, 'rgba(3,105,161,0.35)'], [1, '#0369a1']]
+                : [[0, '#0b1220'], [0.5, 'rgba(0,209,255,0.35)'], [1, '#00d1ff']],
+            showscale: false,
+        }], {
+            ...PL,
+            margin: { t: 10, b: 40, l: 90, r: 10 },
+            xaxis: { title: 'Nivel de riesgo', gridcolor: C.grid },
+            yaxis: { title: 'Ramo', gridcolor: C.grid },
+            height: 280,
+        }, PLOTLY_CONFIG);
+    }
+
+    if (data.geo_risk_data && data.geo_risk_data.length) {
+        const suc = data.geo_risk_data.map(g => g.sucursal);
+        Plotly.react('chartGeoOperacion', [
+            { x: suc, y: data.geo_risk_data.map(g => g.Verde || 0), type: 'bar', name: 'Bajo', marker: { color: C.green, opacity: 0.88 } },
+            { x: suc, y: data.geo_risk_data.map(g => g.Amarillo || 0), type: 'bar', name: 'Medio', marker: { color: C.yellow, opacity: 0.88 } },
+            { x: suc, y: data.geo_risk_data.map(g => g.Rojo || 0), type: 'bar', name: 'Alto', marker: { color: C.red, opacity: 0.88 } },
+        ], {
+            ...PL,
+            barmode: 'stack',
+            margin: { t: 24, b: 40, l: 40, r: 10 },
+            xaxis: { title: 'Sucursal', gridcolor: C.grid },
+            yaxis: { title: 'Casos por nivel de riesgo', gridcolor: C.grid },
+            height: 280,
+            showlegend: true,
+            legend: { orientation: 'h', y: -0.25, x: 0 },
+        }, PLOTLY_CONFIG);
+    }
+
+    bindPlotlyDashboardCharts(data);
+    resizeDashboardCharts();
+}
+
+function resizeDashboardCharts() {
+    ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.querySelector('.plotly')) {
+            try { Plotly.Plots.resize(el); } catch (e) { /* ignore */ }
+        }
+    });
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', () => {
+        if (document.getElementById('dashboardShell')) resizeDashboardCharts();
+    });
+}
+
+async function loadNlpPanel() {
+    const el = document.getElementById('nlpPanel');
+    if (!el) return;
+    try {
+        const nlp = await (await fetch('/api/nlp-summary')).json();
+        if (!nlp.error && nlp.high_similarity_pairs) {
+            el.innerHTML = nlp.high_similarity_pairs.slice(0, 4).map(p =>
+                `<div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);">
+                    <span class="mono" style="font-size:0.78rem;color:var(--text-secondary);">${p.id_1} ↔ ${p.id_2}</span>
+                    <span class="badge ${p.similarity >= 0.85 ? 'badge-red' : p.similarity >= 0.70 ? 'badge-yellow' : 'badge-green'}" style="font-size:0.7rem;">${(p.similarity * 100).toFixed(0)}%</span>
+                </div>`
+            ).join('') || '<div style="color:var(--text-muted);font-size:0.82rem;">Sin pares similares.</div>';
+        } else el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Sin datos NLP.</div>';
+    } catch (e) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">NLP no disponible.</div>';
+    }
+}
+
+function renderExplainability(caseItem) {
+    const el = document.getElementById('explainabilityPanel');
+    if (!el) return;
+    if (!caseItem) {
+        el.innerHTML = 'Seleccione un caso de la lista para visualizar evidencia, alertas y variables de impacto.';
+        return;
+    }
+    const score = Number(caseItem.score_hibrido ?? caseItem.score_reglas ?? 0).toFixed(1);
+    const sem = caseItem.semaforo_final || caseItem.semaforo_reglas || 'N/A';
+    const alertas = String(caseItem.alertas_reglas || 'Sin alertas').split('|').map(x => x.trim()).filter(Boolean).slice(0, 5);
+    el.innerHTML = `
+        <div style="margin-bottom:0.4rem;"><strong>Caso:</strong> ${caseItem.id_siniestro || 'N/A'}</div>
+        <div style="margin-bottom:0.4rem;"><strong>Score:</strong> ${score}/100 · <strong>Riesgo:</strong> ${sem}</div>
+        <div style="margin-bottom:0.35rem;"><strong>Variables de impacto:</strong></div>
+        <ul style="margin:0;padding-left:1.1rem;">${alertas.map(a => `<li>${a}</li>`).join('')}</ul>
+        <div style="margin-top:0.5rem;color:var(--text-muted);">La decisión final requiere validación documental y criterio del analista antifraude.</div>
+    `;
+}
+
+function renderDashboardData(data) {
+    const rojo = data.semaforo.Rojo || 0, amarillo = data.semaforo.Amarillo || 0, verde = data.semaforo.Verde || 0;
+    const totalSafe = data.total || (rojo + amarillo + verde) || 1;
+    const pctOf = (n) => (n / totalSafe * 100).toFixed(1);
+
+    const activeFilters = getActiveFiltersForUI();
+    const isFiltered = activeFilters.length > 0;
+
+    const banner = document.getElementById('dashboardBanner');
+    if (isFiltered) {
+        banner.innerHTML = `Mostrando <strong>${data.total.toLocaleString()}</strong> de <strong>${data.total_unfiltered.toLocaleString()}</strong> siniestros (${activeFilters.length} filtro${activeFilters.length > 1 ? 's' : ''} activo${activeFilters.length > 1 ? 's' : ''}).`;
+    } else {
+        banner.innerHTML = `Vista completa: <strong>${data.total.toLocaleString()}</strong> siniestros analizados. Use filtros o haga clic en los gráficos para explorar.`;
+    }
+
+    document.getElementById('kpiTotal').textContent = data.total.toLocaleString();
+    document.getElementById('kpiTotalSub').textContent = isFiltered
+        ? `de ${data.total_unfiltered.toLocaleString()} totales` : 'Analizados';
+    document.getElementById('kpiRojo').textContent = rojo.toLocaleString();
+    document.getElementById('kpiRojoPct').textContent = `${pctOf(rojo)}% del filtro`;
+    document.getElementById('kpiMonto').textContent = '$' + ((data.monto_rojo || 0) / 1000000).toFixed(1) + 'M';
+    document.getElementById('kpiAuc').textContent = dashboardState.metricsAuc;
+    document.getElementById('kpiScore').textContent = data.score_promedio;
+    const now = document.getElementById('dashNow');
+    if (now) now.textContent = new Date().toLocaleString('es-EC');
+    const iaStatus = document.getElementById('dashIaStatus');
+    if (iaStatus) iaStatus.textContent = (dashboardState.metricsAuc !== '--' && Number(dashboardState.metricsAuc) > 0) ? 'Modelo supervisado activo' : 'Reglas + anomalías';
+
+    const ek = data.executive_kpis || {};
+    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    setText('kpiProbFraude', (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
+    setText(
+        'kpiClasificacion',
+        `🔴 ${(ek.riesgo_alto || 0).toLocaleString()} · 🟡 ${(ek.riesgo_medio || 0).toLocaleString()} · 🟢 ${(ek.riesgo_bajo || 0).toLocaleString()}`
+    );
+
+    updateFilterChips();
+    renderAnomaliesList(data.top_cases || []);
+    renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf);
+
+    const alerts = document.getElementById('alertsPanel');
+    alerts.innerHTML = (data.top_cases || []).slice(0, 8).map(c => {
+        const alertText = (c.alertas_reglas || '').split('|')[0].trim() || 'Caso de alto riesgo';
+        const sem = c.semaforo_final || c.semaforo_reglas || 'Verde';
+        const dotCls = sem === 'Rojo' ? 'pulse-dot-red' : sem === 'Amarillo' ? 'pulse-dot-yellow' : 'pulse-dot-green';
+        const score = c.score_hibrido ?? c.score_reglas ?? '';
+        return `<div class="alert-item anomaly-row-clickable" data-case-id="${c.id_siniestro}">
+            <span class="pulse-dot ${dotCls}" style="margin-top:0.35rem;flex-shrink:0;"></span>
+            <div class="alert-item-body">
+                <div class="alert-item-text">${alertText}</div>
+                <div class="alert-item-meta">${c.id_siniestro} · ${c.ramo || '—'}${score !== '' ? ' · Score ' + Number(score).toFixed(0) : ''}</div>
+            </div>
+        </div>`;
+    }).join('') || '<div style="color:var(--text-muted);font-size:0.82rem;padding:0.5rem;">Sin alertas con los filtros actuales.</div>';
+    alerts.querySelectorAll('.anomaly-row-clickable').forEach(row => {
+        row.addEventListener('click', () => {
+            const selected = (data.top_cases || []).find(x => x.id_siniestro === row.dataset.caseId);
+            renderExplainability(selected);
+            if (typeof viewCase === 'function') viewCase(row.dataset.caseId);
+        });
+    });
+
+    const signalsEl = document.getElementById('fraudSignalsTable');
+    if (signalsEl) {
+        signalsEl.innerHTML = (data.signals_summary || []).sort((a, b) => (b.count || 0) - (a.count || 0)).map(s => {
+            const sev = s.count > 50 ? 'Crítica' : s.count > 20 ? 'Alta' : s.count > 5 ? 'Media' : 'Baja';
+            const action = s.count > 50 ? 'Escalar investigación' : s.count > 20 ? 'Revisión documental' : 'Monitoreo';
+            const cls = sev === 'Crítica' ? 'badge-red' : sev === 'Alta' ? 'badge-yellow' : 'badge-green';
+            return `<tr><td>${s.signal}</td><td>${(s.count || 0).toLocaleString()}</td><td><span class="badge ${cls}">${sev}</span></td><td>${action}</td></tr>`;
+        }).join('');
+    }
+
+    const critical = data.critical_rules_summary || {};
+    const critTotal = Object.values(critical).reduce((acc, n) => acc + Number(n || 0), 0);
+    setText('dashCriticalCount', critTotal.toLocaleString());
+    const criticalEl = document.getElementById('criticalRulesPanel');
+    if (criticalEl) {
+        const order = ['RF-01', 'RF-02', 'RF-03', 'RF-04', 'RF-05', 'RF-06', 'RF-07'];
+        criticalEl.innerHTML = order.map(code => {
+            const n = Number(critical[code] || 0);
+            const cls = ['RF-01', 'RF-02', 'RF-03', 'RF-04'].includes(code) ? 'badge-red' : 'badge-yellow';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.45rem 0;border-bottom:1px solid var(--border);"><span>${code}</span><span class="badge ${cls}">${n} casos</span></div>`;
+        }).join('');
+    }
+
+    const providerEl = document.getElementById('providerRiskTable');
+    if (providerEl) {
+        providerEl.innerHTML = (data.provider_risk || []).map(p => `
+            <tr>
+                <td title="${p.beneficiario || ''}">${String(p.beneficiario || '').slice(0, 32)}</td>
+                <td>${(p.casos || 0).toLocaleString()}</td>
+                <td>${Number(p.score_prom || 0).toFixed(1)}</td>
+                <td>$${Number(p.monto || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+            </tr>
+        `).join('');
+    }
+
+    renderDashboardCharts(data);
+}
+
+async function refreshDashboard() {
+    const shell = document.getElementById('dashboardShell');
+    if (!shell) return;
+    try {
+        const qs = buildDashboardQuery();
+        const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''));
+        const data = await resp.json();
+        if (data.error) return;
+        dashboardState.lastData = data;
+        renderDashboardData(data);
+    } catch (e) {
+        console.error('Dashboard refresh:', e);
+    }
+}
+
+async function initDashboard() {
+    const container = document.getElementById('dashboardContent');
+    try {
+        const optResp = await fetch('/api/dashboard-filters');
+        const opts = await optResp.json();
+        if (opts.error) {
+            container.innerHTML = '<div class="alert alert-info">' + opts.error + '. Ejecute el pipeline desde Datos.</div>';
+            return;
+        }
+        dashboardState.options = opts;
+        setFilterDefaultsFromOptions(opts);
+        if (!dashboardState.initialized) {
+            dashboardState.filters = emptyDashboardFilters();
+            container.innerHTML = '<div id="dashboardShell">' + buildDashboardShell() + '</div>';
+            bindDashboardEvents();
+            populateFilterControls(opts);
+            updateSemaforoPills();
+            dashboardState.initialized = true;
+            loadNlpPanel();
+            try {
+                const m = await (await fetch('/api/model-metrics')).json();
+                if (!m.error) dashboardState.metricsAuc = (m.auc_roc || 0).toFixed(2);
+            } catch (e) { /* ignore */ }
+        }
+        await refreshDashboard();
+    } catch (e) {
+        console.error('initDashboard:', e);
+        container.innerHTML = '<div class="alert alert-danger">Error al cargar el dashboard.</div>';
+    }
+}
+
+// Compatibilidad con llamadas anteriores
+function loadDashboard() { initDashboard(); }
