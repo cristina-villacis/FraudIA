@@ -61,7 +61,16 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 | **Cursor API** | ❌ No | Pensada para el IDE Cursor, no para chat embebido en tu app |
 
 Sin ninguna API key el chat **sigue funcionando** con el motor local (reglas + datos del pipeline).
-Sin `DATABASE_URL` en Vercel, el sistema opera en modo bundle/in-memory (demo).
+
+### Análisis tras subir Excel (error «No hay datos cargados»)
+
+En Vercel cada petición puede ir a otra instancia serverless. Para que «Activar motor IA» funcione:
+
+1. Configure **`DATABASE_URL`** (TiDB) en Vercel — los datos se guardan al subir el Excel.
+2. Tras subir, espere el mensaje de éxito; el navegador guarda `session_id` para `/tmp` de respaldo.
+3. Si falla el guardado en BD, vuelva a subir el mismo archivo en la misma pestaña.
+
+Sin `DATABASE_URL` en Vercel, el análisis debe completarse en la misma respuesta de `/api/upload` (no cierre la pestaña hasta ver «Análisis completado»).
 
 ### TiDB Cloud (recomendado para producción)
 

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 import src.db.config  # noqa: F401 — carga .env del proyecto antes que el resto
 
-from src.app.core import APP_DIR  # noqa: E402
+from src.app.core import APP_DIR, reset_request_session_id, set_request_session_id  # noqa: E402
 from src.app import api_handlers as h  # noqa: E402
 
 app = FastAPI(title="FraudIA Claims", version="1.0.0")
@@ -34,6 +34,20 @@ static_dir = os.path.join(APP_DIR, "static")
 templates_dir = os.path.join(APP_DIR, "templates")
 if os.path.isdir(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.middleware("http")
+async def fraudia_session_middleware(request: Request, call_next):
+    """Propaga X-FraudIA-Session para reutilizar /tmp entre requests en Vercel."""
+    sid = (request.headers.get("X-FraudIA-Session") or "").strip() or None
+    if not sid:
+        cookie_sid = request.cookies.get("fraudia_session")
+        sid = cookie_sid.strip() if cookie_sid else None
+    token = set_request_session_id(sid)
+    try:
+        return await call_next(request)
+    finally:
+        reset_request_session_id(token)
 
 
 @app.middleware("http")

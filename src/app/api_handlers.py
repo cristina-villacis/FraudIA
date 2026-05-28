@@ -16,6 +16,8 @@ from src.app.core import (
     app_state,
     apply_loaded_datasets,
     build_agent_context,
+    ensure_request_session_id,
+    get_request_session_id,
     reset_pipeline_state,
     _db_save_lock,
 )
@@ -96,14 +98,49 @@ def _standard_tables_label(datasets: dict) -> str:
     return ", ".join(parts) if parts else "sin tablas válidas"
 
 
-def _ensure_session_state(require_scored: bool = False) -> bool:
-    """Recupera datasets/análisis en Vercel (cold start) desde /tmp o TiDB."""
+def _hydrate_datasets_from_storage() -> bool:
+    """Carga datasets: memoria → /tmp (sesión Vercel) → TiDB."""
     datasets = app_state.get("datasets") or {}
-    if "siniestros" not in datasets and is_vercel_runtime():
+    if "siniestros" in datasets:
+        return True
+
+    if is_vercel_runtime():
         loaded = _load_runtime_datasets()
         if loaded and "siniestros" in loaded:
             app_state["datasets"] = loaded
-            datasets = loaded
+            return True
+
+    if _should_use_live_database():
+        try:
+            from_db = normalize_datasets_columns(load_all_datasets())
+            if from_db and "siniestros" in from_db:
+                app_state["datasets"] = from_db
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+def _try_persist_datasets_early() -> Optional[str]:
+    """Guarda en TiDB justo tras subir Excel (antes del pipeline) para Vercel serverless."""
+    if not _should_use_live_database() or not _should_persist_dataset_on_load():
+        return None
+    datasets = app_state.get("datasets") or {}
+    if "siniestros" not in datasets:
+        return None
+    try:
+        with _db_save_lock:
+            init_database()
+            save_all_datasets({k: v.copy() for k, v in datasets.items()})
+        return "ok"
+    except Exception as exc:
+        return str(exc)[:160]
+
+
+def _ensure_session_state(require_scored: bool = False) -> bool:
+    """Recupera datasets/análisis en Vercel (cold start) desde /tmp o TiDB."""
+    _hydrate_datasets_from_storage()
 
     if require_scored and app_state.get("df_scored") is None:
         if is_vercel_runtime():
@@ -285,9 +322,9 @@ def _clear_runtime_analysis_cache() -> None:
         return
     import shutil
 
-    path = _runtime_analysis_dir()
-    if os.path.isdir(path):
-        shutil.rmtree(path, ignore_errors=True)
+    for path in _runtime_analysis_dirs():
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def _persist_runtime_analysis(result: dict) -> None:
@@ -297,9 +334,6 @@ def _persist_runtime_analysis(result: dict) -> None:
     df = result.get("df_scored")
     if df is None:
         return
-    out_dir = _runtime_analysis_dir()
-    os.makedirs(out_dir, exist_ok=True)
-    df.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
     meta = {
         "model_snapshot": result.get("model_snapshot"),
         "model_results": result.get("model_results"),
@@ -309,22 +343,33 @@ def _persist_runtime_analysis(result: dict) -> None:
         "total_records": result.get("total_records"),
         "auc_roc": result.get("auc_roc"),
     }
-    with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as f:
-        json.dump(meta, f, ensure_ascii=False, default=str)
+    for out_dir in _runtime_analysis_dirs():
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+            df.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
+            with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, default=str)
+        except Exception:
+            pass
 
 
 def _hydrate_runtime_analysis() -> bool:
     """Recupera último análisis guardado en /tmp (si existe)."""
     if not is_vercel_runtime():
         return False
-    csv_path = os.path.join(_runtime_analysis_dir(), "siniestros_scored.csv")
-    if not os.path.exists(csv_path):
+    csv_path = None
+    for analysis_dir in _runtime_analysis_dirs():
+        candidate = os.path.join(analysis_dir, "siniestros_scored.csv")
+        if os.path.exists(candidate):
+            csv_path = candidate
+            break
+    if not csv_path:
         return False
     df = pd.read_csv(csv_path)
     app_state["df_scored"] = df
     app_state["df_features"] = df.copy()
     app_state["pipeline_status"] = "completed"
-    meta_path = os.path.join(_runtime_analysis_dir(), "meta.json")
+    meta_path = os.path.join(os.path.dirname(csv_path), "meta.json")
     if os.path.exists(meta_path):
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
@@ -343,41 +388,39 @@ def _hydrate_runtime_analysis() -> bool:
 
 
 def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
-    """En Vercel guarda datasets en /tmp (sesión entre requests del mismo contenedor)."""
+    """En Vercel guarda datasets en /tmp (sesión + caché global)."""
     if not is_vercel_runtime():
         return
     if not datasets or "siniestros" not in datasets:
         return
-    cache_dir = _runtime_cache_dir()
-    os.makedirs(cache_dir, exist_ok=True)
-    manifest = {"tables": []}
-    for name, df in datasets.items():
-        path = os.path.join(cache_dir, f"{name}.csv")
-        df.to_csv(path, index=False)
-        manifest["tables"].append(name)
-    with open(os.path.join(cache_dir, "manifest.json"), "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False)
+    for cache_dir in _runtime_cache_dirs():
+        try:
+            _write_datasets_to_cache_dir(datasets, cache_dir)
+        except Exception:
+            pass
 
 
 def _load_runtime_datasets() -> Dict[str, pd.DataFrame]:
     if not is_vercel_runtime():
         return {}
-    cache_dir = _runtime_cache_dir()
-    manifest_path = os.path.join(cache_dir, "manifest.json")
-    if not os.path.exists(manifest_path):
-        return {}
-    try:
-        with open(manifest_path, encoding="utf-8") as f:
-            manifest = json.load(f)
-        tables = manifest.get("tables") or []
-        loaded: Dict[str, pd.DataFrame] = {}
-        for name in tables:
-            path = os.path.join(cache_dir, f"{name}.csv")
-            if os.path.exists(path):
-                loaded[name] = pd.read_csv(path)
-        return normalize_datasets_columns(loaded)
-    except Exception:
-        return {}
+    for cache_dir in _runtime_cache_dirs():
+        manifest_path = os.path.join(cache_dir, "manifest.json")
+        if not os.path.exists(manifest_path):
+            continue
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                manifest = json.load(f)
+            tables = manifest.get("tables") or []
+            loaded: Dict[str, pd.DataFrame] = {}
+            for name in tables:
+                path = os.path.join(cache_dir, f"{name}.csv")
+                if os.path.exists(path):
+                    loaded[name] = pd.read_csv(path)
+            if loaded and "siniestros" in loaded:
+                return normalize_datasets_columns(loaded)
+        except Exception:
+            continue
+    return {}
 
 
 def _hydrate_agent_from_scored_if_available() -> bool:
@@ -721,7 +764,9 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     apply_loaded_datasets(new_tables)
     reset_pipeline_state()
     _clear_runtime_analysis_cache()
+    session_id = ensure_request_session_id()
     _persist_runtime_datasets(app_state["datasets"])
+    db_early = _try_persist_datasets_early()
     validation = validate_datasets(app_state["datasets"])
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns)}
@@ -750,7 +795,13 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         "loaded_tables": list(new_tables.keys()),
         "persist_to_db_on_analyze": persist_planned,
         "auto_pipeline": auto_pipeline,
+        "session_id": session_id,
     }
+    if db_early == "ok":
+        resp["db_persisted_on_upload"] = True
+        resp["message"] += " Datos guardados en base de datos."
+    elif db_early:
+        resp["db_persist_warning"] = db_early
     if validation["has_siniestros"]:
         if auto_pipeline:
             _apply_workflow_to_response(resp, _start_load_workflow())
@@ -767,7 +818,9 @@ def load_synthetic() -> dict:
     apply_loaded_datasets(datasets)
     reset_pipeline_state()
     _clear_runtime_analysis_cache()
+    session_id = ensure_request_session_id()
     _persist_runtime_datasets(app_state["datasets"])
+    db_early = _try_persist_datasets_early()
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns)}
         for name, df in app_state["datasets"].items()
@@ -788,7 +841,12 @@ def load_synthetic() -> dict:
         "has_siniestros": True,
         "persist_to_db_on_analyze": persist_planned,
         "auto_pipeline": auto_pipeline,
+        "session_id": session_id,
     }
+    if db_early == "ok":
+        resp["db_persisted_on_upload"] = True
+    elif db_early:
+        resp["db_persist_warning"] = db_early
     if auto_pipeline:
         _apply_workflow_to_response(resp, _start_load_workflow())
     return resp
@@ -847,14 +905,8 @@ def run_pipeline() -> dict:
 
 
 def _execute_run_pipeline_body() -> dict:
-    if is_vercel_runtime() and not is_persistent_database_configured():
-        datasets = app_state.get("datasets") or {}
-        if not datasets or "siniestros" not in datasets:
-            datasets = _load_runtime_datasets()
-            if datasets and "siniestros" in datasets:
-                app_state["datasets"] = datasets
-                reset_pipeline_state()
-        if not datasets or "siniestros" not in datasets:
+    if not _hydrate_datasets_from_storage():
+        if is_vercel_runtime() and not is_persistent_database_configured():
             boot = bootstrap_vercel_demo(app_state)
             bundle = load_vercel_bundle() or {}
             bundle_steps = (
@@ -868,18 +920,24 @@ def _execute_run_pipeline_body() -> dict:
             ]
             if not steps:
                 steps = [{"step": "Carga de bundle Vercel", "status": "ok"}]
-            return {
-                "status": "success",
-                "message": "Análisis cargado desde build Vercel. Redeploy para recalcular.",
-                "total_records": len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0,
-                "duration_seconds": 0,
-                "steps": steps,
-                "vercel": True,
-                "bootstrap": boot,
-            }
-    _ensure_session_state(require_scored=False)
-    if not app_state.get("datasets") or "siniestros" not in app_state["datasets"]:
-        raise ValueError("No hay datos cargados. Suba un archivo o cargue datos sintéticos.")
+            if app_state.get("df_scored") is not None:
+                return {
+                    "status": "success",
+                    "message": "Análisis cargado desde build Vercel. Redeploy para recalcular.",
+                    "total_records": len(app_state["df_scored"]),
+                    "duration_seconds": 0,
+                    "steps": steps,
+                    "vercel": True,
+                    "bootstrap": boot,
+                }
+        if not _hydrate_datasets_from_storage():
+            hint = (
+                " Suba el Excel de nuevo (misma pestaña) o configure DATABASE_URL en Vercel "
+                "y pulse Guardar en Base de datos tras cargar."
+            )
+            raise ValueError(
+                "No hay datos cargados. Suba un archivo o cargue datos sintéticos." + hint
+            )
     t_start = time.time()
     app_state["pipeline_status"] = "running"
 

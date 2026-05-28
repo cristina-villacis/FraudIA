@@ -1934,12 +1934,27 @@
     const PLOTLY_LAYOUT = getPlotlyLayout();
     const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
 
+    // ── Sesión Vercel: reutiliza /tmp entre peticiones del mismo navegador ──
+    function getFraudiaSessionId() {
+        try { return sessionStorage.getItem('fraudia_session_id') || ''; } catch (e) { return ''; }
+    }
+    function setFraudiaSessionId(id) {
+        if (!id) return;
+        try { sessionStorage.setItem('fraudia_session_id', id); } catch (e) { /* ignore */ }
+    }
+    function withFraudiaSessionHeaders(options) {
+        const headers = { ...(options.headers || {}) };
+        const sid = getFraudiaSessionId();
+        if (sid) headers['X-FraudIA-Session'] = sid;
+        return { ...options, headers };
+    }
+
     // ── Fetch con timeout (evita pantalla colgada si TiDB no responde) ──
     async function fetchWithTimeout(url, options = {}, ms = 10000) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), ms);
         try {
-            return await fetch(url, { ...options, signal: ctrl.signal });
+            return await fetch(url, withFraudiaSessionHeaders({ ...options, signal: ctrl.signal }));
         } finally {
             clearTimeout(timer);
         }
@@ -2273,6 +2288,7 @@
     function uploadFile(input) { if(input.files.length) uploadFileObj(input.files[0]); }
 
     function handleDatasetLoadResponse(data) {
+        if (data.session_id) setFraudiaSessionId(data.session_id);
         const status = document.getElementById('datasetLoadStatus');
         const canAnalyze = data.has_siniestros !== false;
         let html = '<div class="alert ' + (canAnalyze ? 'alert-success' : 'alert-warning') + '" style="margin:0;">' + (data.message || 'Dataset procesado') + '</div>';
@@ -2468,7 +2484,7 @@
         if (statusTxt) statusTxt.textContent = 'Ejecutando pipeline de análisis...';
 
         try {
-            const resp = await fetch('/api/run-pipeline', { method: 'POST' });
+            const resp = await fetch('/api/run-pipeline', withFraudiaSessionHeaders({ method: 'POST' }));
             const data = await resp.json();
             if(data.error) {
                 document.getElementById('pipelineSteps').innerHTML = '<div class="step step-error"><div class="step-icon">&#10007;</div> Error: ' + data.error + '</div>';

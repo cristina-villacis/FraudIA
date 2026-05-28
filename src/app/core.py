@@ -1,8 +1,10 @@
 """Estado compartido y utilidades de la aplicación (sin Flask)."""
 from __future__ import annotations
 
+import contextvars
 import os
 import threading
+import uuid
 
 UPLOAD_FOLDER = os.path.join("data", "raw")
 DOCUMENTS_UPLOAD_FOLDER = os.path.join("data", "uploads", "documents")
@@ -31,6 +33,32 @@ app_state: dict = {
 }
 
 _db_save_lock = threading.Lock()
+
+_request_session: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "fraudia_session", default=None
+)
+
+
+def get_request_session_id() -> str | None:
+    return _request_session.get()
+
+
+def set_request_session_id(session_id: str | None):
+    return _request_session.set(session_id)
+
+
+def reset_request_session_id(token) -> None:
+    _request_session.reset(token)
+
+
+def ensure_request_session_id() -> str:
+    """ID de sesión para /tmp en Vercel (header X-FraudIA-Session o nuevo UUID)."""
+    sid = get_request_session_id()
+    if sid:
+        return sid
+    sid = uuid.uuid4().hex[:16]
+    set_request_session_id(sid)
+    return sid
 
 
 def reset_pipeline_state() -> None:
