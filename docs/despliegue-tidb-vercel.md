@@ -27,11 +27,13 @@ Formato para FraudIA:
 mysql+pymysql://USUARIO:CONTRASEÑA@HOST_TIDB:4000/fraudia_claims
 ```
 
-Ejemplo (sustituye valores reales):
+Ejemplo con tu cluster **Siniestros** (sustituye `TU_PASSWORD` por la misma de tu `.env` local):
 
 ```text
-mysql+pymysql://xxxx.root:TU_PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims
+mysql+pymysql://2HEb2hZnGuHVGPc.root:TU_PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims
 ```
+
+**CA / `<CA_PATH>`:** en Vercel **no hace falta** subir el archivo CA. El código detecta `*.tidbcloud.com` y usa TLS automáticamente.
 
 **Importante:** Si la contraseña tiene caracteres especiales (`@`, `#`, `%`), codifícala en URL (ej. `@` → `%40`).
 
@@ -48,7 +50,7 @@ Proyecto → **Settings** → **Environment Variables**:
 | `OPENAI_MODEL` | `gpt-4o-mini` | Production, Preview |
 | `OPENAI_ENABLED` | `true` | Production, Preview |
 | `SECRET_KEY` | Texto aleatorio largo | Production, Preview |
-| `MYSQL_SSL` | `true` (opcional si el host no es tidbcloud.com) | Production |
+| `MYSQL_SSL` | No necesario (el host ya es `tidbcloud.com`) | — |
 
 Guarda y haz **Redeploy** del último deployment.
 
