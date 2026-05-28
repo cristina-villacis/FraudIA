@@ -79,7 +79,7 @@ Guía paso a paso con tu cluster **Siniestros**: [despliegue-tidb-vercel.md](./d
 Resumen:
 
 1. TiDB Cloud → **Connect** → copiar host, usuario, contraseña, puerto `4000`
-2. Vercel → `DATABASE_URL=mysql+pymysql://user:pass@HOST:4000/fraudia_claims`
+2. Vercel → `DATABASE_URL=mysql+pymysql://ezF1nSTkhwhsAAD.root:PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims`
 3. Redeploy → `POST /api/db-init` una vez
 4. Subir datos → **Ejecutar análisis** → Dashboard/ML reflejan **ese** dataset
 

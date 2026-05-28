@@ -1,8 +1,8 @@
 """
 Conexión a base de datos.
 
-- Local: variables TIDB_* en `.env` (instancia Fraulocal / pruebas).
-- Vercel: `DATABASE_URL` en el panel de Vercel (otra instancia).
+- Local: variables TIDB_* en `.env` (cluster TiDB **Aseguradora**).
+- Vercel: `DATABASE_URL` en el panel de Vercel (misma instancia).
 """
 import os
 import ssl

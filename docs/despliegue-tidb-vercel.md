@@ -1,6 +1,14 @@
-# TiDB Cloud + Vercel (producción con datos reales)
+# TiDB Cloud + Vercel (cluster Aseguradora)
 
-Tu instancia **Siniestros** en TiDB Cloud (AWS `us-east-1`) es compatible con este proyecto: usa el driver **MySQL** (`mysql+pymysql://`).
+Instancia **Aseguradora** en TiDB Cloud (Starter, AWS `us-east-1`, TiDB v8.5.3).
+
+| Campo | Valor |
+|-------|--------|
+| Host | `gateway01.us-east-1.prod.aws.tidbcloud.com` |
+| Puerto | `4000` |
+| Usuario | `ezF1nSTkhwhsAAD.root` |
+| Base de datos app | `fraudia_claims` (se crea con `/api/db-init`) |
+| Connect en panel | muestra `sys` — es normal; FraudIA usa `fraudia_claims` |
 
 Con `DATABASE_URL` configurada en Vercel, el flujo queda igual que en local:
 
@@ -9,33 +17,21 @@ Con `DATABASE_URL` configurada en Vercel, el flujo queda igual que en local:
 3. Ejecutar análisis completo  
 4. Dashboard y Modelo ML leen los resultados de **ese** dataset  
 
-Ya no depende del modo demo “In-memory (Vercel)”.
-
 ---
 
-## 1. Obtener la cadena de conexión en TiDB Cloud
+## 1. Cadena de conexión
 
-1. Entra a [TiDB Cloud](https://tidbcloud.com) → cluster **Siniestros** (Active).  
-2. Menú **Connect** → **Public endpoint** (o el que uses).  
-3. Crea una base de datos si no existe, por ejemplo: `fraudia_claims`  
-4. Copia usuario, contraseña, host y puerto (suele ser **4000**).  
-5. Descarga el certificado CA si el asistente lo pide (el código ya usa TLS por defecto para hosts `*.tidbcloud.com`).
-
-Formato para FraudIA:
+Formato:
 
 ```text
-mysql+pymysql://USUARIO:CONTRASEÑA@HOST_TIDB:4000/fraudia_claims
+mysql+pymysql://ezF1nSTkhwhsAAD.root:TU_PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims
 ```
 
-Ejemplo con tu cluster **Siniestros** (sustituye `TU_PASSWORD` por la misma de tu `.env` local):
+Sustituye `TU_PASSWORD` por la contraseña del panel **Connect** de TiDB Cloud.
 
-```text
-mysql+pymysql://2HEb2hZnGuHVGPc.root:TU_PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims
-```
+**CA / `<CA_PATH>`:** en Vercel no hace falta subir el archivo CA. El código detecta `*.tidbcloud.com` y usa TLS automáticamente.
 
-**CA / `<CA_PATH>`:** en Vercel **no hace falta** subir el archivo CA. El código detecta `*.tidbcloud.com` y usa TLS automáticamente.
-
-**Importante:** Si la contraseña tiene caracteres especiales (`@`, `#`, `%`), codifícala en URL (ej. `@` → `%40`).
+Si la contraseña tiene caracteres especiales (`@`, `#`, `%`), codifícala en URL (ej. `@` → `%40`).
 
 ---
 
@@ -45,26 +41,16 @@ Proyecto → **Settings** → **Environment Variables**:
 
 | Variable | Valor | Entornos |
 |----------|--------|----------|
-| `DATABASE_URL` | Cadena `mysql+pymysql://...` de TiDB | Production, Preview |
-| `OPENAI_API_KEY` | Tu clave OpenAI | Production, Preview |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Production, Preview |
-| `OPENAI_ENABLED` | `true` | Production, Preview |
+| `DATABASE_URL` | Cadena `mysql+pymysql://...` de arriba | Production, Preview |
+| `PERSIST_DATASET_ON_LOAD` | `true` | Production, Preview |
+| `GEMINI_API_KEY` o `OPENAI_API_KEY` | Chat IA | Production, Preview |
 | `SECRET_KEY` | Texto aleatorio largo | Production, Preview |
-| `MYSQL_SSL` | No necesario (el host ya es `tidbcloud.com`) | — |
 
-Guarda y haz **Redeploy** del último deployment.
+Guarda y haz **Redeploy**.
 
 ---
 
-## 3. Crear tablas (una vez)
-
-Tras el deploy, llama una vez:
-
-```http
-POST https://TU-DOMINIO.vercel.app/api/db-init
-```
-
-O desde terminal:
+## 3. Crear tablas (una vez por instancia)
 
 ```bash
 curl -X POST https://fraud-ia.vercel.app/api/db-init
@@ -74,60 +60,45 @@ Respuesta esperada: `{"status":"ok","message":"Tablas creadas en la base de dato
 
 ---
 
-## 4. Verificar conexión
+## 4. Local (mismo cluster)
 
-Abre la app y revisa el badge superior:
-
-- Antes: `DB: In-memory (Vercel)`  
-- Después: `DB: TiDB Cloud (MySQL)` (o `MySQL`) con host del gateway TiDB  
-
-También puedes usar:
-
-```http
-GET https://TU-DOMINIO.vercel.app/api/db-status
-```
-
----
-
-## 5. Flujo de uso en producción
-
-1. **Datos** → subir Excel/CSV o **Generar datos sintéticos**  
-2. **Ejecutar análisis completo** (entrena y guarda scores en TiDB)  
-3. **Dashboard** y **Modelo ML** → deben coincidir con el número de siniestros cargados  
-4. Chat IA usa el contexto del análisis actual  
-
----
-
-## 6. Local con la misma TiDB (opcional)
-
-En `.env` (no subir a Git):
-
-```env
-DATABASE_URL=mysql+pymysql://USUARIO:PASSWORD@HOST:4000/fraudia_claims
-```
+Copia `.env.example` → `.env` y pon la contraseña en `TIDB_PASSWORD`:
 
 ```powershell
-.\venv\Scripts\Activate.ps1
-pip install pymysql cryptography
-python -m src.app.main
+copy .env.example .env
+.\scripts\iniciar-local.ps1
 ```
+
+O usa `DATABASE_URL` en `.env` en lugar de `TIDB_*`:
+
+```env
+DATABASE_URL=mysql+pymysql://ezF1nSTkhwhsAAD.root:PASSWORD@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/fraudia_claims
+```
+
+---
+
+## 5. Verificar
+
+```http
+GET https://fraud-ia.vercel.app/api/db-status
+```
+
+Badge en la app: `TiDB Cloud (MySQL)` con registros > 0 tras cargar datos.
 
 ---
 
 ## Solución de problemas
 
-| Síntoma | Causa | Qué hacer |
-|---------|--------|-----------|
-| Sigue `In-memory (Vercel)` | `DATABASE_URL` no definida o mal escrita | Revisar variable en Vercel y redeploy |
-| `Can't connect to MySQL server` | IP/firewall TiDB | En TiDB Cloud → Security → permitir acceso (0.0.0.0/0 para pruebas o IP de Vercel) |
-| `SSL` / certificate error | TLS | Host debe ser `*.tidbcloud.com`; o `MYSQL_SSL=true` |
-| `No module named 'pymysql'` | Dependencia faltante | Ya está en `requirements.txt`; redeploy |
-| Dashboard con datos viejos | Análisis no ejecutado tras carga | Subir datos → **Ejecutar análisis** de nuevo |
+| Síntoma | Qué hacer |
+|---------|-----------|
+| `In-memory (Vercel)` | Falta `DATABASE_URL` → añadir y redeploy |
+| `Can't connect` | TiDB Cloud → Security → permitir acceso público |
+| FK / IntegrityError | Subir Excel **multihoja** (plantilla completa) |
+| Dashboard vacío | Subir Excel → **Activar motor IA** |
 
 ---
 
-## Nota de seguridad
+## Seguridad
 
-- No subas `DATABASE_URL` con contraseña a Git.  
-- Usa solo **Environment Variables** de Vercel.  
-- Rota la contraseña del usuario TiDB si alguna vez se expuso.
+- No subas `.env` ni `DATABASE_URL` con contraseña a Git.  
+- Rota la contraseña en TiDB Cloud si se expuso en chat o capturas.
