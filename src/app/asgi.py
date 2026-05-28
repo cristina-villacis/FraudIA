@@ -331,3 +331,11 @@ async def api_nlp_summary():
 @app.get("/api/status")
 async def api_status():
     return h.get_status()
+
+
+@app.post("/api/session-bootstrap")
+async def api_session_bootstrap():
+    try:
+        return h.session_bootstrap()
+    except ValueError as e:
+        return _err(e, 400)

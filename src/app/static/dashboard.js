@@ -1348,7 +1348,12 @@ async function refreshDashboard() {
     if (!shell) return;
     try {
         const qs = buildDashboardQuery();
-        const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''));
+        const dashHeaders = {};
+        try {
+            const sid = sessionStorage.getItem('fraudia_session_id');
+            if (sid) dashHeaders['X-FraudIA-Session'] = sid;
+        } catch (e) { /* ignore */ }
+        const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''), { headers: dashHeaders });
         const data = await resp.json();
         if (data.error) return;
         dashboardState.lastData = data;
@@ -1361,7 +1366,12 @@ async function refreshDashboard() {
 async function initDashboard() {
     const container = document.getElementById('dashboardContent');
     try {
-        const optResp = await fetch('/api/dashboard-filters');
+        const dashHeaders = {};
+        try {
+            const sid = sessionStorage.getItem('fraudia_session_id');
+            if (sid) dashHeaders['X-FraudIA-Session'] = sid;
+        } catch (e) { /* ignore */ }
+        const optResp = await fetch('/api/dashboard-filters', { headers: dashHeaders });
         const opts = await optResp.json();
         if (opts.error) {
             container.innerHTML = '<div class="alert alert-info">' + opts.error + '. Ejecute el pipeline desde Datos.</div>';

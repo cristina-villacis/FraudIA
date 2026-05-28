@@ -132,34 +132,50 @@ def _try_persist_datasets_early() -> Optional[str]:
     try:
         with _db_save_lock:
             init_database()
-            save_all_datasets({k: v.copy() for k, v in datasets.items()})
+            result = save_all_datasets(
+                {k: v.copy() for k, v in datasets.items()},
+                full_replace=False,
+            )
+            sin_result = result.get("siniestros")
+            if isinstance(sin_result, str) and sin_result.startswith("error"):
+                return sin_result
+            if not sin_result:
+                return "No se guardaron filas en siniestros"
         return "ok"
     except Exception as exc:
         return str(exc)[:160]
+
+
+def _ensure_scored_state() -> bool:
+    """Carga df_scored desde memoria, /tmp o TiDB (columnas score_hibrido / semaforo_final)."""
+    if app_state.get("df_scored") is not None:
+        return True
+    _hydrate_datasets_from_storage()
+    if is_vercel_runtime():
+        _hydrate_runtime_analysis()
+    if app_state.get("df_scored") is None:
+        _hydrate_agent_from_scored_if_available()
+    return app_state.get("df_scored") is not None
 
 
 def _ensure_session_state(require_scored: bool = False) -> bool:
     """Recupera datasets/análisis en Vercel (cold start) desde /tmp o TiDB."""
     _hydrate_datasets_from_storage()
 
-    if require_scored and app_state.get("df_scored") is None:
-        if is_vercel_runtime():
-            _hydrate_runtime_analysis()
-        if app_state.get("df_scored") is None and _should_use_live_database():
-            try:
-                from_db = normalize_datasets_columns(load_all_datasets())
-                if from_db and "siniestros" in from_db:
-                    app_state["datasets"] = from_db
-                    _hydrate_agent_from_scored_if_available()
-            except Exception:
-                pass
+    if require_scored:
+        return _ensure_scored_state()
 
     return bool(app_state.get("datasets") and "siniestros" in app_state["datasets"])
 
 
 def persist_datasets_to_db() -> dict:
     """Guarda todas las tablas del dataset en TiDB (reemplazo completo)."""
-    _ensure_session_state(require_scored=False)
+    if not _hydrate_datasets_from_storage():
+        datasets = app_state.get("datasets") or {}
+        if "siniestros" not in datasets:
+            raise ValueError(
+                "No hay dataset en sesión. Suba un Excel o genere datos y espere a que termine la carga."
+            )
     datasets = app_state.get("datasets") or {}
     if "siniestros" not in datasets:
         raise ValueError(
@@ -483,6 +499,11 @@ def ensure_vercel_data() -> None:
         _hydrate_runtime_analysis()
 
     if is_persistent_database_configured():
+        if not (app_state.get("datasets") and "siniestros" in app_state.get("datasets", {})):
+            _hydrate_datasets_from_storage()
+        if app_state.get("df_scored") is None:
+            _hydrate_runtime_analysis()
+            _hydrate_agent_from_scored_if_available()
         return
 
     if app_state.get("datasets") and "siniestros" in app_state["datasets"]:
@@ -894,12 +915,13 @@ def load_from_db() -> dict:
             "En Vercel sin base de datos: suba un dataset o genere datos sintéticos y ejecute el análisis."
         )
 
-    datasets = normalize_datasets_columns(load_all_datasets())
-    if not datasets or "siniestros" not in datasets:
+    if not _hydrate_datasets_from_storage():
         raise ValueError("No hay datos en la base de datos. Suba un archivo primero.")
-    app_state["datasets"] = datasets
+    datasets = app_state.get("datasets") or {}
+    if "siniestros" not in datasets:
+        raise ValueError("No hay datos en la base de datos. Suba un archivo primero.")
     reset_pipeline_state()
-    _hydrate_agent_from_scored_if_available()
+    _ensure_scored_state()
     db_info = test_connection()
     return {
         "status": "success",
@@ -1203,15 +1225,46 @@ def nlp_summary() -> dict:
     return results
 
 
+def session_bootstrap() -> dict:
+    """
+    Recupera dataset y análisis desde TiDB o /tmp (petición nueva en Vercel).
+    El frontend puede llamarlo al abrir la app o tras subir Excel.
+    """
+    has_datasets = _hydrate_datasets_from_storage()
+    has_scored = _ensure_scored_state()
+    ds = app_state.get("datasets") or {}
+    n_sin = len(ds["siniestros"]) if "siniestros" in ds else 0
+    return {
+        "status": "ok",
+        "session_id": get_request_session_id(),
+        "datasets_ready": has_datasets and n_sin > 0,
+        "pipeline_ready": has_scored,
+        "siniestros_rows": n_sin,
+        "tables": list(ds.keys()),
+        "message": (
+            "Datos y análisis listos."
+            if has_scored
+            else (
+                "Hay datos en base de datos pero falta ejecutar el motor IA."
+                if n_sin > 0
+                else "No hay siniestros cargados. Suba un Excel."
+            )
+        ),
+    }
+
+
 def get_status() -> dict:
+    if is_vercel_runtime():
+        _hydrate_datasets_from_storage()
+        _ensure_scored_state()
     db_info = (
         {"status": "ok", "type": "In-memory (Vercel)", "host": "demo"}
-        if is_vercel_runtime()
+        if is_vercel_runtime() and not is_persistent_database_configured()
         else test_connection()
     )
     return {
         "pipeline_status": app_state["pipeline_status"],
-        "datasets_loaded": list(app_state["datasets"].keys()),
+        "datasets_loaded": list((app_state.get("datasets") or {}).keys()),
         "has_scored_data": app_state["df_scored"] is not None,
         "has_model": app_state["model_results"] is not None,
         "has_agent": app_state["agent"] is not None,

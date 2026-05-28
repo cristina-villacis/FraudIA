@@ -81,22 +81,28 @@ def drop_all_data():
     ]
 
     for t in tables_order:
-        safe = t.replace("`", "")
-        try:
-            with engine.begin() as conn:
+        _truncate_table(engine, t, is_mysql)
+
+
+def _truncate_table(engine, table_name: str, is_mysql: Optional[bool] = None) -> None:
+    if is_mysql is None:
+        is_mysql = "mysql" in str(engine.url)
+    safe = table_name.replace("`", "")
+    try:
+        with engine.begin() as conn:
+            if is_mysql:
+                conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+            try:
                 if is_mysql:
-                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
-                try:
-                    if is_mysql:
-                        conn.execute(text(f"TRUNCATE TABLE `{safe}`"))
-                    else:
-                        conn.execute(text(f"DELETE FROM {safe}"))
-                except Exception:
+                    conn.execute(text(f"TRUNCATE TABLE `{safe}`"))
+                else:
                     conn.execute(text(f"DELETE FROM {safe}"))
-                if is_mysql:
-                    conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
-        except Exception:
-            continue
+            except Exception:
+                conn.execute(text(f"DELETE FROM {safe}"))
+            if is_mysql:
+                conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+    except Exception:
+        pass
 
 
 def _save_dataframe_on_connection(conn, df: pd.DataFrame, table_name: str) -> int:
@@ -120,14 +126,31 @@ def save_dataframe(df: pd.DataFrame, table_name: str) -> int:
         return _save_dataframe_on_connection(conn, df, table_name)
 
 
-def save_all_datasets(datasets: Dict[str, pd.DataFrame]) -> Dict[str, int]:
-    """Vacía tablas y guarda datasets en orden FK (transacción por tabla, estable en TiDB Cloud)."""
+def save_all_datasets(
+    datasets: Dict[str, pd.DataFrame],
+    *,
+    full_replace: bool = True,
+) -> Dict[str, int]:
+    """
+    Guarda datasets en orden FK.
+    full_replace=True: vacía todas las tablas antes (reemplazo total).
+    full_replace=False: solo vacía las tablas que se van a escribir (más seguro tras subir Excel).
+    """
     order = ["asegurados", "vehiculos", "polizas", "proveedores", "siniestros", "documentos"]
     results: Dict[str, Any] = {}
     engine = get_engine()
+    is_mysql = "mysql" in str(engine.url)
 
     init_database()
-    drop_all_data()
+    if full_replace:
+        drop_all_data()
+    else:
+        for table_name in order:
+            if table_name in datasets:
+                _truncate_table(engine, table_name, is_mysql)
+        for name in datasets:
+            if name not in order:
+                _truncate_table(engine, name, is_mysql)
 
     for table_name in order:
         if table_name not in datasets:

@@ -2134,6 +2134,28 @@
                 if(data.stats && data.stats.tables) {
                     const total = Object.values(data.stats.tables).reduce((a,b) => a+b, 0);
                     if(total > 0) dbHost.textContent += ' · ' + total.toLocaleString() + ' registros';
+                    const sinRows = data.stats.tables.siniestros || 0;
+                    if (sinRows > 0) {
+                        bootstrapSessionFromServer().then((b) => {
+                            if (!b) return;
+                            if (b.pipeline_ready) {
+                                const aiBadge = document.getElementById('aiEngineBadge');
+                                if (aiBadge) {
+                                    aiBadge.className = 'badge badge-green';
+                                    aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo';
+                                }
+                                setPipelineButtonsEnabled(true);
+                            } else if (b.datasets_ready) {
+                                const st = document.getElementById('datasetLoadStatus');
+                                if (st && !st.querySelector('.alert-success')) {
+                                    st.innerHTML = '<div class="alert alert-info" style="margin:0;">Hay ' +
+                                        b.siniestros_rows.toLocaleString() +
+                                        ' siniestros en TiDB. Suba el Excel de nuevo o pulse <strong>Activar motor IA</strong>.</div>';
+                                }
+                                setPipelineButtonsEnabled(true);
+                            }
+                        });
+                    }
                 }
             } else {
                 dbInd.innerHTML = '<span class="pulse-dot pulse-dot-red"></span> DB: Error';
@@ -2157,7 +2179,7 @@
             if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Guardando...'; }
         });
         try {
-            const resp = await fetchWithTimeout('/api/persist-datasets', { method: 'POST' }, 120000);
+            const resp = await fetchWithTimeout('/api/persist-datasets', withFraudiaSessionHeaders({ method: 'POST' }), 120000);
             const data = await resp.json();
             if (data.error) { alert(data.error); return; }
             document.getElementById('datasetLoadStatus').innerHTML =
@@ -2176,7 +2198,7 @@
         const btn = document.getElementById('btnLoadDB');
         btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Cargando...';
         try {
-            const resp = await fetch('/api/load-from-db', { method: 'POST' });
+            const resp = await fetch('/api/load-from-db', withFraudiaSessionHeaders({ method: 'POST' }));
             const data = await resp.json();
             if(data.error) { alert(data.error); btn.disabled = false; btn.textContent = 'Cargar desde BD'; return; }
             showTablesInfo(data.tables);
@@ -2287,11 +2309,27 @@
 
     function uploadFile(input) { if(input.files.length) uploadFileObj(input.files[0]); }
 
+    async function bootstrapSessionFromServer() {
+        try {
+            const resp = await fetchWithTimeout('/api/session-bootstrap', { method: 'POST' }, 25000);
+            const b = await resp.json();
+            if (b.session_id) setFraudiaSessionId(b.session_id);
+            return b;
+        } catch (e) {
+            console.warn('session-bootstrap:', e);
+            return null;
+        }
+    }
+
     function handleDatasetLoadResponse(data) {
         if (data.session_id) setFraudiaSessionId(data.session_id);
         const status = document.getElementById('datasetLoadStatus');
         const canAnalyze = data.has_siniestros !== false;
         let html = '<div class="alert ' + (canAnalyze ? 'alert-success' : 'alert-warning') + '" style="margin:0;">' + (data.message || 'Dataset procesado') + '</div>';
+        if (data.db_persist_warning) {
+            html += '<div class="alert alert-warning" style="margin-top:0.5rem;">No se pudo guardar en TiDB: ' +
+                escapeHtml(data.db_persist_warning) + '. Pulse «Guardar en Base de datos» o vuelva a subir el Excel.</div>';
+        }
         if (data.warnings && data.warnings.length) {
             html += '<div class="alert alert-warning" style="margin-top:0.5rem;">' +
                 data.warnings.map(w => '<div>• ' + w + '</div>').join('') + '</div>';
@@ -2324,6 +2362,15 @@
             startBackgroundAnalysis();
         } else {
             applyAutoPipelineFromApiResponse(data);
+        }
+        if (canAnalyze && data.db_persisted_on_upload && !(data.pipeline && data.pipeline.auto_analyzed)) {
+            bootstrapSessionFromServer().then((b) => {
+                if (b && b.pipeline_ready) {
+                    handlePipelineComplete({ auto_analyzed: true, total_records: b.siniestros_rows });
+                } else if (b && b.datasets_ready && status) {
+                    status.innerHTML += '<div class="alert alert-info" style="margin-top:0.5rem;">Datos en TiDB. Pulse <strong>Activar motor IA</strong> para el análisis.</div>';
+                }
+            });
         }
         setTimeout(() => checkDBStatus(false), 4000);
     }
