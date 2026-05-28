@@ -222,7 +222,13 @@
     gap: 1.25rem;
     margin-bottom: 1.25rem;
 }
-@media (max-width: 1100px) { .ingest-grid { grid-template-columns: 1fr; } }
+.ingest-grid.ingest-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 1100px) {
+    .ingest-grid,
+    .ingest-grid.ingest-grid-3 { grid-template-columns: 1fr; }
+}
 
 .ingest-panel {
     background: rgba(17,24,39,0.75);

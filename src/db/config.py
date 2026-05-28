@@ -159,4 +159,16 @@ def test_connection() -> dict:
             "user": _database_user_label(),
         }
     except Exception as e:
-        return {"status": "error", "message": str(e), "user": _database_user_label()}
+        msg = str(e)
+        hint = None
+        if "10061" in msg or "2003" in msg or "Connection refused" in msg:
+            hint = (
+                "No se alcanza TiDB en el puerto 4000 (firewall, cluster pausado o endpoint público "
+                "desactivado). Ejecute: python -m scripts.verificar_tidb"
+            )
+        elif "1045" in msg or "Access denied" in msg:
+            hint = "Usuario o contraseña incorrectos en .env (TIDB_USER / TIDB_PASSWORD)."
+        out = {"status": "error", "message": msg, "user": _database_user_label()}
+        if hint:
+            out["hint"] = hint
+        return out

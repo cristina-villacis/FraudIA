@@ -95,11 +95,38 @@ def _standard_tables_label(datasets: dict) -> str:
     return ", ".join(parts) if parts else "sin tablas válidas"
 
 
+def _ensure_session_state(require_scored: bool = False) -> bool:
+    """Recupera datasets/análisis en Vercel (cold start) desde /tmp o TiDB."""
+    datasets = app_state.get("datasets") or {}
+    if "siniestros" not in datasets and is_vercel_runtime():
+        loaded = _load_runtime_datasets()
+        if loaded and "siniestros" in loaded:
+            app_state["datasets"] = loaded
+            datasets = loaded
+
+    if require_scored and app_state.get("df_scored") is None:
+        if is_vercel_runtime():
+            _hydrate_runtime_analysis()
+        if app_state.get("df_scored") is None and _should_use_live_database():
+            try:
+                from_db = normalize_datasets_columns(load_all_datasets())
+                if from_db and "siniestros" in from_db:
+                    app_state["datasets"] = from_db
+                    _hydrate_agent_from_scored_if_available()
+            except Exception:
+                pass
+
+    return bool(app_state.get("datasets") and "siniestros" in app_state["datasets"])
+
+
 def persist_datasets_to_db() -> dict:
     """Guarda todas las tablas del dataset en TiDB (reemplazo completo)."""
+    _ensure_session_state(require_scored=False)
     datasets = app_state.get("datasets") or {}
     if "siniestros" not in datasets:
-        raise ValueError("No hay dataset en memoria. Suba un Excel primero.")
+        raise ValueError(
+            "No hay dataset en sesión. Suba un Excel o genere datos y espere a que termine la carga."
+        )
     if not _should_use_live_database():
         raise ValueError("Base de datos no configurada en este entorno.")
     with _db_save_lock:
@@ -107,7 +134,7 @@ def persist_datasets_to_db() -> dict:
         result = save_all_datasets({k: v.copy() for k, v in datasets.items()})
     return {
         "status": "ok",
-        "message": f"Dataset guardado en TiDB ({_standard_tables_label(datasets)}).",
+        "message": f"Dataset guardado en base de datos ({_standard_tables_label(datasets)}).",
         "db_save_result": result,
     }
 
@@ -164,6 +191,8 @@ def _apply_pipeline_result(result: Dict[str, Any]) -> None:
     ctx = build_agent_context()
     ctx["manifest"] = {"steps": result.get("steps", [])}
     app_state["agent"] = ClaimsAgent(df_scored, extra_context=ctx)
+    if is_vercel_runtime():
+        _persist_runtime_analysis({**result, "df_scored": df_scored})
 
 
 def _run_analysis_after_load() -> Optional[Dict[str, Any]]:
@@ -187,9 +216,9 @@ def _persist_datasets_for_analysis() -> Optional[Dict[str, Any]]:
     """Persiste Excel en TiDB antes del pipeline (local con TiDB configurado)."""
     if not _should_use_live_database() or not _should_persist_dataset_on_load():
         return None
-    from src.app.pipeline_job import set_progress_message
+    from src.app.pipeline_job import set_etl_progress
 
-    set_progress_message("Guardando dataset en TiDB…")
+    set_etl_progress("db", 25, "Guardando dataset en base de datos…")
     try:
         saved = persist_datasets_to_db()
         return {"step": "Guardado en TiDB", "status": "ok", "tables": saved.get("db_save_result")}
@@ -198,11 +227,12 @@ def _persist_datasets_for_analysis() -> Optional[Dict[str, Any]]:
 
 
 def _persist_and_run_pipeline_sync() -> Dict[str, Any]:
-    persist_step = _persist_datasets_for_analysis()
-    from src.app.pipeline_job import set_progress_message
+    from src.app.pipeline_job import set_etl_progress
 
-    set_progress_message("Motor IA: reglas, ML, NLP y dashboard…")
+    persist_step = _persist_datasets_for_analysis()
+    set_etl_progress("ml", 50, "Motor IA: reglas, ML y NLP…")
     out = _execute_run_pipeline_body()
+    set_etl_progress("dash", 100, "Dashboard y ML listos")
     if persist_step:
         out["steps"] = [persist_step] + list(out.get("steps", []))
         out["db_persisted"] = persist_step.get("status") == "ok"
@@ -260,8 +290,8 @@ def _clear_runtime_analysis_cache() -> None:
 
 
 def _persist_runtime_analysis(result: dict) -> None:
-    """Guarda resultado del pipeline en /tmp (misma instancia serverless)."""
-    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+    """Guarda resultado del pipeline en /tmp (reuso entre requests en Vercel)."""
+    if not is_vercel_runtime():
         return
     df = result.get("df_scored")
     if df is None:
@@ -271,6 +301,8 @@ def _persist_runtime_analysis(result: dict) -> None:
     df.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
     meta = {
         "model_snapshot": result.get("model_snapshot"),
+        "model_results": result.get("model_results"),
+        "anomaly_results": result.get("anomaly_results"),
         "dashboard_snapshot": result.get("dashboard_snapshot"),
         "nlp_results": result.get("nlp_results"),
         "total_records": result.get("total_records"),
@@ -282,7 +314,7 @@ def _persist_runtime_analysis(result: dict) -> None:
 
 def _hydrate_runtime_analysis() -> bool:
     """Recupera último análisis guardado en /tmp (si existe)."""
-    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+    if not is_vercel_runtime():
         return False
     csv_path = os.path.join(_runtime_analysis_dir(), "siniestros_scored.csv")
     if not os.path.exists(csv_path):
@@ -296,6 +328,10 @@ def _hydrate_runtime_analysis() -> bool:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         app_state["model_snapshot"] = meta.get("model_snapshot")
+        if meta.get("model_results"):
+            app_state["model_results"] = meta.get("model_results")
+        if meta.get("anomaly_results"):
+            app_state["anomaly_results"] = meta.get("anomaly_results")
         app_state["dashboard_snapshot"] = meta.get("dashboard_snapshot")
         app_state["nlp_results"] = meta.get("nlp_results") or {}
     app_state["dashboard_last_payload"] = build_dashboard_payload(
@@ -306,11 +342,8 @@ def _hydrate_runtime_analysis() -> bool:
 
 
 def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
-    """
-    En Vercel sin BD persistente, guarda datasets en /tmp para reuso entre requests
-    del mismo contenedor serverless.
-    """
-    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+    """En Vercel guarda datasets en /tmp (sesión entre requests del mismo contenedor)."""
+    if not is_vercel_runtime():
         return
     if not datasets or "siniestros" not in datasets:
         return
@@ -326,7 +359,7 @@ def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
 
 
 def _load_runtime_datasets() -> Dict[str, pd.DataFrame]:
-    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+    if not is_vercel_runtime():
         return {}
     cache_dir = _runtime_cache_dir()
     manifest_path = os.path.join(cache_dir, "manifest.json")
@@ -371,25 +404,23 @@ def _hydrate_agent_from_scored_if_available() -> bool:
 
 
 def ensure_vercel_data() -> None:
-    """
-    En Vercel sin BD persistente: no reemplazar datos cargados por el usuario con el bundle demo.
-    Solo precargar demo si no hay datasets ni análisis en /tmp.
-    """
-    if not is_vercel_runtime() or is_persistent_database_configured():
+    """En Vercel: restaurar sesión desde /tmp; demo solo si no hay BD ni datos."""
+    if not is_vercel_runtime():
+        return
+
+    if not (app_state.get("datasets") and "siniestros" in app_state["datasets"]):
+        runtime_ds = _load_runtime_datasets()
+        if runtime_ds and "siniestros" in runtime_ds:
+            app_state["datasets"] = runtime_ds
+
+    if app_state.get("df_scored") is None:
+        _hydrate_runtime_analysis()
+
+    if is_persistent_database_configured():
         return
 
     if app_state.get("datasets") and "siniestros" in app_state["datasets"]:
-        if app_state.get("df_scored") is None:
-            _hydrate_runtime_analysis()
         return
-
-    runtime_ds = _load_runtime_datasets()
-    if runtime_ds and "siniestros" in runtime_ds:
-        app_state["datasets"] = runtime_ds
-        if app_state.get("df_scored") is None:
-            _hydrate_runtime_analysis()
-        return
-
     if app_state.get("df_scored") is not None:
         return
 
@@ -455,13 +486,50 @@ def db_status(quick: bool = True) -> dict:
     return conn
 
 
-def _start_load_workflow() -> bool:
-    """TiDB + pipeline en segundo plano (no bloquea /api/upload)."""
+def _start_load_workflow() -> Dict[str, Any]:
+    """
+    Ejecuta guardado en BD + pipeline.
+    En Vercel: mismo request (los hilos en background no sobreviven).
+    Local: segundo plano.
+    """
+    _ensure_session_state(require_scored=False)
     from src.app.pipeline_job import is_pipeline_running, start_background_pipeline
 
+    if is_vercel_runtime():
+        from src.app.pipeline_job import begin_pipeline_tracking, set_etl_progress
+
+        try:
+            begin_pipeline_tracking("Procesando en servidor…")
+            set_etl_progress("excel", 100, "Archivo cargado")
+            set_etl_progress("parse", 100, "Tablas validadas")
+            set_etl_progress("valid", 100, "Esquema OK")
+            result = _persist_and_run_pipeline_sync()
+            return {"mode": "sync", "pipeline_async": False, "result": result}
+        except Exception as exc:
+            return {"mode": "error", "pipeline_async": False, "error": str(exc)}
+
     if is_pipeline_running():
-        return False
-    return start_background_pipeline(_persist_and_run_pipeline_sync)
+        return {"mode": "async", "pipeline_async": True, "already_running": True}
+    started = start_background_pipeline(_persist_and_run_pipeline_sync)
+    return {"mode": "async", "pipeline_async": bool(started)}
+
+
+def _apply_workflow_to_response(resp: dict, workflow: Dict[str, Any]) -> None:
+    if workflow.get("mode") == "sync" and workflow.get("result"):
+        pipe = workflow["result"]
+        resp["pipeline"] = pipe
+        resp["pipeline_async"] = False
+        if pipe.get("auto_analyzed"):
+            resp["message"] += (
+                f" Análisis completado: {pipe.get('total_records', 0)} casos en dashboard y ML."
+            )
+        elif pipe.get("pipeline_error"):
+            resp["message"] += f" Aviso: {str(pipe['pipeline_error'])[:100]}"
+    elif workflow.get("mode") == "error":
+        resp["message"] += f" Error en análisis: {workflow.get('error', '')[:120]}"
+    elif workflow.get("pipeline_async"):
+        resp["pipeline_async"] = True
+        resp["message"] += " Análisis en segundo plano…"
 
 
 def db_init() -> dict:
@@ -684,12 +752,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     }
     if validation["has_siniestros"]:
         if auto_pipeline:
-            if _start_load_workflow():
-                resp["pipeline_async"] = True
-                resp["message"] += " Guardando en TiDB y ejecutando análisis (dashboard + ML)…"
-            else:
-                resp["pipeline_async"] = True
-                resp["message"] += " Análisis ya en curso."
+            _apply_workflow_to_response(resp, _start_load_workflow())
         else:
             resp["message"] += " Pulse «Activar motor IA» para el análisis."
     return resp
@@ -725,8 +788,8 @@ def load_synthetic() -> dict:
         "persist_to_db_on_analyze": persist_planned,
         "auto_pipeline": auto_pipeline,
     }
-    if auto_pipeline and _start_load_workflow():
-        resp["pipeline_async"] = True
+    if auto_pipeline:
+        _apply_workflow_to_response(resp, _start_load_workflow())
     return resp
 
 
@@ -813,7 +876,8 @@ def _execute_run_pipeline_body() -> dict:
                 "vercel": True,
                 "bootstrap": boot,
             }
-    if not app_state["datasets"] or "siniestros" not in app_state["datasets"]:
+    _ensure_session_state(require_scored=False)
+    if not app_state.get("datasets") or "siniestros" not in app_state["datasets"]:
         raise ValueError("No hay datos cargados. Suba un archivo o cargue datos sintéticos.")
     t_start = time.time()
     app_state["pipeline_status"] = "running"
@@ -852,6 +916,9 @@ def _execute_run_pipeline_body() -> dict:
     else:
         _persist_runtime_analysis({**result, "df_scored": df_scored})
 
+    if is_vercel_runtime():
+        _persist_runtime_analysis({**result, "df_scored": df_scored})
+
     return {
         "status": "success",
         "steps": steps_out,
@@ -859,6 +926,7 @@ def _execute_run_pipeline_body() -> dict:
         "total_records": len(df_scored),
         "duration_seconds": round(time.time() - t_start, 2),
         "analyzed_from_upload": True,
+        "auto_analyzed": True,
         "semaforo_counts": {
             "Rojo": int(sem_counts.get("Rojo", 0)),
             "Amarillo": int(sem_counts.get("Amarillo", 0)),
@@ -868,16 +936,16 @@ def _execute_run_pipeline_body() -> dict:
 
 
 def dashboard_filters() -> dict:
+    if not _ensure_session_state(require_scored=True):
+        raise ValueError("Pipeline no ejecutado. Cargue datos y ejecute el análisis.")
     df = app_state.get("df_scored")
-    if df is None:
-        raise ValueError("Pipeline no ejecutado")
     return get_filter_options(df)
 
 
 def dashboard_data(query_params) -> dict:
+    if not _ensure_session_state(require_scored=True):
+        raise ValueError("Pipeline no ejecutado. Cargue datos y ejecute el análisis.")
     df = app_state.get("df_scored")
-    if df is None:
-        raise ValueError("Pipeline no ejecutado")
     params = params_from_request(query_params)
     df_filtered, active_filters = apply_dashboard_filters(df, params)
     payload = build_dashboard_payload(df_filtered, total_unfiltered=len(df), active_filters=active_filters)
@@ -886,9 +954,9 @@ def dashboard_data(query_params) -> dict:
 
 
 def get_case(case_id: str) -> dict:
-    df = app_state.get("df_scored")
-    if df is None:
+    if not _ensure_session_state(require_scored=True):
         raise ValueError("Pipeline no ejecutado")
+    df = app_state.get("df_scored")
     mask = df["id_siniestro"].str.upper() == case_id.upper()
     if mask.sum() == 0:
         raise LookupError(f"Siniestro {case_id} no encontrado")
@@ -998,6 +1066,7 @@ def _enrich_ml_metrics(metrics: dict) -> dict:
 
 
 def model_metrics() -> dict:
+    _ensure_session_state(require_scored=True)
     results = app_state.get("model_results")
     if results is None:
         snapshot = app_state.get("model_snapshot")

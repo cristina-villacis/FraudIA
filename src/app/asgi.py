@@ -130,6 +130,7 @@ async def api_upload(file: UploadFile = File(...)):
 async def api_load_synthetic():
     try:
         loop = asyncio.get_running_loop()
+        # En Vercel el análisis corre en el mismo request (puede tardar varios minutos).
         return await loop.run_in_executor(None, h.load_synthetic)
     except Exception as e:
         return _err(e)
@@ -145,7 +146,8 @@ async def api_schema():
 @app.post("/api/persist-datasets")
 async def api_persist_datasets():
     try:
-        return h.persist_datasets_to_db()
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, h.persist_datasets_to_db)
     except ValueError as e:
         return _err(e, 400)
     except Exception as e:

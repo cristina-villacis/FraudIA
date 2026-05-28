@@ -1651,7 +1651,7 @@
                     </div>
                     <div class="ingest-features">
                         <span class="ok">✓ Excel multihoja</span>
-                        <span class="ok">✓ Modelo ER automático</span>
+                        <span class="ok">✓ Validación de esquema</span>
                         <span class="ok">✓ Validación IA</span>
                         <span class="ok">✓ Integración ML</span>
                     </div>
@@ -1676,7 +1676,7 @@
                     <p class="ingest-actions-hint">Tras el análisis: guardado en TiDB, scores en siniestros, dashboard y ML listos.</p>
                     <div class="ingest-actions-btns">
                         <button type="button" class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipelineMain" disabled>Activar motor IA</button>
-                        <button type="button" class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDBTop">Guardar en TiDB</button>
+                        <button type="button" class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDBTop">Guardar en Base de datos</button>
                     </div>
                 </div>
 
@@ -1685,14 +1685,10 @@
                     <div class="etl-track" id="etlTrack"></div>
                 </div>
 
-                <div class="ingest-grid" id="ingestInsights" style="display:none;">
+                <div class="ingest-grid ingest-grid-3" id="ingestInsights" style="display:none;">
                     <div class="ingest-panel">
                         <div class="ingest-panel-title">&#128202; Hojas detectadas</div>
                         <div class="sheet-list" id="sheetList"></div>
-                    </div>
-                    <div class="ingest-panel">
-                        <div class="ingest-panel-title">&#9670; Modelo entidad-relación</div>
-                        <div class="er-graph" id="erGraph"></div>
                     </div>
                     <div class="ingest-panel">
                         <div class="ingest-panel-title">&#10003; Validaciones inteligentes</div>
@@ -1702,7 +1698,7 @@
                         <div class="ingest-panel-title">&#9889; Acciones</div>
                         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">Persistencia opcional y análisis completo.</p>
                         <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                            <button class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDB">Guardar en TiDB</button>
+                            <button class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDB">Guardar en Base de datos</button>
                             <button class="btn btn-ghost" onclick="loadFromDB()" id="btnLoadDB">Cargar desde TiDB</button>
                             <button class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipeline" disabled style="margin-top:0.5rem;">Activar motor IA</button>
                         </div>
@@ -2054,10 +2050,15 @@
                 const s = await resp.json();
                 if (s.status === 'running') {
                     setPipelineUiRunning(s.progress_message || 'Análisis en curso…');
+                    if (window.IngestUI && IngestUI.applyPipelineStatus) IngestUI.applyPipelineStatus(s);
                     return false;
                 }
                 _stopPipelinePoll();
                 if (s.status === 'completed' && s.result) {
+                    if (window.IngestUI && IngestUI.applyPipelineStatus) IngestUI.applyPipelineStatus(s);
+                    if (window.IngestUI && IngestUI.applyPipelineResultSteps && s.result.steps) {
+                        IngestUI.applyPipelineResultSteps(s.result.steps);
+                    }
                     handlePipelineComplete(s.result);
                     return true;
                 }
@@ -2123,7 +2124,8 @@
                 dbInd.className = 'badge badge-red';
                 dbType.textContent = 'Base de datos: Error de conexión';
                 const who = data.user ? 'Usuario: ' + data.user + ' — ' : '';
-                dbHost.textContent = who + (data.message || 'Verifique DATABASE_URL en .env y reinicie el servidor');
+                const hint = data.hint ? ' — ' + data.hint : '';
+                dbHost.textContent = who + (data.message || 'Revise TIDB_* en .env') + hint;
                 dbBadge.textContent = 'Error'; dbBadge.className = 'badge badge-red';
             }
         } catch(e) { console.error('DB status error:', e); }
@@ -2133,16 +2135,25 @@
     refreshDocList();
 
     async function persistToDB() {
-        const btn = document.getElementById('btnSaveDB');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando...';
+        const ids = ['btnSaveDB', 'btnSaveDBTop'];
+        ids.forEach((id) => {
+            const b = document.getElementById(id);
+            if (b) { b.disabled = true; b.innerHTML = '<span class="spinner"></span> Guardando...'; }
+        });
         try {
-            const resp = await fetch('/api/persist-datasets', { method: 'POST' });
+            const resp = await fetchWithTimeout('/api/persist-datasets', { method: 'POST' }, 120000);
             const data = await resp.json();
-            if(data.error) { alert(data.error); return; }
-            document.getElementById('datasetLoadStatus').innerHTML = '<div class="alert alert-success" style="margin:0;">' + (data.message || 'Guardado en TiDB') + '</div>';
-            checkDBStatus();
-        } catch(e) { alert('Error: ' + e.message); }
-        btn.disabled = false; btn.textContent = 'Guardar en BD';
+            if (data.error) { alert(data.error); return; }
+            document.getElementById('datasetLoadStatus').innerHTML =
+                '<div class="alert alert-success" style="margin:0;">' + (data.message || 'Guardado en base de datos') + '</div>';
+            setTimeout(() => checkDBStatus(false), 2000);
+        } catch (e) {
+            alert(e.name === 'AbortError' ? 'Tiempo de espera al guardar. Intente de nuevo.' : e.message);
+        }
+        ids.forEach((id) => {
+            const b = document.getElementById(id);
+            if (b) { b.disabled = false; b.textContent = 'Guardar en Base de datos'; }
+        });
     }
 
     async function loadFromDB() {
@@ -2285,7 +2296,10 @@
                     : '<span class="pulse-dot pulse-dot-cyan"></span> IA: Datos listos';
             }
         }
-        if (data.pipeline && data.pipeline.auto_analyzed && !data.pipeline.pipeline_error) {
+        if (data.pipeline && (data.pipeline.auto_analyzed || data.pipeline.total_records) && !data.pipeline.pipeline_error) {
+            if (window.IngestUI && IngestUI.applyPipelineResultSteps && data.pipeline.steps) {
+                IngestUI.applyPipelineResultSteps(data.pipeline.steps);
+            }
             handlePipelineComplete(data.pipeline);
         } else if (data.pipeline_async) {
             pollPipelineUntilDone();
@@ -2738,7 +2752,7 @@
         btn.disabled = false;
     }
 </script>
-    <script src="/static/ingest.js?v=5"></script>
+    <script src="/static/ingest.js?v=6"></script>
     <script src="/static/ml-copilot.js?v=1"></script>
     <script src="/static/ml-engine.js?v=1"></script>
     <script src="/static/dashboard.js?v=5"></script>

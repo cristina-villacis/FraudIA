@@ -2,29 +2,14 @@
  * FraudIA — UI Carga Inteligente de Datos
  */
 (function () {
+    const ETL_ORDER = ['excel', 'parse', 'valid', 'db', 'ml', 'dash'];
     const ETL_STEPS = [
         { id: 'excel', label: 'Excel', icon: '📊' },
         { id: 'parse', label: 'Parsing', icon: '⚙' },
         { id: 'valid', label: 'Validación', icon: '✓' },
-        { id: 'er', label: 'Modelo ER', icon: '◈' },
-        { id: 'tidb', label: 'TiDB', icon: '☁' },
+        { id: 'db', label: 'Base de datos', icon: '☁' },
         { id: 'ml', label: 'ML Engine', icon: '🧠' },
         { id: 'dash', label: 'Dashboard', icon: '📈' },
-    ];
-
-    const ER_NODES = [
-        { id: 'sin', label: 'Siniestros', x: 50, y: 140 },
-        { id: 'pol', label: 'Pólizas', x: 200, y: 60 },
-        { id: 'ase', label: 'Asegurados', x: 350, y: 140 },
-        { id: 'pro', label: 'Proveedores', x: 200, y: 220 },
-        { id: 'doc', label: 'Documentos', x: 50, y: 60 },
-    ];
-    const ER_EDGES = [
-        ['sin', 'pol', 'id_poliza'],
-        ['sin', 'ase', 'id_asegurado'],
-        ['sin', 'pro', 'id_proveedor'],
-        ['doc', 'sin', 'id_siniestro'],
-        ['pol', 'ase', 'id_asegurado'],
     ];
 
     const SHEET_META = {
@@ -34,6 +19,122 @@
         proveedores: { letter: 'Pr', title: 'Proveedores', rel: '→ Siniestros' },
         documentos: { letter: 'D', title: 'Documentos', rel: '→ Siniestros' },
     };
+
+    let _uploadPulseTimer = null;
+
+    function showEtlPanel() {
+        const el = document.getElementById('ingestEtl');
+        if (el) el.classList.add('visible');
+    }
+
+    function resetEtlProgress() {
+        document.querySelectorAll('.etl-step').forEach((s) => {
+            s.classList.remove('active', 'done');
+            const p = s.querySelector('.etl-step-pct');
+            if (p) p.textContent = '0%';
+        });
+    }
+
+    function setEtlStep(stepId, pct, state) {
+        const idx = ETL_ORDER.indexOf(stepId);
+        if (idx < 0) return;
+        showEtlPanel();
+        document.querySelectorAll('.etl-step').forEach((node) => {
+            const id = node.getAttribute('data-etl');
+            const i = ETL_ORDER.indexOf(id);
+            node.classList.remove('active', 'done');
+            const pEl = node.querySelector('.etl-step-pct');
+            if (i < idx) {
+                node.classList.add('done');
+                if (pEl) pEl.textContent = '100%';
+            } else if (i === idx) {
+                if (state === 'done') {
+                    node.classList.add('done');
+                    if (pEl) pEl.textContent = '100%';
+                } else {
+                    node.classList.add('active');
+                    if (pEl) pEl.textContent = Math.round(pct) + '%';
+                }
+            } else if (pEl) {
+                pEl.textContent = '0%';
+            }
+        });
+    }
+
+    function markUploadPhase(pct) {
+        setEtlStep('excel', pct, pct >= 100 ? 'done' : 'active');
+        if (pct >= 35) setEtlStep('parse', Math.min(100, pct), pct >= 70 ? 'done' : 'active');
+        if (pct >= 70) setEtlStep('valid', Math.min(100, pct), pct >= 100 ? 'done' : 'active');
+    }
+
+    function applyPipelineStatus(status) {
+        if (!status) return;
+        const step = status.etl_step || inferStepFromMessage(status.progress_message);
+        const pct = status.etl_pct != null ? status.etl_pct : 50;
+        if (status.status === 'completed') {
+            ETL_ORDER.forEach((id) => setEtlStep(id, 100, 'done'));
+            return;
+        }
+        if (status.status === 'running' && step) {
+            setEtlStep(step, pct, 'active');
+        }
+    }
+
+    function inferStepFromMessage(msg) {
+        if (!msg) return 'ml';
+        const m = msg.toLowerCase();
+        if (m.includes('tidb') || m.includes('base de datos') || m.includes('guardando')) return 'db';
+        if (m.includes('dashboard') || m.includes('listos')) return 'dash';
+        if (m.includes('feature') || m.includes('motor ia') || m.includes('nlp') || m.includes('ml')) return 'ml';
+        return 'ml';
+    }
+
+    function applyPipelineResultSteps(steps) {
+        if (!Array.isArray(steps) || !steps.length) return;
+        showEtlPanel();
+        let dbDone = false;
+        let mlDone = false;
+        steps.forEach((s) => {
+            const name = (s.step || '').toLowerCase();
+            if (name.includes('tidb') || name.includes('guardado en bd') || name.includes('base de datos')) {
+                dbDone = s.status === 'ok';
+            }
+            if (
+                name.includes('feature') ||
+                name.includes('reglas') ||
+                name.includes('modelo') ||
+                name.includes('nlp') ||
+                name.includes('anomal')
+            ) {
+                mlDone = s.status === 'ok' || s.status === 'warning';
+            }
+        });
+        setEtlStep('excel', 100, 'done');
+        setEtlStep('parse', 100, 'done');
+        setEtlStep('valid', 100, 'done');
+        if (dbDone) setEtlStep('db', 100, 'done');
+        if (mlDone) setEtlStep('ml', 100, 'done');
+        setEtlStep('dash', 100, 'done');
+    }
+
+    function startUploadPulse() {
+        stopUploadPulse();
+        let p = 12;
+        markUploadPhase(p);
+        _uploadPulseTimer = setInterval(() => {
+            if (p < 88) {
+                p += 4;
+                markUploadPhase(p);
+            }
+        }, 400);
+    }
+
+    function stopUploadPulse() {
+        if (_uploadPulseTimer) {
+            clearInterval(_uploadPulseTimer);
+            _uploadPulseTimer = null;
+        }
+    }
 
     function initParticles() {
         const canvas = document.getElementById('ingestParticles');
@@ -93,7 +194,10 @@
         resize();
         mk();
         draw();
-        window.addEventListener('resize', () => { resize(); mk(); });
+        window.addEventListener('resize', () => {
+            resize();
+            mk();
+        });
     }
 
     function renderEtlTrack() {
@@ -107,64 +211,6 @@
                 <div class="etl-step-pct">0%</div>
             </div>`
         ).join('');
-    }
-
-    function runEtlAnimation(onDone) {
-        const el = document.getElementById('ingestEtl');
-        if (el) el.classList.add('visible');
-        const steps = document.querySelectorAll('.etl-step');
-        let i = 0;
-
-        function tick() {
-            if (i >= steps.length) {
-                if (onDone) onDone();
-                return;
-            }
-            const step = steps[i];
-            step.classList.add('active');
-            let pct = 0;
-            const iv = setInterval(() => {
-                pct += 8 + Math.random() * 12;
-                if (pct >= 100) {
-                    pct = 100;
-                    clearInterval(iv);
-                    step.classList.remove('active');
-                    step.classList.add('done');
-                    const pEl = step.querySelector('.etl-step-pct');
-                    if (pEl) pEl.textContent = '100%';
-                    i++;
-                    setTimeout(tick, 120);
-                } else {
-                    const pEl = step.querySelector('.etl-step-pct');
-                    if (pEl) pEl.textContent = Math.round(pct) + '%';
-                }
-            }, 80);
-        }
-        tick();
-    }
-
-    function renderErGraph() {
-        const wrap = document.getElementById('erGraph');
-        if (!wrap) return;
-        const byId = Object.fromEntries(ER_NODES.map((n) => [n.id, n]));
-        let edges = '';
-        ER_EDGES.forEach(([a, b, label]) => {
-            const n1 = byId[a];
-            const n2 = byId[b];
-            if (!n1 || !n2) return;
-            edges += `<line class="er-edge" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}"/>`;
-            const mx = (n1.x + n2.x) / 2;
-            const my = (n1.y + n2.y) / 2;
-            edges += `<text class="er-edge-label" x="${mx}" y="${my - 4}" text-anchor="middle">${label}</text>`;
-        });
-        const nodes = ER_NODES.map(
-            (n) => `
-            <g class="er-node">
-                <circle cx="${n.x}" cy="${n.y}" r="36"/>
-                <text x="${n.x}" y="${n.y + 4}" text-anchor="middle">${n.label}</text>
-            </g>`
-        ).join('');
-        wrap.innerHTML = `<svg viewBox="0 0 420 280" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>`;
     }
 
     function qualityScore(rows, cols) {
@@ -232,25 +278,24 @@
         const insights = document.getElementById('ingestInsights');
         if (actionsBar) actionsBar.style.display = 'block';
         if (insights) insights.style.display = 'grid';
+        showEtlPanel();
+        resetEtlProgress();
+        startUploadPulse();
         if (zone) zone.classList.add('scanning');
         if (status) {
-            status.innerHTML = `<div class="alert alert-info" style="margin:0;">Subiendo <strong>${fileName}</strong>… (unos segundos). Luego TiDB + análisis en segundo plano.</div>`;
+            status.innerHTML = `<div class="alert alert-info" style="margin:0;">Procesando <strong>${fileName}</strong>…</div>`;
         }
         ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
             const btn = document.getElementById(id);
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<span class="spinner"></span> Cargando archivo…';
+                btn.innerHTML = '<span class="spinner"></span> Procesando…';
             }
-        });
-        document.querySelectorAll('.etl-step').forEach((s) => {
-            s.classList.remove('active', 'done');
-            const p = s.querySelector('.etl-step-pct');
-            if (p) p.textContent = '0%';
         });
     }
 
     function onUploadEnd() {
+        stopUploadPulse();
         const zone = document.getElementById('ingestUpload');
         if (zone) zone.classList.remove('scanning');
     }
@@ -259,9 +304,9 @@
         onUploadEnd();
         const tables = data.tables || {};
         const canAnalyze = data.has_siniestros !== false;
+        markUploadPhase(100);
         renderSheets(tables);
         renderValidations(data, tables);
-        renderErGraph();
         ['btnPipeline', 'btnPipelineMain'].forEach((id) => {
             const btn = document.getElementById(id);
             if (btn) {
@@ -269,12 +314,17 @@
                 btn.textContent = 'Activar motor IA';
             }
         });
-        runEtlAnimation(() => {
+        if (data.pipeline && data.pipeline.steps) {
+            applyPipelineResultSteps(data.pipeline.steps);
             showAiPanel();
-            if (typeof showTablesInfo === 'function') showTablesInfo(tables);
-            const tablesInfo = document.getElementById('tablesInfo');
-            if (tablesInfo) tablesInfo.style.display = 'block';
-        });
+        } else if (data.pipeline_async) {
+            setEtlStep('db', 15, 'active');
+        } else if (canAnalyze && !data.auto_pipeline) {
+            showAiPanel();
+        }
+        if (typeof showTablesInfo === 'function') showTablesInfo(tables);
+        const tablesInfo = document.getElementById('tablesInfo');
+        if (tablesInfo) tablesInfo.style.display = 'block';
     }
 
     function bindUploadZone() {
@@ -298,7 +348,6 @@
 
     function init() {
         renderEtlTrack();
-        renderErGraph();
         initParticles();
         bindUploadZone();
     }
@@ -308,8 +357,11 @@
         onUploadStart,
         onLoadComplete,
         onUploadEnd,
-        runEtlAnimation,
         showAiPanel,
+        applyPipelineStatus,
+        applyPipelineResultSteps,
+        resetEtlProgress,
+        showEtlPanel,
     };
 
     if (document.readyState === 'loading') {
