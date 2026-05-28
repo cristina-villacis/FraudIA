@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import time
 import traceback
@@ -50,6 +51,51 @@ from src.db.repository import (
 
 def _should_use_live_database() -> bool:
     return (not is_vercel_runtime()) or is_persistent_database_configured()
+
+
+def _runtime_cache_dir() -> str:
+    return "/tmp/fraudia_runtime_datasets"
+
+
+def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
+    """
+    En Vercel sin BD persistente, guarda datasets en /tmp para reuso entre requests
+    del mismo contenedor serverless.
+    """
+    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+        return
+    if not datasets or "siniestros" not in datasets:
+        return
+    cache_dir = _runtime_cache_dir()
+    os.makedirs(cache_dir, exist_ok=True)
+    manifest = {"tables": []}
+    for name, df in datasets.items():
+        path = os.path.join(cache_dir, f"{name}.csv")
+        df.to_csv(path, index=False)
+        manifest["tables"].append(name)
+    with open(os.path.join(cache_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False)
+
+
+def _load_runtime_datasets() -> Dict[str, pd.DataFrame]:
+    if not (is_vercel_runtime() and not is_persistent_database_configured()):
+        return {}
+    cache_dir = _runtime_cache_dir()
+    manifest_path = os.path.join(cache_dir, "manifest.json")
+    if not os.path.exists(manifest_path):
+        return {}
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+        tables = manifest.get("tables") or []
+        loaded: Dict[str, pd.DataFrame] = {}
+        for name in tables:
+            path = os.path.join(cache_dir, f"{name}.csv")
+            if os.path.exists(path):
+                loaded[name] = pd.read_csv(path)
+        return normalize_datasets_columns(loaded)
+    except Exception:
+        return {}
 
 
 def _hydrate_agent_from_scored_if_available() -> bool:
@@ -200,6 +246,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         raise ValueError("El archivo no contiene datos válidos (hojas vacías).")
     merge_uploaded_tables(new_tables)
     reset_pipeline_state()
+    _persist_runtime_datasets(app_state["datasets"])
     validation = validate_datasets(app_state["datasets"])
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns), "cols": list(df.columns)}
@@ -241,23 +288,6 @@ def upload_dataset(filename: str, content: bytes) -> dict:
 
 
 def load_synthetic() -> dict:
-    if is_vercel_runtime() and not is_persistent_database_configured():
-        boot = bootstrap_vercel_demo(app_state)
-        df_scored = app_state.get("df_scored")
-        return {
-            "status": "success",
-            "message": (
-                "En Vercel se usa dataset preanalizado del build (no se genera archivo sintético en runtime)."
-            ),
-            "tables": {
-                "siniestros": {
-                    "rows": len(df_scored) if df_scored is not None else 0,
-                    "columns": len(df_scored.columns) if df_scored is not None else 0,
-                }
-            },
-            "bootstrap": boot,
-        }
-
     from src.ingestion.generate_synthetic import main as generate_data
 
     synth_dir = os.path.join("data", "synthetic")
@@ -266,6 +296,7 @@ def load_synthetic() -> dict:
     seed_used = generate_data(output_dir=synth_dir)
     app_state["datasets"] = load_all_from_directory(synth_dir)
     reset_pipeline_state()
+    _persist_runtime_datasets(app_state["datasets"])
     tables_info = {
         name: {"rows": len(df), "columns": len(df.columns)}
         for name, df in app_state["datasets"].items()
@@ -312,28 +343,35 @@ def load_from_db() -> dict:
 
 def run_pipeline() -> dict:
     if is_vercel_runtime() and not is_persistent_database_configured():
-        boot = bootstrap_vercel_demo(app_state)
-        bundle = load_vercel_bundle() or {}
-        bundle_steps = (
-            (bundle.get("manifest") or {}).get("steps")
-            or (boot.get("pipeline_steps") if isinstance(boot, dict) else None)
-            or []
-        )
-        steps = [
-            {"step": str(step), "status": "ok"} if not isinstance(step, dict) else step
-            for step in bundle_steps
-        ]
-        if not steps:
-            steps = [{"step": "Carga de bundle Vercel", "status": "ok"}]
-        return {
-            "status": "success",
-            "message": "Análisis cargado desde build Vercel. Redeploy para recalcular.",
-            "total_records": len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0,
-            "duration_seconds": 0,
-            "steps": steps,
-            "vercel": True,
-            "bootstrap": boot,
-        }
+        datasets = app_state.get("datasets") or {}
+        if not datasets or "siniestros" not in datasets:
+            datasets = _load_runtime_datasets()
+            if datasets and "siniestros" in datasets:
+                app_state["datasets"] = datasets
+                reset_pipeline_state()
+        if not datasets or "siniestros" not in datasets:
+            boot = bootstrap_vercel_demo(app_state)
+            bundle = load_vercel_bundle() or {}
+            bundle_steps = (
+                (bundle.get("manifest") or {}).get("steps")
+                or (boot.get("pipeline_steps") if isinstance(boot, dict) else None)
+                or []
+            )
+            steps = [
+                {"step": str(step), "status": "ok"} if not isinstance(step, dict) else step
+                for step in bundle_steps
+            ]
+            if not steps:
+                steps = [{"step": "Carga de bundle Vercel", "status": "ok"}]
+            return {
+                "status": "success",
+                "message": "Análisis cargado desde build Vercel. Redeploy para recalcular.",
+                "total_records": len(app_state["df_scored"]) if app_state.get("df_scored") is not None else 0,
+                "duration_seconds": 0,
+                "steps": steps,
+                "vercel": True,
+                "bootstrap": boot,
+            }
     if not app_state["datasets"] or "siniestros" not in app_state["datasets"]:
         raise ValueError("No hay datos cargados. Suba un archivo o cargue datos sintéticos.")
     t_start = time.time()

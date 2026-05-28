@@ -327,6 +327,36 @@ def build_dashboard_payload(
         {"signal": "Monto cercano a suma asegurada", "count": int((df.get("ratio_reclamado_asegurado", 0) > 0.95).sum()) if "ratio_reclamado_asegurado" in df.columns else 0},
     ]
 
+    signal_masks = {
+        "Reclamo cercano al borde de vigencia": (df.get("borde_inicio_vigencia", 0) == 1) if "borde_inicio_vigencia" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Demora denuncia por robo": (df.get("demora_denuncia_robo", 0) == 1) if "demora_denuncia_robo" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Alta frecuencia reclamos asegurado": (df.get("frecuencia_siniestros_asegurado", 0) >= 3) if "frecuencia_siniestros_asegurado" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Alta frecuencia reclamos vehículo": (df.get("frecuencia_siniestros_vehiculo", 0) >= 3) if "frecuencia_siniestros_vehiculo" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Alta frecuencia conductor": (df.get("frecuencia_siniestros_conductor", 0) >= 3) if "frecuencia_siniestros_conductor" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Reclamos solo RC": (df.get("frecuencia_solo_rc", 0) > 2) if "frecuencia_solo_rc" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Beneficiario/proveedor recurrente": (df.get("prov_casos_observados", 0) > 2) if "prov_casos_observados" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Documentos incompletos": df.get("documentos_completos", pd.Series([""] * len(df), index=df.index)).astype(str).str.lower().eq("no") if "documentos_completos" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Dinámica sospechosa": (df.get("flag_dinamica_sospechosa", 0) == 1) if "flag_dinamica_sospechosa" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Eventos sin tercero identificado": (df.get("flag_sin_tercero_identificado", 0) == 1) if "flag_sin_tercero_identificado" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Documentos inconsistentes": (df.get("tiene_inconsistencia_doc", 0) > 0) if "tiene_inconsistencia_doc" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Reporte tardío": (df.get("reporte_tardio", 0) == 1) if "reporte_tardio" in df.columns else pd.Series([False] * len(df), index=df.index),
+        "Narrativas similares": df.get("alertas_reglas", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.contains("Similitud textual", case=False),
+        "Monto cercano a suma asegurada": (df.get("ratio_reclamado_asegurado", 0) > 0.95) if "ratio_reclamado_asegurado" in df.columns else pd.Series([False] * len(df), index=df.index),
+    }
+    signal_case_cols = [
+        c for c in ["id_siniestro", "ramo", "cobertura", score_col, semaforo_col, "monto_reclamado", "alertas_reglas"]
+        if c in df.columns
+    ]
+    signal_cases_map: Dict[str, List[Dict[str, Any]]] = {}
+    for signal_name, mask in signal_masks.items():
+        try:
+            subset = df.loc[mask, signal_case_cols]
+        except Exception:
+            subset = df.iloc[0:0][signal_case_cols]
+        if score_col in subset.columns:
+            subset = subset.sort_values(score_col, ascending=False)
+        signal_cases_map[signal_name] = subset.head(50).to_dict("records")
+
     # Reglas críticas RF-01..RF-07
     critical_counts = {f"RF-0{i}": 0 for i in range(1, 8)}
     if "reglas_criticas" in df.columns:
@@ -410,6 +440,7 @@ def build_dashboard_payload(
             "narrativas_clonadas": narrativas_clonadas,
         },
         "signals_summary": signal_counts,
+        "signal_cases_map": signal_cases_map,
         "critical_rules_summary": critical_counts,
         "heatmap_ramo_riesgo": heatmap,
         "geo_data": geo_data,

@@ -282,19 +282,6 @@ function populateFilterControls(opts) {
 
 function buildDashboardShell() {
     return `
-        <div class="card" style="margin-bottom:1rem;padding:0.9rem 1.1rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.8rem;flex-wrap:wrap;">
-                <div>
-                    <div class="card-title" style="margin:0;font-size:1rem;">🚨 FraudIA Claims · Dashboard Ejecutivo de Riesgo</div>
-                    <div style="font-size:0.76rem;color:var(--text-muted);margin-top:0.15rem;">Centro de monitoreo antifraude, trazabilidad y explicación analítica</div>
-                </div>
-                <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap;">
-                    <span class="badge badge-cyan">Motor IA: <strong id="dashIaStatus" style="margin-left:0.25rem;">Activo</strong></span>
-                    <span class="badge badge-red">Alertas críticas: <strong id="dashCriticalCount" style="margin-left:0.25rem;">0</strong></span>
-                    <span class="badge badge-muted" id="dashNow">--</span>
-                </div>
-            </div>
-        </div>
         <div class="card dashboard-toolbar">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
                 <div class="card-title" style="margin:0;">Filtros interactivos</div>
@@ -356,7 +343,6 @@ function buildDashboardShell() {
             <div class="card card-chart">
                 <div class="card-title">Estado de Reclamaciones <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en segmento</span><button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar filtros del gráfico">✕</button></div>
                 <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
-                <div class="semaforo-legend" id="semaforoLegend"></div>
             </div>
             <div class="card card-chart">
                 <div class="card-title">Análisis por Ramo <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">— clic en barra</span><button type="button" class="chart-reset-btn" data-reset-scope="ramo" title="Limpiar filtros del gráfico">✕</button></div>
@@ -380,6 +366,9 @@ function buildDashboardShell() {
                         <thead><tr><th>Señal</th><th>Casos</th><th>Severidad</th><th>Acción</th></tr></thead>
                         <tbody id="fraudSignalsTable"></tbody>
                     </table>
+                </div>
+                <div id="signalCasesPanel" style="margin-top:0.65rem;font-size:0.78rem;color:var(--text-secondary);">
+                    Seleccione una señal para visualizar los siniestros relacionados.
                 </div>
             </div>
             <div class="card card-chart">
@@ -559,23 +548,8 @@ function renderAnomaliesList(cases) {
 }
 
 function renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf) {
-    const items = [
-        { key: 'Rojo', count: rojo, range: '76-100 · Alto', cls: 'red' },
-        { key: 'Amarillo', count: amarillo, range: '41-75 · Medio', cls: 'yellow' },
-        { key: 'Verde', count: verde, range: '0-40 · Bajo', cls: 'green' },
-    ];
-    document.getElementById('semaforoLegend').innerHTML = items.map(it => `
-        <div class="semaforo-legend-item clickable" data-semaforo="${it.key}" title="Filtrar por ${it.key}">
-            <span class="pulse-dot pulse-dot-${it.cls}" style="animation:none;width:10px;height:10px;margin-top:0.2rem;flex-shrink:0;"></span>
-            <div><strong>${it.key}</strong><span class="legend-range">${it.range}</span>
-            <div class="legend-count">${it.count.toLocaleString()} <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">(${pctOf(it.count)}%)</span></div></div>
-        </div>`).join('');
-    document.querySelectorAll('.semaforo-legend-item.clickable').forEach(el => {
-        el.addEventListener('click', () => {
-            setDashboardFilter('semaforo', el.dataset.semaforo);
-            document.getElementById('filterSemaforo').value = el.dataset.semaforo;
-        });
-    });
+    const legendEl = document.getElementById('semaforoLegend');
+    if (legendEl) legendEl.innerHTML = '';
     updateSemaforoPills();
 }
 
@@ -660,11 +634,14 @@ function renderDashboardCharts(data) {
     Plotly.react('chartSemaforo', [{
         values: [rojo, amarillo, verde],
         labels: ['Rojo', 'Amarillo', 'Verde'],
+        customdata: ['76-100 · Alto', '41-75 · Medio', '0-40 · Bajo'],
         type: 'pie', hole: 0.62, sort: false, direction: 'clockwise',
         marker: { colors: [C.red, C.yellow, C.green], line: { color: C.bgCard || C.bg, width: 3 } },
-        textinfo: 'label+value',
+        textinfo: 'none',
+        texttemplate: '%{label}<br>%{value:,} (%{percent})<br>%{customdata}',
+        textposition: 'outside',
         textfont: { size: 10, color: C.text },
-        hovertemplate: '<b>%{label}</b><br>%{value:,} casos<br>%{percent}<extra></extra>',
+        hovertemplate: '<b>%{label}</b><br>%{value:,} casos<br>%{percent}<br>%{customdata}<extra></extra>',
         pull: rojo > 0 ? [0.04, 0, 0] : [0, 0, 0],
     }], {
         ...PL, showlegend: false, height: 220,
@@ -966,13 +943,52 @@ function renderDashboardData(data) {
     });
 
     const signalsEl = document.getElementById('fraudSignalsTable');
+    const signalCasesPanel = document.getElementById('signalCasesPanel');
     if (signalsEl) {
+        const signalCasesMap = data.signal_cases_map || {};
+        const renderSignalCases = (signalName) => {
+            if (!signalCasesPanel) return;
+            const cases = Array.isArray(signalCasesMap[signalName]) ? signalCasesMap[signalName] : [];
+            if (!cases.length) {
+                signalCasesPanel.innerHTML = `<div style="padding:0.4rem 0.2rem;color:var(--text-muted);">No hay siniestros para la señal <strong>${signalName}</strong> con los filtros actuales.</div>`;
+                return;
+            }
+            const rows = cases.slice(0, 12).map(c => {
+                const score = Number(c.score_hibrido ?? c.score_reglas ?? 0).toFixed(1);
+                const sem = c.semaforo_final || c.semaforo_reglas || '—';
+                return `<tr class="signal-case-row" data-case-id="${c.id_siniestro || ''}" style="cursor:pointer;">
+                    <td style="color:var(--cyan);font-weight:600;">${c.id_siniestro || ''}</td>
+                    <td>${c.ramo || ''}</td>
+                    <td>${score}</td>
+                    <td>${sem}</td>
+                </tr>`;
+            }).join('');
+            signalCasesPanel.innerHTML = `
+                <div style="margin-bottom:0.45rem;color:var(--text-primary);font-weight:600;">Siniestros relacionados: ${signalName}</div>
+                <div class="table-container" style="max-height:180px;overflow:auto;">
+                    <table>
+                        <thead><tr><th>ID</th><th>Ramo</th><th>Score</th><th>Semáforo</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                <div style="margin-top:0.35rem;color:var(--text-muted);font-size:0.72rem;">Mostrando ${Math.min(cases.length, 12)} de ${cases.length} siniestros.</div>
+            `;
+            signalCasesPanel.querySelectorAll('.signal-case-row').forEach(row => {
+                row.addEventListener('click', () => {
+                    if (typeof viewCase === 'function' && row.dataset.caseId) viewCase(row.dataset.caseId);
+                });
+            });
+        };
+
         signalsEl.innerHTML = (data.signals_summary || []).sort((a, b) => (b.count || 0) - (a.count || 0)).map(s => {
             const sev = s.count > 50 ? 'Crítica' : s.count > 20 ? 'Alta' : s.count > 5 ? 'Media' : 'Baja';
             const action = s.count > 50 ? 'Escalar investigación' : s.count > 20 ? 'Revisión documental' : 'Monitoreo';
             const cls = sev === 'Crítica' ? 'badge-red' : sev === 'Alta' ? 'badge-yellow' : 'badge-green';
-            return `<tr><td>${s.signal}</td><td>${(s.count || 0).toLocaleString()}</td><td><span class="badge ${cls}">${sev}</span></td><td>${action}</td></tr>`;
+            return `<tr class="signal-row-clickable" data-signal="${s.signal}" style="cursor:pointer;"><td>${s.signal}</td><td>${(s.count || 0).toLocaleString()}</td><td><span class="badge ${cls}">${sev}</span></td><td>${action}</td></tr>`;
         }).join('');
+        signalsEl.querySelectorAll('.signal-row-clickable').forEach(row => {
+            row.addEventListener('click', () => renderSignalCases(row.dataset.signal || ''));
+        });
     }
 
     const critical = data.critical_rules_summary || {};
@@ -980,11 +996,54 @@ function renderDashboardData(data) {
     setText('dashCriticalCount', critTotal.toLocaleString());
     const criticalEl = document.getElementById('criticalRulesPanel');
     if (criticalEl) {
-        const order = ['RF-01', 'RF-02', 'RF-03', 'RF-04', 'RF-05', 'RF-06', 'RF-07'];
-        criticalEl.innerHTML = order.map(code => {
-            const n = Number(critical[code] || 0);
-            const cls = ['RF-01', 'RF-02', 'RF-03', 'RF-04'].includes(code) ? 'badge-red' : 'badge-yellow';
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.45rem 0;border-bottom:1px solid var(--border);"><span>${code}</span><span class="badge ${cls}">${n} casos</span></div>`;
+        const rulesCatalog = [
+            {
+                code: 'RF-01',
+                label: 'Cobertura Pérdida Total por Robo (PTxRB)',
+                risk: 'Rojo',
+            },
+            {
+                code: 'RF-02',
+                label: 'Evidencia de falsificación o adulteración documental evidente',
+                risk: 'Rojo',
+            },
+            {
+                code: 'RF-03',
+                label: 'Asegurado/Beneficiario/APS con coincidencia exacta en lista restrictiva',
+                risk: 'Rojo',
+            },
+            {
+                code: 'RF-04',
+                label: 'Dinámica del accidente físicamente imposible',
+                risk: 'Rojo',
+            },
+            {
+                code: 'RF-05',
+                label: 'Siniestro extremo al borde de vigencia (< 48 hrs)',
+                risk: 'Amarillo',
+            },
+            {
+                code: 'RF-06',
+                label: 'Demora atípica en denuncia de robo (> 4 días)',
+                risk: 'Amarillo',
+            },
+            {
+                code: 'RF-07',
+                label: 'Narrativa idéntica (clonada)',
+                risk: 'Amarillo',
+            },
+        ];
+        criticalEl.innerHTML = rulesCatalog.map(rule => {
+            const n = Number(critical[rule.code] || 0);
+            const cls = rule.risk === 'Rojo' ? 'badge-red' : 'badge-yellow';
+            return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--border);">
+                <div style="min-width:0;">
+                    <div style="font-weight:700;color:var(--text-primary);">${rule.code}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.35;">${rule.label}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.1rem;">Clasificación: ${rule.risk}</div>
+                </div>
+                <span class="badge ${cls}" style="white-space:nowrap;">${n} casos</span>
+            </div>`;
         }).join('');
     }
 
