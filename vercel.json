@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "fraudia-claims",
+  "installCommand": "pip install -r requirements-vercel.txt",
+  "buildCommand": "echo Build OK",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "memory": 3008
+    }
+  },
+  "env": {
+    "VERCEL": "1",
+    "OPENAI_ENABLED": "true"
+  }
+}

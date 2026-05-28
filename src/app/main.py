@@ -39,6 +39,7 @@ from src.utils.dataframe_columns import ensure_str_columns, normalize_datasets_c
 from src.ai_agent.claims_agent import ClaimsAgent
 from src.ai_agent.openai_client import is_openai_configured, get_openai_model
 from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
+from src.app.vercel_bootstrap import bootstrap_vercel_demo, is_vercel_runtime
 from src.db.config import get_engine, test_connection
 from src.db.repository import (
     init_database,
@@ -73,6 +74,16 @@ app_state = {
 }
 
 _db_save_lock = threading.Lock()
+
+
+@app.before_request
+def _ensure_vercel_demo_loaded():
+    """Si el bootstrap en import falló (cold start), reintenta una vez."""
+    if is_vercel_runtime() and app_state.get("df_scored") is None:
+        try:
+            bootstrap_vercel_demo(app_state)
+        except Exception:
+            pass
 
 
 def _reset_pipeline_state():
@@ -129,8 +140,27 @@ def index():
 
 # ── Database endpoints ───────────────────────────────────────────────
 
+@app.route("/api/deployment-info")
+def deployment_info():
+    """Metadatos del entorno (local vs Vercel)."""
+    return jsonify({
+        "vercel": is_vercel_runtime(),
+        "pipeline_ready": app_state.get("df_scored") is not None,
+        "openai_configured": is_openai_configured(),
+        "openai_model": get_openai_model() if is_openai_configured() else None,
+        "demo_mode": is_vercel_runtime(),
+    })
+
+
 @app.route("/api/db-status")
 def db_status():
+    if is_vercel_runtime():
+        return jsonify({
+            "status": "ok",
+            "type": "In-memory (Vercel)",
+            "host": "demo",
+            "message": "En Vercel los datos vienen del CSV embebido; no hay SQLite persistente.",
+        })
     conn = test_connection()
     if conn["status"] == "ok":
         stats = get_db_stats()
@@ -591,6 +621,22 @@ def load_from_db():
 @app.route("/api/run-pipeline", methods=["POST"])
 def run_pipeline():
     try:
+        if is_vercel_runtime():
+            if app_state.get("df_scored") is not None:
+                return jsonify({
+                    "status": "success",
+                    "message": "Demo ya cargado en Vercel (datos pre-calculados).",
+                    "total_records": len(app_state["df_scored"]),
+                    "vercel": True,
+                })
+            bootstrap_vercel_demo(app_state)
+            return jsonify({
+                "status": "success",
+                "message": "Demo cargado desde datos embebidos.",
+                "total_records": len(app_state["df_scored"]),
+                "vercel": True,
+            })
+
         if not app_state["datasets"] or "siniestros" not in app_state["datasets"]:
             return jsonify({"error": "No hay datos cargados. Suba un archivo o cargue datos sinteticos."}), 400
 
@@ -782,6 +828,8 @@ def agent_status():
         "openai_configured": is_openai_configured(),
         "openai_model": get_openai_model() if is_openai_configured() else None,
         "pipeline_ready": app_state.get("agent") is not None,
+        "vercel": is_vercel_runtime(),
+        "demo_mode": is_vercel_runtime(),
     })
 
 
@@ -872,7 +920,11 @@ def nlp_summary():
 
 @app.route("/api/status")
 def get_status():
-    db_info = test_connection()
+    db_info = (
+        {"status": "ok", "type": "In-memory (Vercel)", "host": "demo"}
+        if is_vercel_runtime()
+        else test_connection()
+    )
     return jsonify({
         "pipeline_status": app_state["pipeline_status"],
         "datasets_loaded": list(app_state["datasets"].keys()),
@@ -880,7 +932,18 @@ def get_status():
         "has_model": app_state["model_results"] is not None,
         "has_agent": app_state["agent"] is not None,
         "database": db_info,
+        "vercel": is_vercel_runtime(),
+        "openai_configured": is_openai_configured(),
     })
+
+
+# ── Bootstrap Vercel (demo público + chatbot) ───────────────────────
+if is_vercel_runtime():
+    try:
+        _vercel_boot = bootstrap_vercel_demo(app_state)
+        print(f"[Vercel] Demo cargado: {_vercel_boot}")
+    except Exception as _vercel_err:
+        print(f"[Vercel] Bootstrap pendiente en primer request: {_vercel_err}")
 
 
 if __name__ == "__main__":

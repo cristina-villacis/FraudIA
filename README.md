@@ -39,6 +39,18 @@ copy .env.example .env
 Tras `git clone` en otro equipo o servidor: repetir `copy .env.example .env` y completar claves ahí.  
 Detalle: [docs/despliegue.md](docs/despliegue.md)
 
+## Publicar en Vercel (web pública + chatbot IA)
+
+Repositorio: [github.com/cristina-villacis/FraudIA](https://github.com/cristina-villacis/FraudIA)
+
+1. Importe el repo en [vercel.com](https://vercel.com) → **Add New Project**.
+2. Configure variables de entorno en Vercel: `OPENAI_API_KEY`, `OPENAI_MODEL`, `SECRET_KEY`.
+3. Deploy automático en cada `git push` a `main`.
+
+La app carga el demo (`data/processed/siniestros_scored.csv`) y el chatbot queda listo sin ejecutar pipeline en el servidor.
+
+Guía paso a paso: [docs/despliegue-vercel.md](docs/despliegue-vercel.md)
+
 ## Instalación
 
 ```bash

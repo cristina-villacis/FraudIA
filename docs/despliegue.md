@@ -40,7 +40,11 @@ No suba claves al repositorio. Configúrelas en el panel del proveedor:
 | `OPENAI_ENABLED` | `true` |
 | `FLASK_PORT` | Puerto (ej. 5000) |
 
-Plataformas: Railway, Render, Azure App Service, AWS, etc. → sección **Environment Variables**.
+Plataformas: **Vercel** (recomendado para demo público), Railway, Render, Azure App Service, AWS, etc. → sección **Environment Variables**.
+
+### Vercel (Git → web pública)
+
+Ver guía completa: [despliegue-vercel.md](despliegue-vercel.md)
 
 ## GitHub Actions (opcional)
 

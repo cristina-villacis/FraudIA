@@ -1,0 +1,8 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+data/fraudia_claims.db
+data/fraudia_claims.db-*
