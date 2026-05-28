@@ -60,6 +60,7 @@ def save_dataframe(df: pd.DataFrame, table_name: str) -> int:
         sql = text(f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})")
 
         inserted = 0
+        failed = 0
         with engine.begin() as conn:
             for _, row in df_clean.iterrows():
                 params = {}
@@ -75,7 +76,9 @@ def save_dataframe(df: pd.DataFrame, table_name: str) -> int:
                     conn.execute(sql, params)
                     inserted += 1
                 except Exception:
-                    pass
+                    failed += 1
+        if failed:
+            print(f"[DB] {table_name}: filas no insertadas={failed}, insertadas={inserted}")
         return inserted
     else:
         df_clean.to_sql(table_name, engine, if_exists="append", index=False, method="multi", chunksize=500)
@@ -178,6 +181,7 @@ def update_siniestros_scores(df_scored: pd.DataFrame) -> int:
         rows.append({col: _to_native(row[col]) for col in available})
 
     count = 0
+    failed = 0
     with engine.begin() as conn:
         for i in range(0, len(rows), batch_size):
             batch = rows[i:i + batch_size]
@@ -186,7 +190,9 @@ def update_siniestros_scores(df_scored: pd.DataFrame) -> int:
                     conn.execute(sql, params)
                     count += 1
                 except Exception:
-                    pass
+                    failed += 1
+    if failed:
+        print(f"[DB] update_siniestros_scores: fallidas={failed}, exitosas={count}")
 
     return count
 

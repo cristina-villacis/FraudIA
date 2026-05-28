@@ -3,13 +3,13 @@
   "source": "data/synthetic",
   "seed": null,
   "total_records": 1500,
-  "duration_seconds": 6.3,
+  "duration_seconds": 6.87,
   "semaforo_counts": {
-    "Rojo": 359,
-    "Amarillo": 1141,
-    "Verde": 0
+    "Rojo": 358,
+    "Amarillo": 59,
+    "Verde": 1083
   },
-  "auc_roc": 0.9955,
+  "auc_roc": 0.9937,
   "steps": [
     {
       "step": "Feature Engineering",
@@ -19,7 +19,7 @@
     {
       "step": "Analisis NLP",
       "status": "ok",
-      "pairs_detected": 1500
+      "pairs_detected": 0
     },
     {
       "step": "Reglas de Negocio",
@@ -27,126 +27,126 @@
       "summary": {
         "total_siniestros": 1500,
         "rojo": 358,
-        "amarillo": 1142,
-        "verde": 0,
+        "amarillo": 35,
+        "verde": 1107,
         "pct_rojo": 23.9,
-        "pct_amarillo": 76.1,
-        "pct_verde": 0.0,
-        "score_promedio": 49.7,
-        "score_max": 77.3
+        "pct_amarillo": 2.3,
+        "pct_verde": 73.8,
+        "score_promedio": 37.4,
+        "score_max": 76.0
       }
     },
     {
       "step": "Modelo Supervisado (Random Forest)",
       "status": "ok",
       "metrics": {
-        "auc_roc": 0.9955,
-        "cv_auc_mean": 0.9969,
+        "auc_roc": 0.9937,
+        "cv_auc_mean": 0.9966,
         "precision_fraude": 1.0,
         "recall_fraude": 0.982,
         "f1_fraude": 0.991,
         "top_features": [
           {
             "feature": "ratio_docs_entregados",
-            "importance": 0.15881087097370072
+            "importance": 0.15675107570191288
           },
           {
             "feature": "tiene_inconsistencia_doc",
-            "importance": 0.13051629218125324
+            "importance": 0.1287137106787368
           },
           {
             "feature": "flag_falsificacion_doc",
-            "importance": 0.10005455103629553
+            "importance": 0.10177263982037715
           },
           {
             "feature": "docs_con_inconsistencia",
-            "importance": 0.09236124809490302
+            "importance": 0.09555443679454456
           },
           {
             "feature": "score_reglas",
-            "importance": 0.08693482327528064
+            "importance": 0.0867504050444663
           },
           {
             "feature": "horas_borde_vigencia",
-            "importance": 0.07046257784652778
+            "importance": 0.06899851720792059
           },
           {
             "feature": "dias_entre_ocurrencia_reporte",
-            "importance": 0.05592052463516138
+            "importance": 0.05568103927959813
           },
           {
             "feature": "reporte_tardio",
-            "importance": 0.04631396416075348
+            "importance": 0.04534430429812494
           },
           {
             "feature": "num_alertas",
-            "importance": 0.04097671469673228
+            "importance": 0.04033192411521141
           },
           {
             "feature": "dias_desde_fin_poliza",
-            "importance": 0.027991064894757875
+            "importance": 0.026914693719734567
           }
         ],
         "feature_importance": [
           {
             "feature": "ratio_docs_entregados",
-            "importance": 0.15881087097370072
+            "importance": 0.15675107570191288
           },
           {
             "feature": "tiene_inconsistencia_doc",
-            "importance": 0.13051629218125324
+            "importance": 0.1287137106787368
           },
           {
             "feature": "flag_falsificacion_doc",
-            "importance": 0.10005455103629553
+            "importance": 0.10177263982037715
           },
           {
             "feature": "docs_con_inconsistencia",
-            "importance": 0.09236124809490302
+            "importance": 0.09555443679454456
           },
           {
             "feature": "score_reglas",
-            "importance": 0.08693482327528064
+            "importance": 0.0867504050444663
           },
           {
             "feature": "horas_borde_vigencia",
-            "importance": 0.07046257784652778
+            "importance": 0.06899851720792059
           },
           {
             "feature": "dias_entre_ocurrencia_reporte",
-            "importance": 0.05592052463516138
+            "importance": 0.05568103927959813
           },
           {
             "feature": "reporte_tardio",
-            "importance": 0.04631396416075348
+            "importance": 0.04534430429812494
           },
           {
             "feature": "num_alertas",
-            "importance": 0.04097671469673228
+            "importance": 0.04033192411521141
           },
           {
             "feature": "dias_desde_fin_poliza",
-            "importance": 0.027991064894757875
+            "importance": 0.026914693719734567
           },
           {
             "feature": "ratio_reclamado_asegurado",
-            "importance": 0.024558036908420944
+            "importance": 0.0256754243170493
           },
           {
             "feature": "dias_desde_inicio_poliza",
-            "importance": 0.024318539760896617
+            "importance": 0.023004817450456114
           },
           {
             "feature": "borde_inicio_vigencia",
-            "importance": 0.01559513941048557
+            "importance": 0.016202871036816644
           },
           {
             "feature": "docs_entregados",
-            "importance": 0.013191409712171429
+            "importance": 0.013390283296383601
           },
           {
-            "feature": "monto_zscore_ramo",
-            "importance": 0.01000232352953512
+            "feature": "flag_dinamica_imposible",
+            "importance": 0.010970553441145137
           }
         ],
         "confusion_matrix": [

@@ -35,8 +35,8 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 
 1. [vercel.com](https://vercel.com) → **Add New Project** → `cristina-villacis/FraudIA`
 2. Framework: **Other**
-3. `vercel.json` + `pyproject.toml` configuran Flask y el bundle de datos.
-4. **Importante:** `requirements.txt` en la raíz es la versión **ligera** (sin torch). Vercel lo instala automáticamente.
+3. `app.py` + `pyproject.toml` configuran la API Python (FastAPI/ASGI) y el bundle de datos.
+4. **Importante:** `requirements.txt` en la raíz es la versión **ligera** para Vercel.
 
 ## 2. Variables de entorno (chatbot IA)
 
@@ -46,6 +46,7 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 | `OPENAI_MODEL` | `gpt-4o-mini` |
 | `OPENAI_ENABLED` | `true` |
 | `SECRET_KEY` | Cadena aleatoria |
+| `VERCEL_API_KEY` | Clave opcional para proteger `/api/*` por header `X-Vercel-API-Key` |
 
 Sin `OPENAI_API_KEY` el dashboard funciona; el chat no generará respuestas enriquecidas.
 
@@ -94,7 +95,7 @@ Para un nuevo análisis en producción: ejecute el script local o redeploy (buil
 ## Solución de problemas
 
 ### Error `functions api/index.py doesn't match any Serverless Functions`
-Vercel **Flask moderno** no usa el bloque `functions` en `vercel.json`. La entrada es `app.py` en la raíz + `pyproject.toml` (`entrypoint = "app:app"`).
+Ese error corresponde a una configuración antigua. El proyecto actual usa `app.py` + `pyproject.toml` (`entrypoint = "app:app"`), sin `functions` legacy.
 
 ### "This deployment can not be redeployed"
 Vercel **no permite** volver a desplegar un build fallido. Solución:

@@ -1,11 +1,11 @@
 {
   "total_siniestros": 1500,
   "rojo": 358,
-  "amarillo": 1142,
-  "verde": 0,
+  "amarillo": 35,
+  "verde": 1107,
   "pct_rojo": 23.9,
-  "pct_amarillo": 76.1,
-  "pct_verde": 0.0,
-  "score_promedio": 49.7,
-  "score_max": 77.3
+  "pct_amarillo": 2.3,
+  "pct_verde": 73.8,
+  "score_promedio": 37.4,
+  "score_max": 76.0
 }

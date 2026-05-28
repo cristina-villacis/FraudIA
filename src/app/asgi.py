@@ -39,6 +39,25 @@ async def vercel_bootstrap_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def vercel_api_key_middleware(request: Request, call_next):
+    """
+    Seguridad opcional en Vercel para endpoints API.
+    Si VERCEL_API_KEY está definida, exige header X-Vercel-API-Key.
+    """
+    key = (os.getenv("VERCEL_API_KEY") or "").strip()
+    path = request.url.path
+    if not key:
+        return await call_next(request)
+    if path in ("/", "/api/health") or path.startswith("/static/"):
+        return await call_next(request)
+    if path.startswith("/api/"):
+        incoming = (request.headers.get("X-Vercel-API-Key") or "").strip()
+        if incoming != key:
+            return JSONResponse({"error": "Unauthorized API key"}, status_code=401)
+    return await call_next(request)
+
+
 def _err(exc: Exception, status: int = 500):
     body = {"error": str(exc)}
     if os.getenv("FLASK_ENV") == "development" or os.getenv("VERCEL_ENV") == "preview":

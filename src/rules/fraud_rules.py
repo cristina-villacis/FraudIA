@@ -307,12 +307,12 @@ def apply_rules(df: pd.DataFrame, similarity_scores: Dict[str, float] = None) ->
 
         if similarity_scores and row.get("id_siniestro") in similarity_scores:
             sim = similarity_scores[row["id_siniestro"]]
-            if sim > 0.85:
-                pts = 8
-                row_alerts.append(f"Similitud textual >{sim*100:.0f}% con otro reclamo (8 pts)")
-            elif sim >= 0.70:
-                pts = 4
-                row_alerts.append(f"Similitud textual {sim*100:.0f}% con otro reclamo (4 pts)")
+            if sim >= 0.96:
+                pts = 6
+                row_alerts.append(f"Similitud textual extrema {sim*100:.0f}% con otro reclamo (6 pts)")
+            elif sim >= 0.88:
+                pts = 3
+                row_alerts.append(f"Similitud textual alta {sim*100:.0f}% con otro reclamo (3 pts)")
             else:
                 pts = 0
             row_score += pts
@@ -436,7 +436,7 @@ def check_critical_rules(row: pd.Series, similarity_scores: Dict = None) -> Dict
     # RF-07 — Narrativa clonada (Amarillo)
     if similarity_scores:
         id_sin = row.get("id_siniestro")
-        if id_sin in similarity_scores and similarity_scores[id_sin] >= 0.90:
+        if id_sin in similarity_scores and similarity_scores[id_sin] >= 0.98:
             flags["RF-07"] = CRITICAL_RULES["RF-07"]
 
     return flags

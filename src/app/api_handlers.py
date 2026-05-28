@@ -5,7 +5,6 @@ import io
 import os
 import time
 import traceback
-import threading
 from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
@@ -166,16 +165,22 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         if "siniestros" not in datasets:
             return
         with _db_save_lock:
-            try:
-                init_database()
-                save_all_datasets({k: v.copy() for k, v in datasets.items()})
-            except Exception:
-                pass
+            init_database()
+            return save_all_datasets({k: v.copy() for k, v in datasets.items()})
 
+    db_save_result = None
     if validation["has_siniestros"]:
         datasets_copy = {k: v.copy() for k, v in app_state["datasets"].items()}
-        threading.Thread(target=_save_to_db, args=(datasets_copy,), daemon=True).start()
-        db_msg = f" (guardando en {test_connection().get('type', 'BD')} en segundo plano)"
+        if is_vercel_runtime():
+            db_save_result = {"status": "skipped", "reason": "serverless-ephemeral-runtime"}
+            db_msg = " (persistencia omitida en runtime Vercel)"
+        else:
+            try:
+                db_save_result = _save_to_db(datasets_copy)
+                db_msg = f" (guardado en {test_connection().get('type', 'BD')})"
+            except Exception as exc:
+                db_save_result = {"status": "error", "message": str(exc)}
+                db_msg = " (error guardando en BD)"
     else:
         db_msg = ""
     msg = f"'{filename}' cargado ({', '.join(new_tables.keys())})." + db_msg
@@ -186,6 +191,7 @@ def upload_dataset(filename: str, content: bytes) -> dict:
         "has_siniestros": validation["has_siniestros"],
         "warnings": validation["warnings"],
         "loaded_tables": list(new_tables.keys()),
+        "db_save_result": db_save_result,
     }
 
 
@@ -200,18 +206,9 @@ def load_synthetic() -> dict:
         for name, df in app_state["datasets"].items()
     }
 
-    def _save_synthetic_db(datasets):
-        try:
-            init_database()
-            save_all_datasets(datasets)
-        except Exception:
-            pass
-
-    threading.Thread(
-        target=_save_synthetic_db,
-        args=({k: v.copy() for k, v in app_state["datasets"].items()},),
-        daemon=True,
-    ).start()
+    if not is_vercel_runtime():
+        init_database()
+        save_all_datasets({k: v.copy() for k, v in app_state["datasets"].items()})
     return {
         "status": "success",
         "message": f"Datos sintéticos generados (semilla {seed_used})",
@@ -277,13 +274,11 @@ def run_pipeline() -> dict:
     }
 
     def _persist_scores(df, payload):
-        try:
-            update_siniestros_scores(df)
-            save_analysis_run(**payload)
-        except Exception:
-            pass
+        update_siniestros_scores(df)
+        save_analysis_run(**payload)
 
-    threading.Thread(target=_persist_scores, args=(df_scored.copy(), db_payload), daemon=True).start()
+    if not is_vercel_runtime():
+        _persist_scores(df_scored.copy(), db_payload)
     app_state["agent"] = ClaimsAgent(df_scored, extra_context=build_agent_context())
     return {
         "status": "success",
