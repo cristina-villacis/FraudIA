@@ -54,10 +54,11 @@ Guía paso a paso: [docs/despliegue-vercel.md](docs/despliegue-vercel.md)
 ## Instalación
 
 ```bash
-pip install -r requirements.txt
-pip install openai
+pip install -r requirements-local.txt
 python -m spacy download es_core_news_sm
 ```
+
+> En Vercel se usa `requirements.txt` (ligero, sin torch). Localmente use `requirements-local.txt`.
 
 ## Ejecución
 

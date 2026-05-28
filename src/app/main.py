@@ -79,12 +79,12 @@ _db_save_lock = threading.Lock()
 
 @app.before_request
 def _ensure_vercel_demo_loaded():
-    """Si el bootstrap en import falló (cold start), reintenta una vez."""
+    """Carga bundle de analisis en el primer request (Vercel)."""
     if is_vercel_runtime() and app_state.get("df_scored") is None:
         try:
             bootstrap_vercel_demo(app_state)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[Vercel] Error cargando bundle: {exc}")
 
 
 def _reset_pipeline_state():
@@ -137,6 +137,16 @@ def _merge_uploaded_tables(new_tables: dict) -> None:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/health")
+def health():
+    """Comprobacion rapida de despliegue (sin pipeline)."""
+    return jsonify({
+        "status": "ok",
+        "vercel": is_vercel_runtime(),
+        "pipeline_ready": app_state.get("df_scored") is not None,
+    })
 
 
 # ── Database endpoints ───────────────────────────────────────────────
@@ -860,15 +870,6 @@ def get_status():
         "vercel": is_vercel_runtime(),
         "openai_configured": is_openai_configured(),
     })
-
-
-# ── Bootstrap Vercel (demo público + chatbot) ───────────────────────
-if is_vercel_runtime():
-    try:
-        _vercel_boot = bootstrap_vercel_demo(app_state)
-        print(f"[Vercel] Demo cargado: {_vercel_boot}")
-    except Exception as _vercel_err:
-        print(f"[Vercel] Bootstrap pendiente en primer request: {_vercel_err}")
 
 
 if __name__ == "__main__":

@@ -35,9 +35,8 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 
 1. [vercel.com](https://vercel.com) → **Add New Project** → `cristina-villacis/FraudIA`
 2. Framework: **Other**
-3. `vercel.json` ya define:
-   - `installCommand`: `pip install -r requirements-vercel.txt`
-   - `buildCommand`: `python scripts/prepare_vercel_bundle.py --synthetic`
+3. `vercel.json` + `pyproject.toml` configuran Flask y el bundle de datos.
+4. **Importante:** `requirements.txt` en la raíz es la versión **ligera** (sin torch). Vercel lo instala automáticamente.
 
 ## 2. Variables de entorno (chatbot IA)
 
@@ -91,3 +90,24 @@ git push
 | Pipeline completo en cada clic | No (solo en build) | Sí |
 
 Para un nuevo análisis en producción: ejecute el script local o redeploy (build regenera sintéticos con nueva semilla si usa `--synthetic`).
+
+## Solución de problemas
+
+### Pantalla "No Production Deployment"
+Significa que **ningún build terminó bien**. En Vercel → **Deployments** → abra el último → **Building** / **Logs**.
+
+Causas frecuentes y corrección:
+
+| Error en logs | Causa | Solución |
+|---------------|--------|----------|
+| `exceeded maximum size` / timeout install | `torch` en requirements | Ya corregido: `requirements.txt` ligero en repo |
+| `python: command not found` | Build script | Usar `pyproject.toml` + `runtime.txt` python-3.11 |
+| `ModuleNotFoundError` | Falta paquete | Revisar `requirements.txt` |
+| Build OK pero 500 al abrir | Falta CSV/bundle | `includeFiles` en `vercel.json` incluye `data/processed/**` |
+
+### Tras un deploy correcto
+- `https://su-dominio.vercel.app/api/health` → `{"status":"ok",...}`
+- Si `pipeline_ready: false` en el primer hit, espere 2–3 s y recargue (carga del CSV).
+
+### Variables obligatorias en Vercel
+Sin `OPENAI_API_KEY` el dashboard funciona; el chat no usará ChatGPT.
