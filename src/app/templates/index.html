@@ -3,53 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FXecure — Gestión inteligente de riesgo en siniestros</title>
+    <title>FXecure AI — Inteligencia antifraude en siniestros</title>
     <link rel="icon" type="image/png" href="/static/logo_dark.png">
     <link rel="apple-touch-icon" href="/static/logo_dark.png">
     <script src="/static/vendor/plotly-2.27.0.min.js"></script>
     <script>window.__plotlyFallbackTimer = setTimeout(function(){if(typeof Plotly==='undefined'){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.27.0/plotly.min.js';document.head.appendChild(s);}},2500);</script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/ingest.css?v=3">
-    <link rel="stylesheet" href="/static/dashboard-premium.css?v=5">
+    <link rel="stylesheet" href="/static/dashboard-premium.css?v=6">
     <link rel="stylesheet" href="/static/ml-premium.css?v=5">
     <link rel="stylesheet" href="/static/audit-agent.css?v=1">
     <link rel="stylesheet" href="/static/case-report.css?v=1">
+    <link rel="stylesheet" href="/static/fxecure-enterprise.css?v=1">
     <style>
         :root, [data-theme="dark"] {
-            --bg-primary: #0B1120;
-            --bg-secondary: #111827;
-            --bg-card: #111827;
-            --bg-card-hover: #1a2236;
-            --bg-elevated: #1c2640;
-            --cyan: #00D1FF;
-            --cyan-dim: rgba(0,209,255,0.15);
-            --cyan-glow: rgba(0,209,255,0.25);
-            --green: #00C48C;
-            --green-dim: rgba(0,196,140,0.15);
-            --yellow: #FFC857;
-            --yellow-dim: rgba(255,200,87,0.15);
+            --bg-primary: #0B1020;
+            --bg-secondary: #121A2F;
+            --bg-card: #121A2F;
+            --bg-card-hover: #1a2542;
+            --bg-elevated: #1e2a4a;
+            --ai-blue: #3B82F6;
+            --cyan: #3B82F6;
+            --cyan-dim: rgba(59, 130, 246, 0.15);
+            --cyan-glow: rgba(59, 130, 246, 0.25);
+            --green: #00C853;
+            --green-dim: rgba(0, 200, 83, 0.15);
+            --yellow: #F5B700;
+            --yellow-dim: rgba(245, 183, 0, 0.15);
             --red: #FF4D4F;
-            --red-dim: rgba(255,77,79,0.15);
-            --text-primary: #E5F4FF;
-            --text-secondary: #9CB3CC;
-            --text-muted: #6B7280;
-            --border: rgba(0,209,255,0.1);
-            --border-subtle: rgba(107,114,128,0.2);
-            --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
-            --shadow-glow: 0 0 20px rgba(0,209,255,0.08);
+            --red-dim: rgba(255, 77, 79, 0.15);
+            --text-primary: #FFFFFF;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+            --border: rgba(59, 130, 246, 0.12);
+            --border-subtle: rgba(148, 163, 184, 0.12);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.45);
+            --shadow-glow: 0 0 24px rgba(59, 130, 246, 0.1);
             --radius: 12px;
             --radius-lg: 16px;
-            --header-bg: rgba(17,24,39,0.85);
-            --nav-bg: rgba(11,17,32,0.8);
-            --card-bg: rgba(17,24,39,0.75);
-            --db-bg: rgba(17,24,39,0.7);
-            --status-bg: rgba(17,24,39,0.9);
-            --overlay-bg: radial-gradient(ellipse at center, rgba(11,17,32,0.75) 0%, rgba(11,17,32,0.92) 50%, rgba(11,17,32,0.97) 100%);
+            --header-bg: rgba(18, 26, 47, 0.88);
+            --nav-bg: rgba(18, 26, 47, 0.92);
+            --card-bg: rgba(18, 26, 47, 0.78);
+            --db-bg: rgba(18, 26, 47, 0.85);
+            --status-bg: rgba(11, 16, 32, 0.95);
+            --overlay-bg: radial-gradient(ellipse at center, rgba(11, 16, 32, 0.5) 0%, rgba(11, 16, 32, 0.94) 100%);
             --show-bg-image: block;
-            --chart-grid: rgba(0,209,255,0.06);
+            --chart-grid: rgba(59, 130, 246, 0.08);
             --chat-bg: var(--bg-primary);
-            --upload-bg: rgba(0,209,255,0.02);
-            --upload-hover-bg: rgba(0,209,255,0.05);
+            --upload-bg: rgba(59, 130, 246, 0.04);
+            --upload-hover-bg: rgba(59, 130, 246, 0.08);
         }
 
         [data-theme="light"] {
@@ -1589,13 +1591,13 @@
         <div class="header-brand">
             <img id="headerLogo" class="header-logo-img" src="/static/logo_dark.png" alt="FXecure">
             <div>
-                <div class="header-title"><span>FX</span>ecure</div>
-                <div class="header-subtitle">Priorización y revisión de siniestros</div>
+                <div class="header-title"><span>FXecure</span> AI</div>
+                <div class="header-subtitle">Inteligencia antifraude · Riesgo en siniestros</div>
             </div>
         </div>
         <div class="header-right header-status-row">
             <span id="dbIndicator" class="badge badge-muted" style="display:none !important;" aria-hidden="true"></span>
-            <span id="aiEngineBadge" class="badge badge-cyan"><span class="pulse-dot pulse-dot-cyan"></span> Análisis: listo</span>
+            <span id="aiEngineBadge" class="badge badge-cyan"><span class="pulse-dot pulse-dot-cyan"></span> IA explicable: activa</span>
             <span id="apiBadge" class="badge badge-green"><span class="pulse-dot pulse-dot-green"></span> API: OK</span>
             <span id="statusIndicator" class="badge badge-green" style="display:none;"><span class="pulse-dot pulse-dot-green"></span> Operativo</span>
             <div style="display:flex; align-items:center;">
@@ -1616,7 +1618,7 @@
         </div>
         <div class="nav-item" data-tab="dashboard" title="Dashboard">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-            <span class="nav-label">Dashboard</span>
+            <span class="nav-label">Centro de riesgo</span>
         </div>
         <div class="nav-item" data-tab="cases" title="Bandeja de Casos">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
@@ -1644,18 +1646,18 @@
 
                 <section class="ingest-hero ingest-hero-split">
                     <div class="ingest-hero-main">
-                        <div class="ingest-hero-badge">Carga de cartera</div>
-                        <h1>Importar su cartera de siniestros</h1>
-                        <p class="ingest-hero-sub">Suba su archivo Excel y FXecure validará la estructura, calculará el riesgo y preparará el panel de revisión.</p>
+                        <div class="ingest-hero-badge">FXecure AI · Ingesta inteligente</div>
+                        <h1>Centro de análisis antifraude de siniestros</h1>
+                        <p class="ingest-hero-sub">Importe su cartera, active el motor de IA explicable y obtenga scores de riesgo, alertas priorizadas y reportes forenses automáticos.</p>
                         <div class="ingest-hero-actions">
                             <a href="/api/download-template" class="btn btn-primary" download>&#11015; Descargar Plantilla</a>
                             <button type="button" class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar datos aleatorios</button>
                         </div>
                         <div class="ingest-features">
-                            <span class="ok">✓ Excel multihoja</span>
-                            <span class="ok">✓ Modelo ER automático</span>
-                            <span class="ok">✓ Validación IA</span>
-                            <span class="ok">✓ Integración ML</span>
+                            <span class="ok">✓ Detección de anomalías</span>
+                            <span class="ok">✓ Score explicable</span>
+                            <span class="ok">✓ Alertas priorizadas</span>
+                            <span class="ok">✓ Reportes forenses</span>
                         </div>
                     </div>
                     <div class="ingest-upload" id="ingestUpload" role="button" tabindex="0" aria-label="Subir archivo Excel o CSV">
@@ -1769,7 +1771,7 @@
     <!-- STATUS BAR -->
     <div class="status-bar">
         <span id="statusText">Sistema operativo</span>
-        <span>FXecure &mdash; Alertas de revisión, no acusaciones automáticas</span>
+        <span>FXecure AI &mdash; Centro de inteligencia antifraude · Monitoreo en tiempo real</span>
     </div>
 
 <script>
@@ -1781,16 +1783,24 @@
         const titles = new Map();
         navItems.forEach(el => titles.set(el, el.getAttribute('title') || ''));
 
+        const statusBar = document.querySelector('.status-bar');
+        function syncStatusBarOffset() {
+            if (!statusBar) return;
+            statusBar.style.left = sidebar.classList.contains('expanded') ? '232px' : '64px';
+        }
         function expandSidebar() {
             sidebar.classList.add('expanded');
             main.classList.add('sidebar-open');
             navItems.forEach(el => el.removeAttribute('title'));
+            syncStatusBarOffset();
         }
         function collapseSidebar() {
             sidebar.classList.remove('expanded');
             main.classList.remove('sidebar-open');
             navItems.forEach(el => el.setAttribute('title', titles.get(el)));
+            syncStatusBarOffset();
         }
+        syncStatusBarOffset();
         sidebar.addEventListener('mouseenter', expandSidebar);
         sidebar.addEventListener('mouseleave', collapseSidebar);
         main.addEventListener('click', collapseSidebar);
@@ -1827,7 +1837,7 @@
         if (currentTheme === 'light') {
             return { cyan: '#0369A1', green: '#047857', yellow: '#B45309', red: '#B91C1C', bg: '#F1F5F9', bgCard: '#FFFFFF', text: '#0F172A', muted: '#64748B', grid: 'rgba(15,23,42,0.08)', fontColor: '#334155' };
         }
-        return { cyan: '#00D1FF', green: '#00C48C', yellow: '#FFC857', red: '#FF4D4F', bg: '#0B1120', bgCard: '#111827', text: '#E5F4FF', muted: '#6B7280', grid: 'rgba(0,209,255,0.06)', fontColor: '#9CB3CC' };
+        return { cyan: '#3B82F6', green: '#00C853', yellow: '#F5B700', red: '#FF4D4F', bg: '#0B1020', bgCard: '#121A2F', text: '#FFFFFF', muted: '#94A3B8', grid: 'rgba(59,130,246,0.08)', fontColor: '#94A3B8' };
     }
 
     function getPlotlyLayout() {
@@ -2793,7 +2803,7 @@
     <script src="/static/cases-bandeja.js?v=6"></script>
     <script src="/static/audit-agent.js?v=6"></script>
     <script src="/static/ml-engine.js?v=14"></script>
-    <script src="/static/dashboard.js?v=14"></script>
+    <script src="/static/dashboard.js?v=15"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         bootstrapSessionFromServer().then((b) => {

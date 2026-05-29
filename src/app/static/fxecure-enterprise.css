@@ -1,0 +1,358 @@
+/**
+ * FXecure AI — Design System Enterprise
+ * Centro de inteligencia antifraude · SOC / Fintech
+ */
+
+/* ── Ambiente inmersivo ───────────────────────────── */
+body {
+    background-color: var(--bg-primary) !important;
+    background-image:
+        radial-gradient(ellipse 120% 80% at 0% -20%, rgba(59, 130, 246, 0.14), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 100% 100%, rgba(99, 102, 241, 0.08), transparent 45%),
+        linear-gradient(180deg, #0B1020 0%, #0d1328 50%, #0B1020 100%) !important;
+    background-attachment: fixed !important;
+}
+body::before {
+    background:
+        linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+        radial-gradient(ellipse at center, rgba(11, 16, 32, 0.4) 0%, rgba(11, 16, 32, 0.92) 100%) !important;
+    background-size: 48px 48px, 48px 48px, 100% 100% !important;
+}
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    background: url('/static/fraudia_background.png') center/cover no-repeat;
+    opacity: 0.06;
+}
+
+/* ── Header ejecutivo ─────────────────────────────── */
+.header {
+    height: 64px !important;
+    padding: 0 1.5rem 0 1.25rem !important;
+    background: rgba(18, 26, 47, 0.82) !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.18) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.header-brand::after {
+    content: 'ENTERPRISE';
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--ai-blue);
+    opacity: 0.7;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 4px;
+    vertical-align: middle;
+}
+.header-title {
+    font-size: 1.2rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+}
+.header-title span {
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--ai-blue) 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+.header-subtitle {
+    color: var(--text-secondary) !important;
+    letter-spacing: 0.14em !important;
+    font-size: 0.62rem !important;
+}
+#headerLogo,
+.header-logo-img {
+    filter: drop-shadow(0 2px 12px rgba(59, 130, 246, 0.35)) !important;
+}
+.header-logo {
+    background: linear-gradient(135deg, var(--ai-blue), #1d4ed8) !important;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.35) !important;
+}
+.header-right .badge {
+    backdrop-filter: blur(8px);
+    font-size: 0.68rem !important;
+}
+
+/* ── Sidebar SOC ──────────────────────────────────── */
+.sidebar {
+    top: 64px !important;
+    bottom: 32px !important;
+    width: 64px !important;
+    background: rgba(18, 26, 47, 0.94) !important;
+    border-right: 1px solid rgba(59, 130, 246, 0.14) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.4) !important;
+}
+.sidebar.expanded { width: 232px !important; }
+.nav-item {
+    color: var(--text-secondary) !important;
+    border-radius: 10px !important;
+    margin: 3px 8px !important;
+}
+.nav-item:hover {
+    color: #fff !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+}
+.nav-item.active {
+    color: #fff !important;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0.06)) !important;
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+.nav-item.active::before {
+    background: var(--ai-blue) !important;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6) !important;
+}
+.sidebar-section {
+    color: rgba(148, 163, 184, 0.55) !important;
+    letter-spacing: 0.14em !important;
+}
+
+/* ── Layout principal ─────────────────────────────── */
+.main-content {
+    margin-top: 64px !important;
+    margin-left: 64px !important;
+    padding: 1.35rem 1.75rem 3.5rem !important;
+}
+.main-content.sidebar-open { margin-left: 232px !important; }
+.tab-panel.active {
+    animation: fxecureFadeIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes fxecureFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Tarjetas glass enterprise ────────────────────── */
+.card,
+.dash-panel,
+.dash-kpi-card,
+.ingest-panel,
+.ingest-hero,
+.bandeja-filters-panel,
+.bandeja-table-wrap {
+    background: rgba(18, 26, 47, 0.72) !important;
+    border: 1px solid rgba(59, 130, 246, 0.12) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
+}
+.card:hover,
+.dash-kpi-card:hover {
+    border-color: rgba(59, 130, 246, 0.28) !important;
+}
+.card-title,
+.dash-panel-title,
+.dash-kpi-label {
+    color: var(--text-secondary) !important;
+    letter-spacing: 0.08em !important;
+}
+.section-header h2 {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-primary) !important;
+}
+.section-line {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.35), transparent) !important;
+}
+
+/* ── Botones premium ──────────────────────────────── */
+.btn-primary {
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%) !important;
+    border: 1px solid rgba(96, 165, 250, 0.4) !important;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em;
+}
+.btn-primary:hover {
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.45) !important;
+    transform: translateY(-1px);
+}
+.btn-secondary {
+    background: rgba(18, 26, 47, 0.9) !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    color: var(--text-primary) !important;
+}
+.btn-secondary:hover {
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    background: rgba(59, 130, 246, 0.08) !important;
+}
+
+/* ── Badges riesgo ────────────────────────────────── */
+.badge-cyan {
+    background: rgba(59, 130, 246, 0.12) !important;
+    color: #93C5FD !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+}
+.badge-green {
+    background: rgba(0, 200, 83, 0.12) !important;
+    color: var(--green) !important;
+    border-color: rgba(0, 200, 83, 0.3) !important;
+}
+.badge-yellow {
+    background: rgba(245, 183, 0, 0.12) !important;
+    color: var(--yellow) !important;
+    border-color: rgba(245, 183, 0, 0.3) !important;
+}
+.badge-red {
+    background: rgba(255, 77, 79, 0.12) !important;
+    color: var(--red) !important;
+    border-color: rgba(255, 77, 79, 0.3) !important;
+}
+.pulse-dot-cyan { background: var(--ai-blue) !important; box-shadow: 0 0 8px var(--ai-blue) !important; }
+
+/* ── Tablas analíticas ────────────────────────────── */
+th,
+.dash-table th {
+    background: rgba(59, 130, 246, 0.08) !important;
+    color: #93C5FD !important;
+    border-bottom-color: rgba(59, 130, 246, 0.2) !important;
+}
+tr:hover td,
+.dash-table tr:hover td {
+    background: rgba(59, 130, 246, 0.05) !important;
+}
+.table-container,
+.dash-table-wrap {
+    border-color: rgba(59, 130, 246, 0.12) !important;
+    border-radius: var(--radius-lg) !important;
+}
+
+/* ── Status bar SOC ───────────────────────────────── */
+.status-bar {
+    left: 64px !important;
+    padding: 0.4rem 1.5rem !important;
+    background: rgba(11, 16, 32, 0.95) !important;
+    border-top: 1px solid rgba(59, 130, 246, 0.15) !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.04em;
+}
+.sidebar.expanded ~ .main-content ~ .status-bar,
+body:has(.sidebar.expanded) .status-bar {
+    left: 232px;
+}
+#statusText {
+    color: var(--green);
+    font-weight: 600;
+}
+#statusText::before {
+    content: '● ';
+    animation: fxecurePulse 2s infinite;
+}
+@keyframes fxecurePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ── Dashboard intelligence hub ───────────────────── */
+.dash-exec-header {
+    background: linear-gradient(135deg, rgba(18, 26, 47, 0.95), rgba(30, 41, 72, 0.85)) !important;
+    border-color: rgba(59, 130, 246, 0.2) !important;
+}
+.dash-exec-title-row h2 {
+    background: linear-gradient(135deg, #fff, #93C5FD) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+}
+.dash-live-pill {
+    color: var(--green) !important;
+    border-color: rgba(0, 200, 83, 0.35) !important;
+}
+.dash-health-fill {
+    background: linear-gradient(90deg, var(--ai-blue), #6366f1) !important;
+}
+.dash-ai-card {
+    background: rgba(18, 26, 47, 0.85) !important;
+    border-color: rgba(59, 130, 246, 0.15) !important;
+}
+.dash-gauge-center {
+    background: #0B1020 !important;
+}
+.dash-view-btn.active {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: var(--ai-blue) !important;
+    color: #93C5FD !important;
+}
+
+/* ── Carga inteligente ────────────────────────────── */
+.ingest-module { min-height: calc(100vh - 64px) !important; }
+.ingest-hero {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(18, 26, 47, 0.92) 45%, rgba(11, 16, 32, 0.95) 100%) !important;
+    border-color: rgba(59, 130, 246, 0.22) !important;
+    box-shadow: 0 0 48px rgba(59, 130, 246, 0.08) !important;
+}
+.ingest-hero-badge,
+.ingest-hero h1 {
+    color: var(--text-primary) !important;
+}
+.ingest-hero-badge {
+    color: var(--ai-blue) !important;
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+}
+.ingest-upload {
+    border-color: rgba(59, 130, 246, 0.25) !important;
+    background: rgba(18, 26, 47, 0.6) !important;
+}
+.ingest-upload:hover {
+    border-color: var(--ai-blue) !important;
+    box-shadow: 0 0 32px rgba(59, 130, 246, 0.15) !important;
+}
+.ingest-actions-bar {
+    border-color: rgba(59, 130, 246, 0.25) !important;
+    background: rgba(59, 130, 246, 0.06) !important;
+}
+.format-tag {
+    border-color: rgba(59, 130, 246, 0.25) !important;
+    color: #93C5FD !important;
+}
+
+/* ── ML & Agente ──────────────────────────────────── */
+.ml-engine-module .card,
+.audit-module .audit-shell {
+    border-color: rgba(59, 130, 246, 0.12) !important;
+}
+.chat-user {
+    background: linear-gradient(135deg, #3B82F6, #2563EB) !important;
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.25) !important;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.4) !important;
+}
+::selection {
+    background: rgba(59, 130, 246, 0.35) !important;
+}
+
+/* ── Alerts & modals ──────────────────────────────── */
+.alert-info {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: rgba(59, 130, 246, 0.25) !important;
+    color: #93C5FD !important;
+}
+.modal-content {
+    background: #121A2F !important;
+    border-color: rgba(59, 130, 246, 0.2) !important;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(59, 130, 246, 0.1) !important;
+}
+.modal-header h3 { color: #93C5FD !important; }
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+    .header-brand::after { display: none; }
+    .main-content { padding: 1rem !important; }
+}

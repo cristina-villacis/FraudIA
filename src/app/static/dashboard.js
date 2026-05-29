@@ -447,7 +447,7 @@ function buildDashboardShell() {
         <header class="dash-exec-header">
             <div class="dash-exec-header-main">
                 <div class="dash-exec-title-row">
-                    <h2>Panel de control de riesgo</h2>
+                    <h2>Centro de inteligencia de riesgo</h2>
                     <span class="dash-live-pill"><span class="dash-live-dot"></span> Tiempo real</span>
                 </div>
                 <div class="dash-soc-meta">
