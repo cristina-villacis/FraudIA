@@ -45,7 +45,7 @@ En runtime solo se sirven resultados + llamadas a OpenAI.
 | `OPENAI_API_KEY` | Opcional — clave `sk-...` (ChatGPT) |
 | `OPENAI_MODEL` | `gpt-4o-mini` |
 | `GEMINI_API_KEY` | **Recomendado en Vercel** — [Google AI Studio](https://aistudio.google.com/apikey) |
-| `GEMINI_MODEL` | `gemini-2.0-flash` |
+| `GEMINI_MODEL` | `gemini-2.5-flash` (no usar `gemini-1.5-flash-8b`; da 404) |
 | `LLM_PROVIDER` | `auto` (OpenAI → Gemini → motor local) o `gemini` / `openai` / `local` |
 | `SECRET_KEY` | Cadena aleatoria |
 | `VERCEL_API_KEY` | Clave opcional para proteger `/api/*` por header `X-Vercel-API-Key` |

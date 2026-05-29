@@ -17,11 +17,12 @@ from src.ai_agent.llm_prompts import (
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
+# Modelos válidos en generativelanguage v1beta (sin 1.5-flash-8b ni 1.5 deprecados).
 DEFAULT_GEMINI_MODELS = (
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-8b",
 )
 
 
