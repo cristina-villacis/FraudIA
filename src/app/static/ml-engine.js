@@ -128,22 +128,6 @@ function buildMlShell() {
                 </div>
             </div>
         </details>
-
-        <div class="ml-panel ml-tech-chat">
-            <div class="ml-panel-title">Chat IA técnico</div>
-            <div class="ml-suggest-row">
-                <button type="button" data-ml-q="¿Qué variable tiene más impacto en el modelo?">Impacto variables</button>
-                <button type="button" data-ml-q="¿Qué modelo detecta más anomalías?">Modelo anomalías</button>
-                <button type="button" data-ml-q="¿Por qué aumentó el score de los casos críticos?">Score críticos</button>
-            </div>
-            <div class="ml-tech-messages" id="mlTechChatMessages">
-                <div class="chat-msg chat-agent">Motor ML listo. Consulta métricas, SHAP, anomalías o explicaciones de score.</div>
-            </div>
-            <div class="ml-tech-input">
-                <input type="text" id="mlTechChatInput" placeholder="Pregunta técnica sobre el modelo..." onkeypress="if(event.key==='Enter')sendMlTechChat()">
-                <button type="button" class="btn btn-primary" onclick="sendMlTechChat()">Enviar</button>
-            </div>
-        </div>
     `;
 }
 
@@ -169,16 +153,52 @@ function renderModelCards(metrics) {
     `).join('');
 }
 
+function mlFetch(url, options = {}) {
+    if (typeof withFraudiaSessionHeaders === 'function') {
+        return fetch(url, withFraudiaSessionHeaders(options));
+    }
+    return fetch(url, options);
+}
+
+function fmtNum(v, digits = 3) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(digits) : '—';
+}
+
+function ensureMlShell(container) {
+    if (document.getElementById('mlEngineShell')) return;
+    mlEngineState.initialized = false;
+    container.innerHTML = `<div id="mlEngineShell">${buildMlShell()}</div>`;
+    initMlPipelineTrack();
+    bindMlEngineEvents();
+    const ramoSel = document.getElementById('mlFilterRamo');
+    if (ramoSel) {
+        ramoSel.innerHTML = '<option value="all">Todos</option>' +
+            (mlEngineState.options.ramos || []).map((r) => `<option value="${r}">${r}</option>`).join('');
+    }
+    mlEngineState.initialized = true;
+    computeSimulatedScore();
+    loadNlpPanelMl();
+}
+
+function safeRender(fn, label) {
+    try {
+        fn();
+    } catch (err) {
+        console.warn('ML render:', label, err);
+    }
+}
+
 function renderMlHeader(metrics) {
     const trained = metrics.trained !== false && !metrics.error;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('mlHdrStatus', trained ? 'Operativo' : 'Inactivo');
     set('mlHdrModel', metrics.active_model || 'Random Forest');
     const acc = metrics.cv_auc_mean != null ? metrics.cv_auc_mean : metrics.auc_roc;
-    set('mlHdrAccuracy', acc != null ? Number(acc).toFixed(3) : '—');
-    set('mlHdrPrecision', (metrics.precision_fraude ?? 0).toFixed(3));
-    set('mlHdrRecall', (metrics.recall_fraude ?? 0).toFixed(3));
-    set('mlHdrF1', (metrics.f1_fraude ?? 0).toFixed(3));
+    set('mlHdrAccuracy', acc != null ? fmtNum(acc) : '—');
+    set('mlHdrPrecision', fmtNum(metrics.precision_fraude ?? metrics.precision ?? 0));
+    set('mlHdrRecall', fmtNum(metrics.recall_fraude ?? metrics.recall ?? 0));
+    set('mlHdrF1', fmtNum(metrics.f1_fraude ?? metrics.f1_score ?? 0));
     set('mlHdrInfer', (metrics.inference_ms ?? 48) + ' ms');
 }
 
@@ -421,9 +441,9 @@ function getModelQueryString() {
 
 async function refreshMlDynamicData() {
     const qs = getModelQueryString();
-    const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''));
+    const resp = await mlFetch('/api/dashboard-data' + (qs ? '?' + qs : ''));
     const data = await resp.json();
-    if (data.error) return;
+    if (!resp.ok || data.error) return;
 
     const scoreEl = document.getElementById('mlFilterScoreProm');
     const amountEl = document.getElementById('mlFilterMonto');
@@ -511,69 +531,69 @@ function bindMlEngineEvents() {
     document.getElementById('mlFilterSearch')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') applyFilters();
     });
-
-    document.querySelectorAll('.ml-suggest-row button').forEach((btn) => {
-        btn.addEventListener('click', () => sendMlTechChat(btn.dataset.mlQ || ''));
-    });
-}
-
-function sendMlTechChat(prefill) {
-    const input = document.getElementById('mlTechChatInput');
-    const q = typeof prefill === 'string' ? prefill : (input && input.value.trim());
-    if (!q) return;
-    if (input && typeof prefill !== 'string') input.value = '';
-    if (typeof sendAgentQuery === 'function') sendAgentQuery(q, 'mlTechChatMessages', 'mlTech');
 }
 
 async function initMlEngine() {
     const container = document.getElementById('modelContent');
     if (!container) return;
     try {
+        if (typeof bootstrapSessionFromServer === 'function') {
+            await bootstrapSessionFromServer();
+        }
         const [metricsResp, filtersResp] = await Promise.all([
-            fetch('/api/model-metrics'),
-            fetch('/api/dashboard-filters'),
+            mlFetch('/api/model-metrics'),
+            mlFetch('/api/dashboard-filters'),
         ]);
-        const data = await metricsResp.json();
-        const filtersData = await filtersResp.json();
-        if (data.error) {
-            container.innerHTML = `<div class="alert alert-warning">${data.error}. Ejecute el pipeline desde Carga de Datos.</div>`;
+        let data;
+        try {
+            data = await metricsResp.json();
+        } catch (_) {
+            throw new Error('Respuesta inválida del servidor al cargar métricas ML');
+        }
+        if (!metricsResp.ok || data.error) {
+            container.innerHTML = `<div class="alert alert-warning">${escapeHtml(
+                data.error || 'No hay métricas ML disponibles'
+            )}. Ejecute el pipeline desde Carga de Datos.</div>`;
+            mlEngineState.initialized = false;
             return;
         }
         mlEngineState.metrics = data;
-        mlEngineState.options.ramos = filtersData?.ramos || [];
 
-        if (!mlEngineState.initialized) {
-            container.innerHTML = `<div id="mlEngineShell">${buildMlShell()}</div>`;
-            initMlPipelineTrack();
-            bindMlEngineEvents();
-            const ramoSel = document.getElementById('mlFilterRamo');
-            if (ramoSel) {
-                ramoSel.innerHTML = '<option value="all">Todos</option>' +
-                    mlEngineState.options.ramos.map((r) => `<option value="${r}">${r}</option>`).join('');
-            }
-            mlEngineState.initialized = true;
-            computeSimulatedScore();
-            loadNlpPanelMl();
+        let filtersData = {};
+        try {
+            filtersData = await filtersResp.json();
+        } catch (_) {
+            filtersData = {};
+        }
+        if (filtersResp.ok && !filtersData.error) {
+            mlEngineState.options.ramos = filtersData.ramos || [];
         }
 
-        renderMlHeader(data);
-        renderModelCards(data);
-        renderShapList(data.top_features || data.feature_importance || []);
-        renderImportanceChart(data);
-        renderConfusionChart(data);
-        renderAnomalyScatter(data);
-        renderMonitorPanel(data);
+        ensureMlShell(container);
+
+        safeRender(() => renderMlHeader(data), 'header');
+        safeRender(() => renderModelCards(data), 'cards');
+        safeRender(() => renderShapList(data.top_features || data.feature_importance || []), 'shap');
+        safeRender(() => renderImportanceChart(data), 'importance');
+        safeRender(() => renderConfusionChart(data), 'confusion');
+        safeRender(() => renderAnomalyScatter(data), 'anomaly');
+        safeRender(() => renderMonitorPanel(data), 'monitor');
         await refreshMlDynamicData();
-
-        if (typeof updateMlChatWidgetVisibility === 'function') {
-            updateMlChatWidgetVisibility(true);
-        }
-        if (typeof refreshMlChatStatus === 'function') refreshMlChatStatus();
     } catch (e) {
         console.error('initMlEngine:', e);
-        container.innerHTML = '<div class="alert alert-danger">Error al cargar el motor ML.</div>';
+        mlEngineState.initialized = false;
+        container.innerHTML = `<div class="alert alert-danger">Error al cargar el motor ML: ${escapeHtml(
+            e.message || 'Error desconocido'
+        )}. Verifique que el análisis IA haya terminado en Carga de Datos.</div>`;
     }
 }
 
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 window.MlEngine = { init: initMlEngine, refresh: refreshMlDynamicData };
-window.sendMlTechChat = sendMlTechChat;

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/static/ingest.css?v=3">
     <link rel="stylesheet" href="/static/dashboard-premium.css?v=1">
     <link rel="stylesheet" href="/static/ml-premium.css?v=1">
-    <link rel="stylesheet" href="/static/ml-copilot.css?v=2">
+    <link rel="stylesheet" href="/static/audit-agent.css?v=1">
     <style>
         :root, [data-theme="dark"] {
             --bg-primary: #0B1120;
@@ -1625,6 +1625,10 @@
             <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
             <span class="nav-label">IA / ML Engine</span>
         </div>
+        <div class="nav-item" data-tab="audit" title="Agente de Auditoría IA">
+            <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg></div>
+            <span class="nav-label">Consultas de Riesgo</span>
+        </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Salida</div>
         <div class="nav-item" data-tab="export" title="Exportar">
@@ -1785,49 +1789,9 @@
             </div>
         </div>
 
-        <!-- Agente IA — solo en pestaña Modelo ML -->
-        <!-- AI Floating Copilot -->
-        <div id="mlChatWidget" class="copilot-widget" aria-hidden="true">
-            <div id="mlCopilotPanel" class="copilot-panel" role="dialog" aria-label="Copiloto antifraude">
-                <div id="copilotResizeHandle" class="copilot-resize copilot-resize-nw" title="Arrastre para cambiar tamaño"></div>
-                <div id="copilotResizeHandleSE" class="copilot-resize copilot-resize-se" title="Arrastre para cambiar tamaño"></div>
-                <header class="copilot-header" id="copilotDragHandle">
-                    <div class="copilot-header-left">
-                        <div class="copilot-avatar" aria-hidden="true">◈</div>
-                        <div>
-                            <div class="copilot-name">Copiloto antifraude</div>
-                        </div>
-                    </div>
-                    <div class="copilot-header-metrics" id="copilotHeaderMetrics"></div>
-                    <div class="copilot-header-actions">
-                        <button type="button" class="copilot-icon-btn" id="copilotBtnMin" title="Minimizar">−</button>
-                        <button type="button" class="copilot-icon-btn" id="copilotBtnExpand" title="Expandir">⤢</button>
-                        <button type="button" class="copilot-icon-btn" id="copilotBtnClose" title="Cerrar">×</button>
-                    </div>
-                </header>
-                <div class="copilot-body">
-                    <aside class="copilot-sidebar" id="copilotSidebar" aria-label="Investigaciones"></aside>
-                    <main class="copilot-main">
-                        <div class="copilot-context" id="copilotContextBar"></div>
-                        <div class="copilot-messages" id="mlCopilotMessages"></div>
-                        <div class="copilot-dossier" id="copilotDossier">
-                            <button type="button" class="copilot-icon-btn" id="copilotDossierClose" style="float:right;margin-bottom:0.5rem;" title="Cerrar dossier">×</button>
-                        </div>
-                    </main>
-                </div>
-                <footer class="copilot-footer">
-                    <div class="copilot-quick-actions" id="copilotQuickActions"></div>
-                    <div class="copilot-input-wrap">
-                        <textarea id="mlCopilotInput" rows="1" placeholder="Analiza patrones sospechosos…"></textarea>
-                        <button type="button" class="copilot-send-btn" id="mlCopilotSend" title="Enviar" aria-label="Enviar">➤</button>
-                    </div>
-                </footer>
-            </div>
-            <button type="button" id="mlChatFab" class="copilot-fab" aria-label="Abrir FraudIA Copilot" title="FraudIA Copilot">
-                <svg id="mlChatFabIcon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 2a7 7 0 0 0-7 7v4a7 7 0 0 0 7 7c.9 0 1.76-.12 2.55-.35L20 24l-1.15-3.45C21.2 19.2 22 17.1 22 15V9a7 7 0 0 0-7-7zm-2.5 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                </svg>
-            </button>
+        <!-- ═══════ TAB: AGENTE DE AUDITORÍA IA ═══════ -->
+        <div id="tab-audit" class="tab-panel audit-module">
+            <div id="auditAgentContent"></div>
         </div>
 
         <!-- ═══════ TAB: EXPORT ═══════ -->
@@ -2222,10 +2186,8 @@
                 bootstrapSessionFromServer().then(() => loadModelMetrics());
             }
             if (item.dataset.tab === 'cases') loadCases();
-            if (item.dataset.tab === 'model' || item.dataset.tab === 'dashboard') {
-                updateMlChatWidgetVisibility(true);
-            } else {
-                updateMlChatWidgetVisibility(false);
+            if (item.dataset.tab === 'audit' && window.AuditAgent) {
+                bootstrapSessionFromServer().then(() => AuditAgent.init());
             }
         });
     });
@@ -2499,11 +2461,9 @@
             loadCases();
             loadModelMetrics();
         });
-        if (document.getElementById('tab-model')?.classList.contains('active')
-            || document.getElementById('tab-dashboard')?.classList.contains('active')) {
-            updateMlChatWidgetVisibility(true);
+        if (document.getElementById('tab-audit')?.classList.contains('active') && window.AuditAgent) {
+            AuditAgent.refreshStatus();
         }
-        refreshMlChatStatus();
     }
 
     function applyAutoPipelineFromApiResponse(data) {
@@ -2650,24 +2610,8 @@
             '<div class="alert alert-danger">No se cargó ml-engine.js</div>';
     }
 
-    // ── Agente IA (copiloto flotante + chats embebidos) ──
-    function updateMlChatWidgetVisibility(show) {
-        if (window.MlCopilot) MlCopilot.setVisible(show);
-    }
-
-    function toggleMlChatPanel(forceOpen) {
-        if (window.MlCopilot) MlCopilot.toggle(forceOpen);
-    }
-
-    async function refreshMlChatStatus() {
-        if (window.MlCopilot) MlCopilot.refreshHeaderMetrics();
-    }
-
+    // ── Agente IA (utilidades compartidas para Consultas de Riesgo) ──
     async function sendAgentQuery(question, messagesEl, loadingIdPrefix) {
-        const elId = typeof messagesEl === 'string' ? messagesEl : messagesEl?.id;
-        if (elId === 'mlCopilotMessages' && window.MlCopilot) {
-            return MlCopilot.send(question);
-        }
         const messages = typeof messagesEl === 'string' ? document.getElementById(messagesEl) : messagesEl;
         if (!messages || !question) return;
         const loadId = loadingIdPrefix + 'Loading';
@@ -2675,13 +2619,12 @@
         messages.innerHTML += `<div class="chat-msg chat-agent" id="${loadId}"><span class="spinner"></span> Analizando...</div>`;
         messages.scrollTop = messages.scrollHeight;
         try {
-            const headers = { 'Content-Type': 'application/json' };
-            if (window.__FRAUDIA_API_KEY__) headers['X-Vercel-API-Key'] = window.__FRAUDIA_API_KEY__;
-            const resp = await fetch('/api/agent-query', {
+            const baseOpts = {
                 method: 'POST',
-                headers,
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question }),
-            });
+            };
+            const resp = await fetch('/api/agent-query', withFraudiaSessionHeaders(baseOpts));
             const data = await resp.json();
             const loader = document.getElementById(loadId);
             if (loader) loader.remove();
@@ -2692,8 +2635,10 @@
                 return;
             }
             const answer = data.respuesta || data.error || 'Sin respuesta';
-            const motor = data.motor
-                ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">Motor: ' + escapeHtml(data.motor) + '</div>'
+            let motorLine = data.motor ? 'Motor: ' + data.motor : '';
+            if (data.llm_error) motorLine += (motorLine ? ' · ' : '') + data.llm_error;
+            const motor = motorLine
+                ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">' + escapeHtml(motorLine) + '</div>'
                 : '';
             const extraData = renderAgentDataBlock(data.datos, question);
             messages.innerHTML += `<div class="chat-msg chat-agent">${renderAgentText(answer)}${extraData}${motor}</div>`;
@@ -2802,15 +2747,6 @@
         return tableHtml;
     }
 
-    async function sendMlChatQuery() {
-        if (window.MlCopilot) {
-            const input = document.getElementById('mlCopilotInput');
-            if (input && input.value.trim()) return MlCopilot.send(input.value);
-            return;
-        }
-        await sendAgentQuery('', 'mlCopilotMessages', 'mlChat');
-    }
-
     // ── Export ──
     async function exportPowerBI() {
         const btn = document.getElementById('btnExport');
@@ -2833,8 +2769,8 @@
     }
 </script>
     <script src="/static/ingest.js?v=6"></script>
-    <script src="/static/ml-copilot.js?v=3"></script>
-    <script src="/static/ml-engine.js?v=1"></script>
+    <script src="/static/audit-agent.js?v=1"></script>
+    <script src="/static/ml-engine.js?v=3"></script>
     <script src="/static/dashboard.js?v=5"></script>
 </body>
 </html>

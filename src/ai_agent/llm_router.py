@@ -2,8 +2,8 @@
 Selección de proveedor LLM para el chat (Vercel / local).
 
 Orden por defecto (LLM_PROVIDER=auto):
-  1. OpenAI (OPENAI_API_KEY)
-  2. Google Gemini (GEMINI_API_KEY)
+  1. Google Gemini (GEMINI_API_KEY) — preferido para explicabilidad
+  2. OpenAI (OPENAI_API_KEY)
   3. Motor local por reglas (sin API externa)
 
 LLM_PROVIDER=gemini | openai | local fuerza un modo.
@@ -25,11 +25,11 @@ def get_llm_provider() -> str:
         return "openai" if openai_client.is_openai_configured() else "local"
     if mode == "gemini":
         return "gemini" if gemini_client.is_gemini_configured() else "local"
-    # auto
-    if openai_client.is_openai_configured():
-        return "openai"
+    # auto — Gemini primero (requisito explicabilidad Aseguradora del Sur)
     if gemini_client.is_gemini_configured():
         return "gemini"
+    if openai_client.is_openai_configured():
+        return "openai"
     return "local"
 
 
@@ -37,23 +37,23 @@ def enhance_with_llm(
     question: str,
     factual_answer: str,
     dataset_context: str,
-) -> Tuple[Optional[str], str]:
+) -> Tuple[Optional[str], str, Optional[str]]:
     """
     Enriquece respuesta factual con LLM externo si está configurado.
-    Retorna (texto_enriquecido | None, nombre_motor).
+    Retorna (texto_enriquecido | None, nombre_motor, mensaje_error | None).
     """
     provider = get_llm_provider()
     if provider == "openai":
         text = openai_client.enhance_agent_answer(question, factual_answer, dataset_context)
         if text:
-            return text, "chatgpt+datos"
-        return None, "reglas (OpenAI no respondió)"
+            return text, "chatgpt+datos", None
+        return None, "reglas-local", "OpenAI no respondió — verifique OPENAI_API_KEY"
     if provider == "gemini":
-        text = gemini_client.enhance_agent_answer(question, factual_answer, dataset_context)
+        text, err = gemini_client.enhance_agent_answer(question, factual_answer, dataset_context)
         if text:
-            return text, "gemini+datos"
-        return None, "reglas (Gemini no respondió)"
-    return None, "reglas-local"
+            return text, "gemini+datos", None
+        return None, "reglas-local", err or "Gemini no respondió"
+    return None, "reglas-local", None
 
 
 def llm_status() -> dict:

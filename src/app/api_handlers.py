@@ -1165,11 +1165,14 @@ def get_case(case_id: str) -> dict:
 
 
 def agent_status() -> dict:
+    df = app_state.get("df_scored")
+    count = len(df) if df is not None and not getattr(df, "empty", True) else None
     return {
         **llm_status(),
         "openai_configured": is_openai_configured(),
         "openai_model": get_openai_model() if is_openai_configured() else None,
         "pipeline_ready": app_state.get("agent") is not None,
+        "siniestros_count": count,
         "vercel": is_vercel_runtime(),
     }
 
@@ -1285,21 +1288,102 @@ def _enrich_ml_metrics(metrics: dict) -> dict:
     return metrics
 
 
-def model_metrics() -> dict:
-    _ensure_session_state(require_scored=True)
-    results = app_state.get("model_results")
-    if results is None:
-        snapshot = app_state.get("model_snapshot")
-        if snapshot:
-            return _enrich_ml_metrics(dict(snapshot))
-        raise ValueError("Modelo no entrenado")
-    if is_vercel_runtime() or results.get("trained") or "model" not in results:
-        return _enrich_ml_metrics(dict(results))
-    from src.models.fraud_model import get_model_metrics_summary
+def _build_metrics_from_scored_df() -> dict:
+    """Métricas derivadas del dataset procesado cuando no hay snapshot ML persistido."""
+    df = app_state.get("df_scored")
+    if df is None or getattr(df, "empty", True):
+        return {"trained": False}
 
-    metrics = get_model_metrics_summary(results)
-    metrics["confusion_matrix"] = results.get("confusion_matrix")
-    metrics["trained"] = True
+    has_ml = "ml_fraud_probability" in df.columns and df["ml_fraud_probability"].notna().any()
+    has_anom = "anomaly_score" in df.columns and df["anomaly_score"].notna().any()
+    has_score = "score_hibrido" in df.columns
+
+    metrics: dict = {
+        "trained": bool(has_ml or has_score),
+        "active_model": "Random Forest" if has_ml else "Reglas + score híbrido",
+        "model_version": "fraudia-ml-1.0",
+        "total_records": int(len(df)),
+    }
+
+    if has_score:
+        scores = df["score_hibrido"].dropna()
+        metrics["score_promedio"] = round(float(scores.mean()), 2)
+
+    if "semaforo_final" in df.columns:
+        sem = df["semaforo_final"].value_counts()
+        metrics["semaforo_counts"] = {
+            "Rojo": int(sem.get("Rojo", 0)),
+            "Amarillo": int(sem.get("Amarillo", 0)),
+            "Verde": int(sem.get("Verde", 0)),
+        }
+
+    if has_ml:
+        prob = df["ml_fraud_probability"].dropna()
+        if len(prob):
+            metrics["ml_prob_promedio"] = round(float(prob.mean()), 4)
+            metrics["casos_alta_prob_ml"] = int((prob >= 0.7).sum())
+
+    if has_anom:
+        anom = df["anomaly_score"].dropna()
+        if len(anom):
+            metrics["anomalies_detected"] = int((anom >= 0.75).sum())
+
+    snapshot = app_state.get("model_snapshot")
+    if isinstance(snapshot, dict):
+        for key in (
+            "auc_roc", "cv_auc_mean", "precision_fraude", "recall_fraude", "f1_fraude",
+            "top_features", "feature_importance", "confusion_matrix",
+        ):
+            if snapshot.get(key) is not None and metrics.get(key) is None:
+                metrics[key] = snapshot.get(key)
+
+    return metrics
+
+
+def _resolve_model_metrics_payload() -> dict:
+    """Payload JSON-safe para /api/model-metrics."""
+    from src.models.fraud_model import get_model_metrics_summary
+    from src.pipeline.run_full_analysis import serialize_model_results
+
+    snapshot = app_state.get("model_snapshot")
+    if isinstance(snapshot, dict) and snapshot.get("error"):
+        metrics = _build_metrics_from_scored_df()
+        metrics["warning"] = str(snapshot.get("error"))
+        return metrics
+
+    if isinstance(snapshot, dict) and snapshot.get("trained") is not False and (
+        snapshot.get("auc_roc") is not None or snapshot.get("top_features") or snapshot.get("feature_importance")
+    ):
+        metrics = dict(snapshot)
+        metrics.setdefault("top_features", metrics.get("feature_importance", [])[:10])
+        return metrics
+
+    results = app_state.get("model_results")
+    if isinstance(results, dict) and results.get("model") is not None:
+        return serialize_model_results(results)
+
+    if isinstance(results, dict) and not results.get("model") and (
+        results.get("auc_roc") is not None or results.get("top_features")
+    ):
+        metrics = dict(results)
+        metrics.setdefault("trained", True)
+        metrics.setdefault("top_features", metrics.get("feature_importance", [])[:10])
+        return metrics
+
+    metrics = _build_metrics_from_scored_df()
+    if not metrics.get("trained"):
+        raise ValueError(
+            "Modelo no entrenado. Cargue un Excel en «Carga Inteligente de Datos» y pulse «Activar motor IA»."
+        )
+    return metrics
+
+
+def model_metrics() -> dict:
+    if not _ensure_session_state(require_scored=True):
+        raise ValueError(
+            "Pipeline no ejecutado. Cargue datos en «Carga Inteligente de Datos» y active el motor IA."
+        )
+    metrics = _resolve_model_metrics_payload()
     return _enrich_ml_metrics(metrics)
 
 

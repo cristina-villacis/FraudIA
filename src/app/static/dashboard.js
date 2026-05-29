@@ -498,25 +498,6 @@ function buildDashboardShell() {
             <div class="dash-panel-head"><h3 class="dash-panel-title">Alertas automáticas · tiempo real</h3></div>
             <div id="alertsPanel" class="alerts-panel"></div>
         </div>
-
-        <div class="dash-panel dash-chat-panel">
-            <div class="dash-panel-head">
-                <h3 class="dash-panel-title">Asistente IA antifraude</h3>
-                <span class="dash-panel-badge">Datos en vivo</span>
-            </div>
-            <div class="dash-chat-suggestions">
-                <button type="button" data-dash-q="¿Qué casos revisar primero?">¿Qué casos revisar primero?</button>
-                <button type="button" data-dash-q="¿Qué ciudad tiene más fraude?">¿Qué sucursal concentra alertas?</button>
-                <button type="button" data-dash-q="Resume los casos críticos del dashboard.">Resume casos críticos</button>
-            </div>
-            <div class="dash-chat-messages" id="dashChatMessages">
-                <div class="chat-msg chat-agent">Soy FraudIA. Pregúntame sobre casos críticos, patrones, proveedores o riesgo geográfico usando los datos del dashboard.</div>
-            </div>
-            <div class="dash-chat-input">
-                <input type="text" id="dashChatInput" placeholder="Ej: ¿Cuáles son los 5 casos de mayor riesgo?" onkeypress="if(event.key==='Enter')sendDashChatQuery()">
-                <button type="button" class="btn btn-primary" id="btnDashChatSend" onclick="sendDashChatQuery()">Enviar</button>
-            </div>
-        </div>
     `;
 }
 
@@ -646,18 +627,7 @@ async function renderDashMlPanel() {
     }
 }
 
-function sendDashChatQuery(prefill) {
-    const input = document.getElementById('dashChatInput');
-    const q = typeof prefill === 'string' ? prefill : (input && input.value.trim());
-    if (!q) return;
-    if (input && typeof prefill !== 'string') input.value = '';
-    if (typeof sendAgentQuery === 'function') sendAgentQuery(q, 'dashChatMessages', 'dashChat');
-}
-
 function bindDashboardEvents() {
-    document.querySelectorAll('.dash-chat-suggestions button').forEach((btn) => {
-        btn.addEventListener('click', () => sendDashChatQuery(btn.dataset.dashQ || ''));
-    });
     document.getElementById('btnApplyFilters').addEventListener('click', () => {
         syncFiltersFromForm();
         dashboardState.filters.semaforo = document.getElementById('filterSemaforo').value;
@@ -1401,4 +1371,3 @@ async function initDashboard() {
 
 // Compatibilidad con llamadas anteriores
 function loadDashboard() { initDashboard(); }
-if (typeof window !== 'undefined') window.sendDashChatQuery = sendDashChatQuery;

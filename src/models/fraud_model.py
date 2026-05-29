@@ -271,11 +271,13 @@ def compute_hybrid_score(
 
 
 def get_model_metrics_summary(results: Dict) -> Dict:
+    report = results.get("classification_report") or {}
+    fraud_cls = report.get("1") or report.get(1) or {}
     return {
         "auc_roc": results.get("auc_roc", 0),
         "cv_auc_mean": results.get("cv_auc_mean", 0),
-        "precision_fraude": round(results.get("classification_report", {}).get("1", {}).get("precision", 0), 3),
-        "recall_fraude": round(results.get("classification_report", {}).get("1", {}).get("recall", 0), 3),
-        "f1_fraude": round(results.get("classification_report", {}).get("1", {}).get("f1-score", 0), 3),
-        "top_features": results.get("feature_importance", [])[:10],
+        "precision_fraude": round(float(fraud_cls.get("precision", 0) or 0), 3),
+        "recall_fraude": round(float(fraud_cls.get("recall", 0) or 0), 3),
+        "f1_fraude": round(float(fraud_cls.get("f1-score", fraud_cls.get("f1_score", 0)) or 0), 3),
+        "top_features": (results.get("feature_importance") or [])[:10],
     }

@@ -155,19 +155,25 @@ class ClaimsAgent:
         return get_llm_provider() != "local"
 
     def _apply_response_style(self, text: str) -> str:
-        """Aplica formato base consistente para respuestas del agente."""
+        """Formato base para respuestas del agente (sin saludos genéricos)."""
         clean = (text or "").strip()
         if not clean:
-            return "# 🤖 FraudIA Claims\n\nNo se encontró información para responder la consulta."
+            return (
+                "## Clasificación de riesgo\n"
+                "No hay datos suficientes en el dataset procesado.\n\n"
+                "## Recomendación de auditoría\n"
+                "Cargue un Excel en «Carga Inteligente de Datos» y active el motor IA."
+            )
         if clean.startswith("#"):
             return clean
-        return f"# 🤖 FraudIA Claims\n\n{clean}"
+        return clean
 
     def query(self, question: str) -> Dict:
         question_lower = question.lower().strip()
 
         handlers = [
             (self._is_case_query, self._handle_case_query),
+            (self._is_explainability_query, self._handle_explainability_query),
             (self._is_ml_query, self._handle_ml_query),
             (self._is_summary_query, self._handle_summary_query),
             (self._is_top_risk_query, self._handle_top_risk_query),
@@ -208,7 +214,7 @@ class ClaimsAgent:
                         "ramo", "cobertura", "monto_reclamado",
                     ) if k in result["datos"]}
                 )
-            enhanced, motor = enhance_with_llm(question, factual, context)
+            enhanced, motor, llm_error = enhance_with_llm(question, factual, context)
             if enhanced:
                 result["respuesta"] = enhanced
                 result["motor"] = motor
@@ -216,9 +222,71 @@ class ClaimsAgent:
                 result["gemini_used"] = motor.startswith("gemini")
             else:
                 result["motor"] = motor
+                if llm_error:
+                    result["llm_error"] = llm_error
 
         result["respuesta"] = self._apply_response_style(result.get("respuesta", ""))
         return result
+
+    def _is_explainability_query(self, q: str) -> bool:
+        return any(w in q for w in [
+            "por qué", "porque", "justifica", "justificación", "justificacion",
+            "explica", "explicabilidad", "catalogado", "catalogados", "clasificado",
+            "clasificados", "riesgo alto", "riesgo medio", "riesgo bajo",
+            "semáforo", "semaforo", "rojo", "amarillo", "verde",
+        ])
+
+    def _risk_level_label(self, semaforo: str, score: float) -> str:
+        sem = str(semaforo or "")
+        if sem == "Rojo" or score >= 56:
+            return "Alto (Rojo)"
+        if sem == "Amarillo" or score >= 26:
+            return "Medio (Amarillo)"
+        return "Bajo (Verde)"
+
+    def _handle_explainability_query(self, q: str) -> Dict:
+        """Justificación estructurada de clasificación de riesgo desde el dataset procesado."""
+        if self.score_col not in self.df.columns:
+            return {"respuesta": "No hay scores en el dataset procesado. Active el motor IA tras cargar el Excel.", "datos": None}
+
+        case_match = re.search(r"(sin-?\d+|\d{4,})", q)
+        if case_match:
+            return self._handle_case_query(q)
+
+        sem_filter = None
+        if any(w in q for w in ["riesgo alto", "alto", "rojo", "crítico", "critico"]):
+            sem_filter = "Rojo"
+        elif any(w in q for w in ["riesgo medio", "medio", "amarillo"]):
+            sem_filter = "Amarillo"
+        elif any(w in q for w in ["riesgo bajo", "bajo", "verde"]):
+            sem_filter = "Verde"
+
+        subset = self.df
+        if sem_filter and self.semaforo_col in self.df.columns:
+            subset = self.df[self.df[self.semaforo_col] == sem_filter]
+
+        if subset.empty:
+            subset = self.df.nlargest(5, self.score_col)
+
+        lines = ["**Justificación de clasificación de riesgo (dataset cargado):**\n"]
+        records = []
+        for _, row in subset.nlargest(8, self.score_col).iterrows():
+            score = float(row.get(self.score_col, 0) or 0)
+            sem = row.get(self.semaforo_col, "N/A")
+            nivel = self._risk_level_label(str(sem), score)
+            alertas = row.get("alertas_reglas", "Sin alertas")
+            reglas = row.get("reglas_criticas", "")
+            ai_block = self._format_ai_signals(row)
+            lines.append(f"**{row['id_siniestro']}** → {nivel} | Score: {score:.1f}/100")
+            lines.append(f"- Alertas: {alertas}")
+            if isinstance(reglas, str) and reglas.strip():
+                lines.append(f"- Reglas críticas: {reglas}")
+            if ai_block:
+                lines.append(ai_block)
+            lines.append("")
+            records.append(row.to_dict())
+
+        return {"respuesta": "\n".join(lines).strip(), "datos": records, "tipo": "explicabilidad"}
 
     def _is_case_query(self, q: str) -> bool:
         return bool(re.search(r"sin-?\d+|siniestro\s+\d+|caso\s+\d+|id\s+\d+", q))
@@ -242,18 +310,26 @@ class ClaimsAgent:
         alertas = row.get("alertas_reglas", "Sin alertas")
 
         ai_block = self._format_ai_signals(row)
+        nivel = self._risk_level_label(str(semaforo), float(score or 0))
         respuesta = (
             f"**Siniestro {case_id}**\n"
-            f"- Score híbrido de riesgo: {score:.1f}/100 ({semaforo})\n"
+            f"## Clasificación de riesgo\n"
+            f"- Nivel: **{nivel}** | Score híbrido: {score:.1f}/100\n"
             f"- Ramo: {row.get('ramo', 'N/A')} | Cobertura: {row.get('cobertura', 'N/A')}\n"
             f"- Monto reclamado: ${row.get('monto_reclamado', 0):,.2f}\n"
             f"- Asegurado: {row.get('id_asegurado', 'N/A')}\n"
+            f"## Evidencia del archivo cargado\n"
+            f"- Alertas detectadas: {alertas}\n"
+        )
+        reglas_crit = row.get("reglas_criticas", "")
+        if isinstance(reglas_crit, str) and reglas_crit.strip():
+            respuesta += f"- Reglas críticas activas: {reglas_crit}\n"
+        if ai_block:
+            respuesta += f"{ai_block}\n"
+        respuesta += (
             f"- Proveedor: {row.get('beneficiario', 'N/A')}\n"
             f"- Fecha ocurrencia: {row.get('fecha_ocurrencia', 'N/A')}\n"
-            f"- Alertas: {alertas}\n"
         )
-        if ai_block:
-            respuesta += f"\n**Señales de IA:**\n{ai_block}\n"
 
         if row.get("score_documentos_max") and float(row.get("score_documentos_max") or 0) > 0:
             respuesta += (
@@ -600,20 +676,14 @@ class ClaimsAgent:
         return {"respuesta": respuesta, "tipo": "montos"}
 
     def _handle_general_query(self, q: str) -> Dict:
+        if self.score_col in self.df.columns and len(self.df) > 0:
+            return self._handle_explainability_query(
+                "explica las alertas y justifica la clasificación de riesgo del archivo cargado"
+            )
         return {
             "respuesta": (
-                "Puedo ayudarte con consultas sobre:\n"
-                "- **Casos específicos**: 'Detalle del siniestro SIN-000001'\n"
-                "- **Resumen general**: '¿Cuál es el panorama general?'\n"
-                "- **Top riesgos**: '¿Cuáles son los 10 casos más riesgosos?'\n"
-                "- **Proveedores**: '¿Qué proveedores tienen más riesgo?'\n"
-                "- **Asegurados**: '¿Qué asegurados tienen más reclamos?'\n"
-                "- **Ramos/Coberturas**: 'Análisis por ramo'\n"
-                "- **Patrones**: '¿Qué patrones se detectaron?'\n"
-                "- **Alertas**: '¿Cuántas alertas hay?'\n"
-                "- **Montos**: '¿Cuál es el monto total reclamado?'\n"
-                "- **Vehículos**: '¿Qué vehículos tienen más siniestros?'\n"
-                "- **IA / ML**: '¿Cuál es la probabilidad de fraude del modelo?'\n"
+                "No hay dataset procesado. Cargue un Excel en «Carga Inteligente de Datos» "
+                "y pulse «Activar motor IA». Luego consulte aquí por alertas, semáforos o casos específicos."
             ),
             "tipo": "ayuda",
         }
