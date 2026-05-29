@@ -147,7 +147,7 @@ Causas frecuentes y corrección:
 | Build OK pero 500 al abrir | Falta CSV/bundle | `includeFiles` en `vercel.json` incluye `data/processed/**` |
 
 ### Tras un deploy correcto
-- `https://su-dominio.vercel.app/api/health` → `{"status":"ok",...}`
+- `https://fxecure-ia.vercel.app/api/health` → `{"status":"ok",...}`
 - Si `pipeline_ready: false` en el primer hit, espere 2–3 s y recargue (carga del CSV).
 
 ### Variables obligatorias en Vercel

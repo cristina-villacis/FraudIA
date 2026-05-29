@@ -905,6 +905,8 @@ def build_dashboard_payload(
     active_filters: Optional[List[Dict[str, str]]] = None,
     source_total_siniestros: Optional[int] = None,
 ) -> Dict[str, Any]:
+    from src.app.fraudia_dashboard import build_fraudia_view
+
     active_filters = active_filters or []
     source_total = source_total_siniestros or total_unfiltered
     if df is None or df.empty:
@@ -938,6 +940,7 @@ def build_dashboard_payload(
             "fraud_trend": {"delta_pct": 0, "direction": "neutral", "label": ""},
             "cases_analytics": [],
             "active_alerts_count": 0,
+            "fraudia": build_fraudia_view(pd.DataFrame()),
         }
 
     score_col, semaforo_col = _score_and_semaforo_cols(df)
@@ -1222,4 +1225,5 @@ def build_dashboard_payload(
         "critical_alert_feed": critical_alert_feed,
         "soc_timeline": soc_timeline,
         "geo_fraud_heatmap": geo_fraud_heatmap,
+        "fraudia": build_fraudia_view(df, sparklines, temporal_risk_data),
     }

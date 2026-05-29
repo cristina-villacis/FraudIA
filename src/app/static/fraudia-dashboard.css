@@ -1,0 +1,518 @@
+/* FraudIA — Dashboard antifraude enterprise */
+.fraudia-dash {
+    --fd-bg: #070b14;
+    --fd-panel: rgba(14, 20, 38, 0.72);
+    --fd-border: rgba(56, 189, 248, 0.14);
+    --fd-cyan: #22d3ee;
+    --fd-blue: #3b82f6;
+    --fd-purple: #a78bfa;
+    --fd-green: #00c48c;
+    --fd-yellow: #f5b700;
+    --fd-red: #ff4d4f;
+    position: relative;
+    z-index: 1;
+    padding-bottom: 2rem;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+#fraudiaParticles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    z-index: 0;
+}
+
+.fraudia-dash-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding: 1.1rem 1.35rem;
+    border-radius: 16px;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-border);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 0 40px rgba(34, 211, 238, 0.06);
+}
+.fraudia-dash-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 0%, var(--fd-cyan) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.fraudia-dash-header p {
+    margin: 0.35rem 0 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.fraudia-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1.25rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.fraudia-meta strong { color: var(--fd-cyan); }
+.fraudia-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(0, 196, 140, 0.12);
+    border: 1px solid rgba(0, 196, 140, 0.35);
+    color: var(--fd-green);
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.fraudia-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--fd-green);
+    box-shadow: 0 0 8px var(--fd-green);
+    animation: fd-pulse 1.4s ease infinite;
+}
+@keyframes fd-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.15); }
+}
+
+.fraudia-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-border);
+}
+.fraudia-toolbar input,
+.fraudia-toolbar select {
+    padding: 0.4rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--fd-border);
+    background: rgba(7, 11, 20, 0.6);
+    color: var(--text-primary);
+    font-size: 0.78rem;
+}
+.fraudia-search { flex: 1; min-width: 160px; }
+
+.fraudia-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 1.25rem;
+}
+@media (max-width: 1400px) {
+    .fraudia-kpi-row {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.35rem;
+    }
+}
+.fraudia-kpi {
+    position: relative;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-border);
+    backdrop-filter: blur(14px);
+    min-width: 140px;
+    flex: 1 0 140px;
+    transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+    animation: fd-card-in 0.45s ease backwards;
+}
+.fraudia-kpi:hover {
+    transform: translateY(-3px);
+    border-color: rgba(34, 211, 238, 0.35);
+}
+.fraudia-kpi::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 14px 14px 0 0;
+    opacity: 0.85;
+}
+.fraudia-kpi.glow-cyan::before { background: linear-gradient(90deg, transparent, var(--fd-cyan), transparent); }
+.fraudia-kpi.glow-red::before { background: linear-gradient(90deg, transparent, var(--fd-red), transparent); box-shadow: 0 0 24px rgba(255, 77, 79, 0.12); }
+.fraudia-kpi.glow-amber::before { background: linear-gradient(90deg, transparent, var(--fd-yellow), transparent); }
+.fraudia-kpi.glow-green::before { background: linear-gradient(90deg, transparent, var(--fd-green), transparent); }
+.fraudia-kpi.glow-blue::before { background: linear-gradient(90deg, transparent, var(--fd-blue), transparent); }
+.fraudia-kpi.glow-purple::before { background: linear-gradient(90deg, transparent, var(--fd-purple), transparent); }
+@keyframes fd-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fraudia-kpi-label {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+.fraudia-kpi-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin: 0.25rem 0;
+    letter-spacing: -0.02em;
+}
+.fraudia-kpi-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+}
+.fraudia-kpi-trend.up { color: var(--fd-red); }
+.fraudia-kpi-trend.down { color: var(--fd-green); }
+.fraudia-kpi-trend.neutral { color: var(--text-muted); }
+
+.fraudia-insights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+.fraudia-insight {
+    flex: 1 1 280px;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    border: 1px solid var(--fd-border);
+    background: rgba(59, 130, 246, 0.06);
+    animation: fd-card-in 0.5s ease backwards;
+}
+.fraudia-insight.alert { border-color: rgba(255, 77, 79, 0.35); background: rgba(255, 77, 79, 0.08); }
+.fraudia-insight.warning { border-color: rgba(245, 183, 0, 0.35); }
+.fraudia-insight.success { border-color: rgba(0, 196, 140, 0.35); }
+
+.fraudia-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.fraudia-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+@media (max-width: 1100px) {
+    .fraudia-grid-2, .fraudia-grid-3 { grid-template-columns: 1fr; }
+}
+
+.fraudia-panel {
+    padding: 1rem 1.15rem;
+    border-radius: 14px;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-border);
+    backdrop-filter: blur(16px);
+    transition: box-shadow 0.3s, border-color 0.3s;
+}
+.fraudia-panel:hover {
+    border-color: rgba(34, 211, 238, 0.28);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.fraudia-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.65rem;
+}
+.fraudia-panel-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #93c5fd;
+}
+.fraudia-chart { min-height: 280px; width: 100%; }
+.fraudia-chart-sm { min-height: 220px; }
+.fraudia-chart-lg { min-height: 320px; }
+
+.fraudia-temporal-tabs {
+    display: flex;
+    gap: 0.35rem;
+}
+.fraudia-temporal-tabs button {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.65rem;
+    border-radius: 6px;
+    border: 1px solid var(--fd-border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.fraudia-temporal-tabs button.active {
+    background: rgba(34, 211, 238, 0.15);
+    color: var(--fd-cyan);
+    border-color: rgba(34, 211, 238, 0.4);
+}
+
+.fraudia-ops-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+@media (max-width: 900px) { .fraudia-ops-row { grid-template-columns: repeat(2, 1fr); } }
+.fraudia-ops-card {
+    padding: 0.85rem;
+    border-radius: 12px;
+    background: rgba(167, 139, 250, 0.06);
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    text-align: center;
+}
+.fraudia-ops-card label {
+    display: block;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+.fraudia-ops-card strong { font-size: 1.1rem; color: var(--fd-purple); }
+
+.fraudia-table-wrap {
+    overflow: auto;
+    max-height: 420px;
+    border-radius: 10px;
+}
+.fraudia-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.fraudia-table th {
+    position: sticky;
+    top: 0;
+    background: rgba(11, 16, 32, 0.95);
+    padding: 0.55rem 0.65rem;
+    text-align: left;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--fd-border);
+}
+.fraudia-table td {
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.fraudia-table tr:hover td { background: rgba(59, 130, 246, 0.06); }
+.fraudia-badge {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+}
+.fraudia-badge.rojo { background: rgba(255, 77, 79, 0.2); color: #fca5a5; }
+.fraudia-badge.amarillo { background: rgba(245, 183, 0, 0.2); color: #fde68a; }
+.fraudia-badge.verde { background: rgba(0, 196, 140, 0.2); color: #86efac; }
+.fraudia-btn-xs {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.62rem;
+    border-radius: 6px;
+    border: 1px solid var(--fd-border);
+    background: rgba(34, 211, 238, 0.08);
+    color: var(--fd-cyan);
+    cursor: pointer;
+    margin-right: 0.25rem;
+}
+.fraudia-btn-xs:hover { background: rgba(34, 211, 238, 0.2); }
+
+.fraudia-drawer {
+    position: fixed;
+    top: 72px;
+    right: 0;
+    width: min(420px, 100vw);
+    height: calc(100vh - 72px);
+    background: rgba(11, 16, 32, 0.97);
+    border-left: 1px solid var(--fd-border);
+    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.45);
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 200;
+    overflow-y: auto;
+    padding: 1.25rem;
+}
+.fraudia-drawer.open { transform: translateX(0); }
+.fraudia-drawer h4 { margin: 0 0 1rem; color: var(--fd-cyan); }
+.fraudia-xai-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.78rem;
+}
+.fraudia-skeleton {
+    background: linear-gradient(90deg, rgba(30, 42, 74, 0.5) 0%, rgba(59, 130, 246, 0.12) 50%, rgba(30, 42, 74, 0.5) 100%);
+    background-size: 200% 100%;
+    animation: fd-shimmer 1.4s infinite;
+    border-radius: 12px;
+    min-height: 80px;
+}
+@keyframes fd-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.fraudia-banner {
+    margin-bottom: 1rem;
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid var(--fd-border);
+}
+.fraudia-banner strong { color: var(--fd-cyan); }
+
+/* ── Tema claro ───────────────────────────────────── */
+[data-theme="light"] .fraudia-dash {
+    --fd-bg: #F1F5F9;
+    --fd-panel: rgba(255, 255, 255, 0.96);
+    --fd-border: rgba(15, 23, 42, 0.1);
+    --fd-cyan: #0369A1;
+    --fd-blue: #2563EB;
+    --fd-purple: #7C3AED;
+    --fd-green: #047857;
+    --fd-yellow: #B45309;
+    --fd-red: #B91C1C;
+    color: #0F172A;
+}
+[data-theme="light"] #fraudiaParticles { opacity: 0.12; }
+
+[data-theme="light"] .fraudia-dash-header {
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .fraudia-dash-header h2 {
+    background: linear-gradient(135deg, #0F172A 0%, #0369A1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+[data-theme="light"] .fraudia-dash-header p,
+[data-theme="light"] .fraudia-meta {
+    color: #475569;
+}
+[data-theme="light"] .fraudia-meta strong { color: #0369A1; }
+
+[data-theme="light"] .fraudia-toolbar input,
+[data-theme="light"] .fraudia-toolbar select {
+    background: #FFFFFF;
+    border-color: rgba(15, 23, 42, 0.12);
+    color: #0F172A;
+}
+
+[data-theme="light"] .fraudia-kpi {
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .fraudia-kpi-label { color: #64748B; }
+[data-theme="light"] .fraudia-kpi-value { color: #0F172A; }
+
+[data-theme="light"] .fraudia-panel {
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .fraudia-panel:hover {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+[data-theme="light"] .fraudia-panel-title { color: #0369A1; }
+
+[data-theme="light"] .fraudia-insight {
+    background: rgba(3, 105, 161, 0.06);
+    color: #334155;
+}
+[data-theme="light"] .fraudia-insight.alert {
+    background: rgba(185, 28, 28, 0.06);
+    color: #991B1B;
+}
+[data-theme="light"] .fraudia-insight.warning {
+    background: rgba(180, 83, 9, 0.06);
+    color: #92400E;
+}
+[data-theme="light"] .fraudia-insight.success {
+    background: rgba(4, 120, 87, 0.06);
+    color: #047857;
+}
+
+[data-theme="light"] .fraudia-temporal-tabs button {
+    color: #64748B;
+    border-color: rgba(15, 23, 42, 0.12);
+}
+[data-theme="light"] .fraudia-temporal-tabs button.active {
+    background: rgba(3, 105, 161, 0.1);
+    color: #0369A1;
+    border-color: rgba(3, 105, 161, 0.25);
+}
+
+[data-theme="light"] .fraudia-ops-card {
+    background: rgba(124, 58, 237, 0.05);
+    border-color: rgba(124, 58, 237, 0.15);
+}
+[data-theme="light"] .fraudia-ops-card label { color: #64748B; }
+[data-theme="light"] .fraudia-ops-card strong { color: #6D28D9; }
+
+[data-theme="light"] .fraudia-table th {
+    background: #F8FAFC;
+    color: #0369A1;
+    border-bottom-color: rgba(15, 23, 42, 0.1);
+}
+[data-theme="light"] .fraudia-table td {
+    color: #334155;
+    border-bottom-color: rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .fraudia-table tr:hover td {
+    background: rgba(3, 105, 161, 0.04);
+}
+
+[data-theme="light"] .fraudia-badge.rojo { background: rgba(185, 28, 28, 0.1); color: #B91C1C; }
+[data-theme="light"] .fraudia-badge.amarillo { background: rgba(180, 83, 9, 0.1); color: #B45309; }
+[data-theme="light"] .fraudia-badge.verde { background: rgba(4, 120, 87, 0.1); color: #047857; }
+
+[data-theme="light"] .fraudia-btn-xs {
+    background: rgba(3, 105, 161, 0.08);
+    color: #0369A1;
+    border-color: rgba(3, 105, 161, 0.2);
+}
+[data-theme="light"] .fraudia-btn-xs:hover {
+    background: rgba(3, 105, 161, 0.15);
+}
+
+[data-theme="light"] .fraudia-drawer {
+    background: rgba(255, 255, 255, 0.98);
+    border-left-color: rgba(15, 23, 42, 0.1);
+    box-shadow: -8px 0 32px rgba(15, 23, 42, 0.12);
+    color: #0F172A;
+}
+[data-theme="light"] .fraudia-drawer h4 { color: #0369A1; }
+[data-theme="light"] .fraudia-xai-row {
+    border-bottom-color: rgba(15, 23, 42, 0.08);
+    color: #334155;
+}
+[data-theme="light"] .fraudia-xai-row strong { color: #0F172A; }
+
+[data-theme="light"] .fraudia-banner {
+    background: rgba(3, 105, 161, 0.06);
+    color: #334155;
+    border-color: rgba(3, 105, 161, 0.15);
+}
+[data-theme="light"] .fraudia-banner strong { color: #0369A1; }
+
+[data-theme="light"] .fraudia-skeleton {
+    background: linear-gradient(90deg, #E2E8F0 0%, #F1F5F9 50%, #E2E8F0 100%);
+    background-size: 200% 100%;
+}
