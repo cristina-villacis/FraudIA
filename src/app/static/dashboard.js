@@ -22,6 +22,90 @@ const dashboardState = {
     },
 };
 
+function getAppTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function fmtChartNum(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v <= 0) return '';
+    return v.toLocaleString('es-CO');
+}
+
+function dashBarAxis(C) {
+    return {
+        gridcolor: C.grid,
+        tickfont: { size: 10, color: C.muted },
+        automargin: true,
+        zeroline: false,
+    };
+}
+
+/** Barras apiladas por semáforo con etiqueta en cada segmento y total arriba. */
+function buildStackedRiskTraces(xLabels, verdes, amarillos, rojos, C, names) {
+    const totals = xLabels.map((_, i) =>
+        (Number(verdes[i]) || 0) + (Number(amarillos[i]) || 0) + (Number(rojos[i]) || 0)
+    );
+    const segFont = { size: 10, color: '#ffffff', family: 'Inter, sans-serif' };
+    const totalFont = { size: 11, color: C.text, family: 'Inter, sans-serif' };
+    return [
+        {
+            x: xLabels, y: verdes, name: names[0], type: 'bar',
+            marker: { color: C.green, opacity: 0.92 },
+            text: verdes.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
+        },
+        {
+            x: xLabels, y: amarillos, name: names[1], type: 'bar',
+            marker: { color: C.yellow, opacity: 0.92 },
+            text: amarillos.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
+        },
+        {
+            x: xLabels, y: rojos, name: names[2], type: 'bar',
+            marker: { color: C.red, opacity: 0.92 },
+            text: rojos.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
+        },
+        {
+            x: xLabels,
+            y: totals.map((t) => (t > 0 ? t * 1.04 : 0)),
+            type: 'scatter',
+            mode: 'text',
+            text: totals.map(fmtChartNum),
+            textposition: 'top center',
+            textfont: totalFont,
+            hoverinfo: 'skip',
+            showlegend: false,
+            cliponaxis: false,
+        },
+    ];
+}
+
+function dashStackedLayout(PL, C, opts = {}) {
+    return {
+        ...PL,
+        barmode: 'stack',
+        bargap: 0.28,
+        height: opts.height || 300,
+        margin: { t: 20, b: opts.bottom || 72, l: 56, r: 16, autoexpand: true },
+        xaxis: {
+            ...dashBarAxis(C),
+            tickangle: opts.tickangle ?? -30,
+            type: 'category',
+            title: opts.xTitle ? { text: opts.xTitle, font: { size: 11, color: C.muted } } : undefined,
+        },
+        yaxis: {
+            ...dashBarAxis(C),
+            title: { text: opts.yTitle || 'Siniestros', font: { size: 11, color: C.muted } },
+        },
+        showlegend: opts.showlegend !== false,
+        legend: opts.showlegend !== false ? {
+            orientation: 'h',
+            y: opts.legendY ?? -0.28,
+            x: 0,
+            font: { size: 10, color: C.muted },
+        } : undefined,
+    };
+}
+
 const FILTER_LABELS = {
     semaforo: 'Semáforo',
     ramo: 'Ramo',
@@ -362,8 +446,8 @@ function buildDashboardShell() {
         <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
         <span id="kpiClasificacion" style="display:none;"></span>
 
-        <details class="dash-panel dash-charts-expander">
-            <summary>▸ Gráficos de análisis (desplegar para explorar)</summary>
+        <section class="dash-charts-section">
+            <h3 class="dash-section-title">Gráficos de análisis</h3>
             <p class="dash-chart-help">Puede hacer clic en las barras o sectores para filtrar. Use el botón ✕ en cada gráfico para limpiar el filtro aplicado.</p>
             <div class="dash-layout-duo">
                 <div class="dash-panel card-chart">
@@ -371,7 +455,7 @@ function buildDashboardShell() {
                         <h3 class="dash-panel-title">Semáforo de riesgo</h3>
                         <button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar">✕</button>
                     </div>
-                    <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
+                    <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area chart-area-donut"></div></div>
                 </div>
                 <div class="dash-panel card-chart">
                     <div class="dash-panel-head">
@@ -409,7 +493,7 @@ function buildDashboardShell() {
                     <span><i style="background:var(--red);"></i> Alto</span>
                 </div>
             </div>
-        </details>
+        </section>
 
         <div class="dash-panel" style="margin-bottom:1.25rem;">
             <div class="dash-panel-head"><h3 class="dash-panel-title">Ranking proveedores sospechosos</h3></div>
@@ -683,6 +767,7 @@ function bindPlotlyDashboardCharts(data) {
 
 function renderDashboardCharts(data) {
     const C = getColors(), PL = getPlotlyLayout();
+    const theme = getAppTheme();
     const rojo = data.semaforo.Rojo || 0, amarillo = data.semaforo.Amarillo || 0, verde = data.semaforo.Verde || 0;
     const totalSem = rojo + amarillo + verde || data.total || 1;
 
@@ -692,165 +777,104 @@ function renderDashboardCharts(data) {
         values: [rojo, amarillo, verde],
         labels: ['Rojo', 'Amarillo', 'Verde'],
         customdata: ['76-100 · Alto', '41-75 · Medio', '0-40 · Bajo'],
-        type: 'pie', hole: 0.62, sort: false, direction: 'clockwise',
+        type: 'pie',
+        hole: 0.58,
+        sort: false,
+        direction: 'clockwise',
         marker: { colors: [C.red, C.yellow, C.green], line: { color: C.bgCard || C.bg, width: 3 } },
-        textinfo: 'none',
-        texttemplate: '%{label}<br>%{value:,} (%{percent})<br>%{customdata}',
+        textinfo: 'label+value+percent',
+        texttemplate: '<b>%{label}</b><br>%{value:,}<br>%{percent}',
         textposition: 'outside',
-        textfont: { size: 10, color: C.text },
+        textfont: { size: 11, color: C.text, family: 'Inter, sans-serif' },
         hovertemplate: '<b>%{label}</b><br>%{value:,} casos<br>%{percent}<br>%{customdata}<extra></extra>',
         pull: rojo > 0 ? [0.04, 0, 0] : [0, 0, 0],
     }], {
-        ...PL, showlegend: false, height: 220,
-        margin: { t: 12, b: 12, l: 12, r: 12, autoexpand: true },
+        ...PL,
+        showlegend: false,
+        height: 300,
+        margin: { t: 28, b: 28, l: 48, r: 48, autoexpand: true },
+        uniformtext: { minsize: 9, mode: 'hide' },
         annotations: [{
             text: '<b>' + totalSem.toLocaleString() + '</b><br>siniestros',
-            showarrow: false, font: { size: 15, color: C.text, family: 'Inter, sans-serif' },
+            showarrow: false,
+            font: { size: 14, color: C.text, family: 'Inter, sans-serif' },
             x: 0.5, y: 0.5, xref: 'paper', yref: 'paper', align: 'center',
         }],
-    }, PLOTLY_CONFIG);
+    }, { ...PLOTLY_CONFIG, responsive: true });
 
     if (data.ramo_data && data.ramo_data.length) {
-        const ramos = data.ramo_data.map(r => r.ramo);
-        const verdes = data.ramo_data.map(r => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
-        const amarillos = data.ramo_data.map(r => r.amarillos ?? 0);
-        const rojos = data.ramo_data.map(r => r.rojos ?? 0);
-        Plotly.react('chartRamo', [
-            {
-                x: ramos, y: verdes, name: 'Verde', type: 'bar', marker: { color: C.green, opacity: 0.9 },
-                text: verdes.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
-            },
-            {
-                x: ramos, y: amarillos, name: 'Amarillo', type: 'bar', marker: { color: C.yellow, opacity: 0.9 },
-                text: amarillos.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
-            },
-            {
-                x: ramos, y: rojos, name: 'Rojo', type: 'bar', marker: { color: C.red, opacity: 0.9 },
-                text: rojos.map(v => v > 0 ? String(v) : ''), textposition: 'inside', textfont: { size: 10, color: C.text },
-            },
-        ], {
-            ...PL,
-            barmode: 'stack',
-            showlegend: false,
-            bargap: 0.28,
-            xaxis: {
-                gridcolor: C.grid,
-                tickfont: { size: 10, color: C.muted },
-                tickangle: -35,
-                automargin: true,
-                type: 'category',
-            },
-            yaxis: {
-                title: { text: 'Siniestros', font: { size: 11, color: C.muted } },
-                gridcolor: C.grid,
-                automargin: true,
-                zeroline: false,
-            },
-            height: 300,
-            margin: { t: 16, b: 70, l: 52, r: 16, autoexpand: true },
-        }, { ...PLOTLY_CONFIG, responsive: true });
+        const ramos = data.ramo_data.map((r) => r.ramo);
+        const verdes = data.ramo_data.map((r) => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
+        const amarillos = data.ramo_data.map((r) => r.amarillos ?? 0);
+        const rojos = data.ramo_data.map((r) => r.rojos ?? 0);
+        Plotly.react('chartRamo',
+            buildStackedRiskTraces(ramos, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
+            dashStackedLayout(PL, C, { height: 340, bottom: 88, tickangle: -35, showlegend: true, legendY: -0.32 }),
+            { ...PLOTLY_CONFIG, responsive: true }
+        );
     }
 
     if (data.temporal_risk_data && data.temporal_risk_data.length) {
-        const months = data.temporal_risk_data.map(t => t.mes);
-        Plotly.react('chartTemporal', [
-            {
-                x: months,
-                y: data.temporal_risk_data.map(t => t.Verde || 0),
-                type: 'bar',
-                name: 'Bajo (Verde)',
-                marker: { color: C.green, opacity: 0.9 },
-                text: data.temporal_risk_data.map(t => (t.Verde || 0) > 0 ? String(t.Verde || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-            {
-                x: months,
-                y: data.temporal_risk_data.map(t => t.Amarillo || 0),
-                type: 'bar',
-                name: 'Medio (Amarillo)',
-                marker: { color: C.yellow, opacity: 0.9 },
-                text: data.temporal_risk_data.map(t => (t.Amarillo || 0) > 0 ? String(t.Amarillo || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-            {
-                x: months,
-                y: data.temporal_risk_data.map(t => t.Rojo || 0),
-                type: 'bar',
-                name: 'Alto (Rojo)',
-                marker: { color: C.red, opacity: 0.9 },
-                text: data.temporal_risk_data.map(t => (t.Rojo || 0) > 0 ? String(t.Rojo || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-        ], {
-            ...PL,
-            barmode: 'stack',
-            xaxis: { gridcolor: C.grid, title: 'Mes' },
-            yaxis: { title: 'Casos por nivel de riesgo', gridcolor: C.grid, side: 'left' },
-            height: 260,
-            showlegend: true,
-            legend: { orientation: 'h', y: -0.25, x: 0 },
-        }, PLOTLY_CONFIG);
+        const months = data.temporal_risk_data.map((t) => t.mes);
+        const verdes = data.temporal_risk_data.map((t) => t.Verde || 0);
+        const amarillos = data.temporal_risk_data.map((t) => t.Amarillo || 0);
+        const rojos = data.temporal_risk_data.map((t) => t.Rojo || 0);
+        Plotly.react('chartTemporal',
+            buildStackedRiskTraces(months, verdes, amarillos, rojos, C, ['Bajo (Verde)', 'Medio (Amarillo)', 'Alto (Rojo)']),
+            dashStackedLayout(PL, C, {
+                height: 300,
+                bottom: 64,
+                tickangle: -25,
+                xTitle: 'Mes',
+                yTitle: 'Casos por nivel de riesgo',
+                legendY: -0.3,
+            }),
+            { ...PLOTLY_CONFIG, responsive: true }
+        );
     }
 
     if (data.heatmap_ramo_riesgo && data.heatmap_ramo_riesgo.ramos && data.heatmap_ramo_riesgo.ramos.length) {
+        const z = data.heatmap_ramo_riesgo.z;
         Plotly.react('chartHeatmapRamoRiesgo', [{
-            z: data.heatmap_ramo_riesgo.z,
+            z,
             x: data.heatmap_ramo_riesgo.semaforos,
             y: data.heatmap_ramo_riesgo.ramos,
             type: 'heatmap',
-            colorscale: currentTheme === 'light'
+            colorscale: theme === 'light'
                 ? [[0, '#f8fafc'], [0.5, 'rgba(3,105,161,0.35)'], [1, '#0369a1']]
                 : [[0, '#0b1220'], [0.5, 'rgba(0,209,255,0.35)'], [1, '#00d1ff']],
-            showscale: false,
-            text: data.heatmap_ramo_riesgo.z,
+            showscale: true,
+            colorbar: { title: 'Casos', thickness: 12, len: 0.85, tickfont: { size: 9, color: C.muted } },
+            text: z.map((row) => row.map((v) => fmtChartNum(v) || '0')),
             texttemplate: '%{text}',
-            textfont: { size: 10, color: C.text },
+            textfont: { size: 12, color: '#ffffff', family: 'Inter, sans-serif' },
+            hovertemplate: 'Ramo: %{y}<br>Nivel: %{x}<br>Casos: %{z}<extra></extra>',
         }], {
             ...PL,
-            margin: { t: 10, b: 40, l: 90, r: 10 },
-            xaxis: { title: 'Nivel de riesgo', gridcolor: C.grid },
-            yaxis: { title: 'Ramo', gridcolor: C.grid },
-            height: 280,
-        }, PLOTLY_CONFIG);
+            margin: { t: 16, b: 48, l: 110, r: 48, autoexpand: true },
+            xaxis: { title: { text: 'Nivel de riesgo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
+            yaxis: { title: { text: 'Ramo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C), automargin: true },
+            height: 300,
+        }, { ...PLOTLY_CONFIG, responsive: true });
     }
 
     if (data.geo_risk_data && data.geo_risk_data.length) {
-        const suc = data.geo_risk_data.map(g => g.sucursal);
-        Plotly.react('chartGeoOperacion', [
-            {
-                x: suc, y: data.geo_risk_data.map(g => g.Verde || 0), type: 'bar', name: 'Bajo',
-                marker: { color: C.green, opacity: 0.88 },
-                text: data.geo_risk_data.map(g => (g.Verde || 0) > 0 ? String(g.Verde || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-            {
-                x: suc, y: data.geo_risk_data.map(g => g.Amarillo || 0), type: 'bar', name: 'Medio',
-                marker: { color: C.yellow, opacity: 0.88 },
-                text: data.geo_risk_data.map(g => (g.Amarillo || 0) > 0 ? String(g.Amarillo || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-            {
-                x: suc, y: data.geo_risk_data.map(g => g.Rojo || 0), type: 'bar', name: 'Alto',
-                marker: { color: C.red, opacity: 0.88 },
-                text: data.geo_risk_data.map(g => (g.Rojo || 0) > 0 ? String(g.Rojo || 0) : ''),
-                textposition: 'inside',
-                textfont: { size: 10, color: C.text },
-            },
-        ], {
-            ...PL,
-            barmode: 'stack',
-            margin: { t: 24, b: 40, l: 40, r: 10 },
-            xaxis: { title: 'Sucursal', gridcolor: C.grid },
-            yaxis: { title: 'Casos por nivel de riesgo', gridcolor: C.grid },
-            height: 280,
-            showlegend: true,
-            legend: { orientation: 'h', y: -0.25, x: 0 },
-        }, PLOTLY_CONFIG);
+        const suc = data.geo_risk_data.map((g) => g.sucursal);
+        const verdes = data.geo_risk_data.map((g) => g.Verde || 0);
+        const amarillos = data.geo_risk_data.map((g) => g.Amarillo || 0);
+        const rojos = data.geo_risk_data.map((g) => g.Rojo || 0);
+        Plotly.react('chartGeoOperacion',
+            buildStackedRiskTraces(suc, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
+            dashStackedLayout(PL, C, {
+                height: 300,
+                bottom: 72,
+                tickangle: -30,
+                xTitle: 'Sucursal',
+                yTitle: 'Casos por nivel de riesgo',
+                legendY: -0.3,
+            }),
+            { ...PLOTLY_CONFIG, responsive: true }
+        );
     }
 
     bindPlotlyDashboardCharts(data);
@@ -1089,7 +1113,7 @@ async function refreshDashboard() {
         const qs = buildDashboardQuery();
         const dashHeaders = {};
         try {
-            const sid = sessionStorage.getItem('fraudia_session_id');
+            const sid = sessionStorage.getItem('fxecure_session_id') || sessionStorage.getItem('fraudia_session_id');
             if (sid) {
                 dashHeaders['X-FXecure-Session'] = sid;
                 dashHeaders['X-FraudIA-Session'] = sid;
@@ -1110,7 +1134,7 @@ async function initDashboard() {
     try {
         const dashHeaders = {};
         try {
-            const sid = sessionStorage.getItem('fraudia_session_id');
+            const sid = sessionStorage.getItem('fxecure_session_id') || sessionStorage.getItem('fraudia_session_id');
             if (sid) {
                 dashHeaders['X-FXecure-Session'] = sid;
                 dashHeaders['X-FraudIA-Session'] = sid;

@@ -442,12 +442,37 @@
     margin: 0.35rem 0 0.85rem;
     line-height: 1.45;
 }
-.dash-charts-expander summary,
-.bandeja-criticos-panel summary {
-    cursor: pointer;
-    font-weight: 600;
+.dash-charts-section {
+    margin: 1rem 0 1.25rem;
+}
+.card-chart .chart-area,
+.donut-chart-wrap {
+    width: 100%;
+    min-width: 0;
+}
+.donut-chart-wrap {
+    min-height: 300px;
+    padding: 0.25rem 0;
+}
+.chart-area-donut {
+    min-height: 300px !important;
+    height: 300px !important;
+}
+.chart-area-ramo {
+    min-height: 340px !important;
+    height: 340px !important;
+}
+#chartTemporal,
+#chartGeoOperacion,
+#chartHeatmapRamoRiesgo {
+    min-height: 300px;
+    width: 100% !important;
+}
+.dash-section-title {
+    font-size: 1rem;
+    font-weight: 700;
     color: var(--cyan);
-    padding: 0.65rem 0;
+    margin: 0 0 0.35rem;
 }
 .bandeja-filter-row {
     display: flex;
@@ -465,15 +490,6 @@
 .bandeja-filter-row select,
 .bandeja-filter-row input {
     min-width: 120px;
-}
-.bandeja-criticos-grid {
-    display: grid;
-    grid-template-columns: 1fr 1.2fr;
-    gap: 1rem;
-    margin-top: 0.75rem;
-}
-@media (max-width: 900px) {
-    .bandeja-criticos-grid { grid-template-columns: 1fr; }
 }
 .bandeja-intro {
     color: var(--text-secondary);

@@ -30,24 +30,6 @@ const CasesBandeja = (function () {
                 <div class="section-line"></div>
             </div>
             <p class="bandeja-intro">Revise todos los siniestros analizados. Los casos de mayor prioridad aparecen primero; use los filtros como en Excel.</p>
-            <details class="dash-panel bandeja-criticos-panel" open>
-                <summary>▸ Casos críticos — factores y señales</summary>
-                <div class="bandeja-criticos-grid">
-                    <div class="bandeja-factores" id="bandejaFactoresPanel">
-                        <h4>Factores principales (casos prioritarios)</h4>
-                        <ul id="bandejaFactoresList"></ul>
-                    </div>
-                    <div class="bandeja-senales-wrap">
-                        <h4>Señales detectadas</h4>
-                        <div class="dash-table-wrap">
-                            <table class="dash-table">
-                                <thead><tr><th>Señal</th><th>Casos</th><th>Severidad</th></tr></thead>
-                                <tbody id="bandejaSenalesTable"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </details>
             <div class="bandeja-filters card" style="margin:1rem 0;">
                 <div class="bandeja-filter-row">
                     <label>Tipo de ramo <select id="filterRamoBandeja"><option value="">Todos</option></select></label>
@@ -152,34 +134,6 @@ const CasesBandeja = (function () {
         });
     }
 
-    async function loadCriticosMeta() {
-        try {
-            const resp = await fetch('/api/dashboard-data', { headers: sessionHeaders() });
-            const data = await resp.json();
-            if (data.error) return;
-            const signals = data.signals_summary || [];
-            const tbody = document.getElementById('bandejaSenalesTable');
-            if (tbody) {
-                tbody.innerHTML = signals.slice(0, 12).map((s) => `
-                    <tr><td>${escapeHtml(s.signal || s.name || '—')}</td>
-                    <td>${(s.count || 0).toLocaleString()}</td>
-                    <td>${escapeHtml(s.severity || '—')}</td></tr>
-                `).join('') || '<tr><td colspan="3">Sin señales</td></tr>';
-            }
-            const factList = document.getElementById('bandejaFactoresList');
-            const top = (data.top_cases || []).slice(0, 8);
-            if (factList) {
-                factList.innerHTML = top.map((c) => {
-                    const reglas = String(c.alertas_reglas || '').split('|').map((x) => x.trim()).filter(Boolean);
-                    const factor = reglas[0] || 'Score elevado sin regla nominal';
-                    return `<li><strong>${escapeHtml(c.id_siniestro)}</strong> — ${escapeHtml(factor)} (score ${Number(c.score_hibrido || 0).toFixed(0)})</li>`;
-                }).join('') || '<li>No hay casos críticos en el filtro actual.</li>';
-            }
-        } catch (e) {
-            console.warn('bandeja meta', e);
-        }
-    }
-
     function bindFilters() {
         ['filterRamoBandeja', 'filterCoberturaBandeja', 'filterSemaforoBandeja',
             'filterMontoMin', 'filterMontoMax', 'filterScoreMinBandeja', 'filterScoreMaxBandeja',
@@ -226,7 +180,6 @@ const CasesBandeja = (function () {
             fillSelect('filterSemaforoBandeja', uniqueValues('tipo_semaforo'));
             bindFilters();
             renderTable();
-            loadCriticosMeta();
         } catch (e) {
             container.innerHTML = `<div class="alert alert-danger">Error al cargar la bandeja: ${escapeHtml(e.message)}</div>`;
         }

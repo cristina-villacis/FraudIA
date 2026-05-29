@@ -317,10 +317,9 @@
         if (data.pipeline && data.pipeline.steps) {
             applyPipelineResultSteps(data.pipeline.steps);
             showAiPanel();
-        } else if (data.pipeline_async) {
-            setEtlStep('db', 15, 'active');
-        } else if (canAnalyze && !data.auto_pipeline) {
+        } else if (canAnalyze && (data.pipeline_async || data.auto_pipeline !== false)) {
             showAiPanel();
+            setEtlStep('ml', 40, 'active');
         }
         if (typeof showTablesInfo === 'function') showTablesInfo(tables);
         const tablesInfo = document.getElementById('tablesInfo');

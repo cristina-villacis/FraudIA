@@ -9,61 +9,69 @@ const mlEngineState = {
 function buildMlShell() {
     return `
         <header class="ml-ia-header">
-            <div class="ml-ia-title">
-                <h2>Análisis predictivo</h2>
-                <p>Simule escenarios y revise el desempeño del modelo sobre su cartera cargada.</p>
-            </div>
-            <div class="ml-metrics-strip">
-                <div class="ml-metric-pill"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
-                <div class="ml-metric-pill"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
-                <div class="ml-metric-pill"><label>Precisión</label><strong id="mlHdrAccuracy">—</strong></div>
-                <div class="ml-metric-pill"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
-                <div class="ml-metric-pill"><label>F1</label><strong id="mlHdrF1">—</strong></div>
-            </div>
-        </header>
-
-        <div class="ml-panel ml-sim-top" style="margin-bottom:1.25rem;">
-            <div class="ml-panel-title">Simulador predictivo</div>
-            <p class="dash-chart-help">Ajuste los valores y pulse «Recalcular score» para ver el impacto al instante en esta sesión.</p>
-            <div class="ml-sim-grid">
-                <div class="ml-sim-field"><label>Monto reclamado ($)</label><input type="number" id="simMonto" value="45000" min="0" step="1000"></div>
-                <div class="ml-sim-field"><label>Días hasta reporte</label><input type="number" id="simDias" value="5" min="0" max="90"></div>
-                <div class="ml-sim-field"><label>Proveedor recurrente</label>
-                    <select id="simProv"><option value="0">No</option><option value="1">Sí</option></select>
+            <div class="ml-ia-header-main">
+                <div class="ml-ia-title">
+                    <h2>Análisis predictivo</h2>
+                    <p>Simule escenarios y revise el desempeño del modelo sobre su cartera cargada.</p>
                 </div>
-                <div class="ml-sim-field"><label>Similitud narrativa (%)</label><input type="range" id="simNlp" min="0" max="100" value="20"><span id="simNlpVal" style="font-size:0.72rem;color:var(--cyan);">20%</span></div>
+                <div class="ml-metrics-strip">
+                    <div class="ml-metric-pill"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
+                    <div class="ml-metric-pill"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
+                    <div class="ml-metric-pill"><label>Precisión</label><strong id="mlHdrAccuracy">—</strong></div>
+                    <div class="ml-metric-pill"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
+                    <div class="ml-metric-pill"><label>F1</label><strong id="mlHdrF1">—</strong></div>
+                </div>
             </div>
-            <button type="button" class="btn btn-primary" style="margin-top:0.75rem;width:100%;" id="btnSimRecalc">Recalcular score</button>
-            <div class="ml-sim-result">
-                <div class="ml-sim-score" id="simScoreOut">—</div>
-                <div class="ml-sim-prob" id="simProbOut">Prob. de revisión — · Severidad —</div>
-            </div>
-        </div>
+            <aside class="ml-panel ml-sim-sidebar">
+                <div class="ml-panel-title">Simulador predictivo</div>
+                <p class="dash-chart-help">Ajuste los valores y pulse «Recalcular score».</p>
+                <div class="ml-sim-grid">
+                    <div class="ml-sim-field"><label>Monto reclamado ($)</label><input type="number" id="simMonto" value="45000" min="0" step="1000"></div>
+                    <div class="ml-sim-field"><label>Días hasta reporte</label><input type="number" id="simDias" value="5" min="0" max="90"></div>
+                    <div class="ml-sim-field"><label>Proveedor recurrente</label>
+                        <select id="simProv"><option value="0">No</option><option value="1">Sí</option></select>
+                    </div>
+                    <div class="ml-sim-field"><label>Similitud narrativa (%)</label><input type="range" id="simNlp" min="0" max="100" value="20"><span id="simNlpVal" class="ml-sim-nlp-val">20%</span></div>
+                </div>
+                <button type="button" class="btn btn-primary ml-sim-btn" id="btnSimRecalc">Recalcular score</button>
+                <div class="ml-sim-result">
+                    <div class="ml-sim-score" id="simScoreOut">—</div>
+                    <div class="ml-sim-prob" id="simProbOut">Prob. de revisión — · Severidad —</div>
+                </div>
+            </aside>
+        </header>
 
         <div class="ml-models-grid" id="mlModelsGrid"></div>
 
-        <div class="ml-grid-2">
-            <div class="ml-panel">
-                <div class="ml-panel-title">Variables más influyentes</div>
-                <div id="mlShapList" class="ml-shap-list"></div>
-                <div id="chartImportance" class="chart-area" style="min-height:280px;margin-top:1rem;"></div>
-            </div>
-            <div class="ml-panel">
-                <div class="ml-panel-title">Matriz de confusión</div>
-                <div id="chartConfusion" class="chart-area" style="min-height:300px;"></div>
-            </div>
-        </div>
-
         <div class="ml-panel" style="margin-bottom:1.25rem;">
-            <div class="ml-panel-title">Casos atípicos detectados</div>
-            <div id="chartAnomalyScatter" class="chart-area" style="min-height:260px;"></div>
-            <p class="dash-chart-help">Cada punto es un siniestro: monto vs. score de riesgo.</p>
+            <div class="ml-panel-title">Matriz de confusión</div>
+            <div id="chartConfusion" class="chart-area" style="min-height:300px;"></div>
         </div>
 
-        <div class="ml-panel">
-            <div class="ml-panel-title">Monitoreo del modelo</div>
-            <div id="mlMonitorPanel"></div>
-            <div id="chartModelDrift" class="chart-area" style="min-height:200px;margin-top:0.75rem;"></div>
+        <div class="ml-grid-2 ml-prob-charts-row">
+            <div class="ml-panel">
+                <div class="ml-panel-title">Prob. elevada sin alerta roja</div>
+                <p class="dash-chart-help">Siniestros con probabilidad ML de fraude ≥50% pero semáforo final distinto de rojo (no acusados como críticos).</p>
+                <div id="chartProbHidden" class="chart-area ml-chart-prob"></div>
+            </div>
+            <div class="ml-panel">
+                <div class="ml-panel-title">Probabilidad ML por semáforo</div>
+                <p class="dash-chart-help">Promedio de probabilidad del modelo y casos con prob. ≥70% según el semáforo operativo.</p>
+                <div id="chartProbBySem" class="chart-area ml-chart-prob"></div>
+            </div>
+        </div>
+
+        <div class="ml-grid-2 ml-monitor-row">
+            <div class="ml-panel">
+                <div class="ml-panel-title">Casos atípicos detectados</div>
+                <div id="chartAnomalyScatter" class="chart-area ml-chart-anomaly"></div>
+                <p class="dash-chart-help">Cada punto es un siniestro: monto vs. score de riesgo.</p>
+            </div>
+            <div class="ml-panel">
+                <div class="ml-panel-title">Monitoreo del modelo</div>
+                <div id="mlMonitorPanel"></div>
+                <div id="chartModelDrift" class="chart-area ml-chart-drift"></div>
+            </div>
         </div>
     `;
 }
@@ -131,34 +139,107 @@ function renderMlHeader(metrics) {
     set('mlHdrF1', fmtNum(metrics.f1_fraude ?? metrics.f1_score ?? 0));
 }
 
-function renderShapList(features) {
-    const el = document.getElementById('mlShapList');
-    if (!el || !features || !features.length) {
-        if (el) el.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Sin variables.</div>';
-        return;
-    }
-    const max = Math.max(...features.map((f) => Number(f.importance || 0)), 0.001);
-    el.innerHTML = features.slice(0, 8).map((f) => {
-        const pct = (Number(f.importance || 0) / max) * 100;
-        const label = String(f.feature || '').replace(/_/g, ' ').slice(0, 18);
-        return `<div class="ml-shap-row"><span title="${f.feature}">${label}</span>
-            <div class="track"><div class="fill" style="width:${pct}%;"></div></div>
-            <span>${Number(f.importance || 0).toFixed(3)}</span></div>`;
-    }).join('');
+function mlFmtCount(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v <= 0) return '';
+    return v.toLocaleString('es-CO');
 }
 
-function renderImportanceChart(data) {
-    if (!data.top_features || !data.top_features.length || typeof Plotly === 'undefined') return;
+function renderProbHiddenChart(metrics) {
+    const el = document.getElementById('chartProbHidden');
+    if (!el || typeof Plotly === 'undefined') return;
+    const block = metrics.prob_hidden_risk;
+    const MC = typeof getColors === 'function' ? getColors() : {};
     const MPL = typeof getPlotlyLayout === 'function' ? getPlotlyLayout() : {};
-    const feats = data.top_features.slice(0, 10).reverse();
-    const barBase = document.documentElement.getAttribute('data-theme') === 'light' ? [0, 136, 204] : [0, 209, 255];
-    Plotly.react('chartImportance', [{
-        y: feats.map((f) => f.feature),
-        x: feats.map((f) => f.importance),
+    if (!block || !block.labels || !block.labels.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem;padding:1rem 0;">Sin datos de probabilidad ML. Ejecute el análisis completo.</p>';
+        return;
+    }
+    const counts = block.counts || [];
+    const colors = counts.map((c, i) => {
+        if (c <= 0) return 'rgba(100,116,139,0.35)';
+        if (i >= 3) return MC.red || '#FF4D4F';
+        if (i >= 2) return MC.yellow || '#FFC857';
+        return MC.cyan || '#00D1FF';
+    });
+    Plotly.react('chartProbHidden', [{
+        x: block.labels,
+        y: counts,
         type: 'bar',
-        orientation: 'h',
-        marker: { color: feats.map((_, i) => `rgba(${barBase.join(',')},${0.35 + i * 0.06})`) },
-    }], { ...MPL, margin: { t: 8, b: 30, l: 160, r: 20 }, height: 280 }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
+        marker: { color: colors, opacity: 0.92 },
+        text: counts.map(mlFmtCount),
+        textposition: 'outside',
+        textfont: { size: 11, color: MC.text || '#E5F4FF' },
+        hovertemplate: 'Rango %{x}<br>Casos: %{y:,}<extra></extra>',
+    }], {
+        ...MPL,
+        margin: { t: 12, b: 56, l: 48, r: 16, autoexpand: true },
+        height: 300,
+        yaxis: { title: { text: 'Casos (semáforo ≠ rojo)', font: { size: 11 } }, gridcolor: MC.grid },
+        xaxis: { title: { text: 'Probabilidad ML de fraude', font: { size: 11 } }, gridcolor: MC.grid },
+    }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
+}
+
+function renderProbBySemaforoChart(metrics) {
+    const el = document.getElementById('chartProbBySem');
+    if (!el || typeof Plotly === 'undefined') return;
+    const block = metrics.prob_by_semaforo;
+    const MC = typeof getColors === 'function' ? getColors() : {};
+    const MPL = typeof getPlotlyLayout === 'function' ? getPlotlyLayout() : {};
+    if (!block || !block.semaforos || !block.semaforos.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem;padding:1rem 0;">Sin datos de probabilidad ML.</p>';
+        return;
+    }
+    const sems = block.semaforos;
+    const avg = block.avg_prob_pct || [];
+    const high = block.high_prob_counts || [];
+    const semColors = [MC.green || '#00C48C', MC.yellow || '#FFC857', MC.red || '#FF4D4F'];
+    Plotly.react('chartProbBySem', [
+        {
+            x: sems,
+            y: avg,
+            name: 'Prob. promedio (%)',
+            type: 'bar',
+            marker: { color: semColors, opacity: 0.85 },
+            text: avg.map((v) => (v > 0 ? `${v}%` : '')),
+            textposition: 'outside',
+            textfont: { size: 11, color: MC.text || '#E5F4FF' },
+            hovertemplate: '%{x}<br>Promedio: %{y:.1f}%<extra></extra>',
+        },
+        {
+            x: sems,
+            y: high,
+            name: 'Casos prob. ≥70%',
+            type: 'bar',
+            marker: { color: semColors.map((c) => c + '99'), line: { color: c, width: 1 } },
+            text: high.map(mlFmtCount),
+            textposition: 'inside',
+            textfont: { size: 10, color: '#fff' },
+            hovertemplate: '%{x}<br>Alta prob.: %{y:,} casos<extra></extra>',
+            yaxis: 'y2',
+            opacity: 0.55,
+        },
+    ], {
+        ...MPL,
+        barmode: 'group',
+        bargap: 0.22,
+        bargroupgap: 0.12,
+        margin: { t: 16, b: 48, l: 52, r: 52, autoexpand: true },
+        height: 300,
+        yaxis: {
+            title: { text: 'Prob. promedio ML (%)', font: { size: 11 } },
+            gridcolor: MC.grid,
+            range: [0, Math.max(100, ...avg) * 1.15],
+        },
+        yaxis2: {
+            title: { text: 'Casos ≥70%', font: { size: 10 } },
+            overlaying: 'y',
+            side: 'right',
+            gridcolor: 'transparent',
+            showgrid: false,
+        },
+        legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 10 } },
+    }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
 }
 
 function renderConfusionChart(data) {
@@ -166,16 +247,26 @@ function renderConfusionChart(data) {
     const MC = typeof getColors === 'function' ? getColors() : {};
     const MPL = typeof getPlotlyLayout === 'function' ? getPlotlyLayout() : {};
     const cm = data.confusion_matrix;
+    const labels = [['TN', 'FP'], ['FN', 'TP']];
     Plotly.react('chartConfusion', [{
         z: cm,
-        x: ['Sin alerta', 'Requiere revisión'],
-        y: ['Sin alerta', 'Requiere revisión'],
+        x: ['Pred. sin alerta', 'Pred. revisión'],
+        y: ['Real sin alerta', 'Real revisión'],
         type: 'heatmap',
         colorscale: [[0, MC.bgCard || '#0b1220'], [1, MC.cyan || '#00d1ff']],
-        text: cm.map((r) => r.map(String)),
+        text: cm.map((row, i) => row.map((v, j) => `${labels[i][j]}: ${v}`)),
         texttemplate: '%{text}',
-        showscale: false,
-    }], { ...MPL, margin: { t: 10, b: 50, l: 80, r: 10 }, height: 300 }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : {});
+        textfont: { size: 13, color: '#ffffff', family: 'Inter, sans-serif' },
+        hovertemplate: '%{y} / %{x}<br>Casos: %{z}<extra></extra>',
+        showscale: true,
+        colorbar: { title: 'Casos', thickness: 12, tickfont: { size: 9, color: MC.muted || '#9CB3CC' } },
+    }], {
+        ...MPL,
+        margin: { t: 16, b: 56, l: 120, r: 40, autoexpand: true },
+        height: 320,
+        xaxis: { side: 'bottom', tickfont: { size: 10 } },
+        yaxis: { automargin: true, tickfont: { size: 10 } },
+    }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
 }
 
 function renderAnomalyScatter(metrics) {
@@ -188,19 +279,37 @@ function renderAnomalyScatter(metrics) {
         const s = p.semaforo_final || 'Verde';
         return s === 'Rojo' ? MC.red : s === 'Amarillo' ? MC.yellow : MC.green;
     });
-    Plotly.react('chartAnomalyScatter', [{
-        x: points.map((p) => p.monto_reclamado || 0),
-        y: points.map((p) => p.score_hibrido || 0),
-        mode: 'markers',
-        type: 'scatter',
-        marker: { color: colors, size: 8, opacity: 0.75 },
-        text: points.map((p) => p.id_siniestro),
-    }], {
+    const top = [...points].sort((a, b) => (b.score_hibrido || 0) - (a.score_hibrido || 0)).slice(0, 8);
+    Plotly.react('chartAnomalyScatter', [
+        {
+            x: points.map((p) => p.monto_reclamado || 0),
+            y: points.map((p) => p.score_hibrido || 0),
+            mode: 'markers',
+            type: 'scatter',
+            name: 'Siniestros',
+            marker: { color: colors, size: 9, opacity: 0.78, line: { width: 0.5, color: 'rgba(255,255,255,0.25)' } },
+            text: points.map((p) => p.id_siniestro),
+            hovertemplate: '<b>%{text}</b><br>Monto: %{x:,.0f}<br>Score: %{y:.1f}<extra></extra>',
+        },
+        {
+            x: top.map((p) => p.monto_reclamado || 0),
+            y: top.map((p) => (p.score_hibrido || 0) + 1.5),
+            mode: 'text',
+            type: 'scatter',
+            text: top.map((p) => p.id_siniestro),
+            textposition: 'top center',
+            textfont: { size: 9, color: MC.text || '#E5F4FF' },
+            hoverinfo: 'skip',
+            showlegend: false,
+        },
+    ], {
         ...(typeof getPlotlyLayout === 'function' ? getPlotlyLayout() : {}),
-        xaxis: { title: 'Monto reclamado', type: 'log' },
-        yaxis: { title: 'Score de riesgo' },
-        height: 260,
-    }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : {});
+        margin: { t: 16, b: 48, l: 56, r: 16, autoexpand: true },
+        xaxis: { title: { text: 'Monto reclamado ($)', font: { size: 11 } }, type: 'log', gridcolor: MC.grid },
+        yaxis: { title: { text: 'Score de riesgo', font: { size: 11 } }, gridcolor: MC.grid },
+        height: 300,
+        showlegend: false,
+    }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
 }
 
 function bindMlEngineEvents() {
@@ -251,16 +360,25 @@ function renderMonitorPanel(metrics) {
         </div>`;
     if (metrics.score_histogram && typeof Plotly !== 'undefined') {
         const h = metrics.score_histogram;
+        const MC = typeof getColors === 'function' ? getColors() : {};
+        const counts = h.counts || [];
         Plotly.react('chartModelDrift', [{
             x: h.bins,
-            y: h.counts,
+            y: counts,
             type: 'bar',
-            marker: { color: ['#00C48C', '#FFC857', '#FF4D4F'] },
+            marker: { color: [MC.green || '#00C48C', MC.yellow || '#FFC857', MC.red || '#FF4D4F'] },
+            text: counts.map((c) => (c > 0 ? Number(c).toLocaleString('es-CO') : '')),
+            textposition: 'outside',
+            textfont: { size: 11, color: MC.text || '#E5F4FF' },
+            hovertemplate: 'Rango: %{x}<br>Casos: %{y:,}<extra></extra>',
         }], {
             ...(typeof getPlotlyLayout === 'function' ? getPlotlyLayout() : {}),
-            title: { text: 'Distribución de scores en cartera', font: { size: 11 } },
-            height: 200,
-        }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : {});
+            title: { text: 'Distribución de scores en cartera', font: { size: 11, color: MC.muted } },
+            margin: { t: 36, b: 48, l: 48, r: 16, autoexpand: true },
+            height: 240,
+            yaxis: { title: 'Casos', gridcolor: MC.grid },
+            xaxis: { title: 'Rango de score', gridcolor: MC.grid },
+        }, typeof PLOTLY_CONFIG !== 'undefined' ? PLOTLY_CONFIG : { responsive: true });
     }
 }
 
@@ -279,9 +397,9 @@ async function initMlEngine() {
         ensureMlShell(container);
         safeRender(() => renderMlHeader(data), 'header');
         safeRender(() => renderModelCards(data), 'cards');
-        safeRender(() => renderShapList(data.top_features || data.feature_importance || []), 'shap');
-        safeRender(() => renderImportanceChart(data), 'importance');
         safeRender(() => renderConfusionChart(data), 'confusion');
+        safeRender(() => renderProbHiddenChart(data), 'prob-hidden');
+        safeRender(() => renderProbBySemaforoChart(data), 'prob-sem');
         safeRender(() => renderAnomalyScatter(data), 'anomaly');
         safeRender(() => renderMonitorPanel(data), 'monitor');
     } catch (e) {

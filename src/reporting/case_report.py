@@ -1,6 +1,7 @@
 """Reporte de evaluación antifraude por siniestro (UI + PDF)."""
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -9,7 +10,7 @@ import pandas as pd
 
 from src.explainability.explain_score import explain_single_case
 from src.risk.classification import get_risk_metadata, score_range_label
-from src.rules.fraud_rules import MAX_SCORE_RULES, SIGNAL_CONFIG
+from src.rules.fraud_rules import MAX_SCORE_RULES, SIGNAL_CONFIG, apply_rules
 
 _MESES_ES = (
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -51,15 +52,195 @@ def _pts_severity(pts: int) -> str:
 def _parse_detalle(row: pd.Series) -> Dict[str, int]:
     raw = row.get("detalle_reglas")
     if isinstance(raw, dict):
-        return {str(k): int(v or 0) for k, v in raw.items()}
-    if isinstance(raw, str) and raw.strip().startswith("{"):
-        try:
-            import json
-            d = json.loads(raw.replace("'", '"'))
-            return {str(k): int(v or 0) for k, v in d.items()}
-        except Exception:
-            pass
+        return {str(k): int(v or 0) for k, v in raw.items() if int(v or 0) > 0}
+    if isinstance(raw, str) and raw.strip():
+        text = raw.strip()
+        if text.startswith("{"):
+            try:
+                d = json.loads(text.replace("'", '"'))
+                return {str(k): int(v or 0) for k, v in d.items() if int(v or 0) > 0}
+            except Exception:
+                pass
     return {}
+
+
+_ALERT_SIGNAL_HINTS = (
+    ("borde de vigencia", "borde_vigencia"),
+    ("denuncia de robo", "demora_denuncia_robo"),
+    ("demora de", "demora_denuncia_robo"),
+    ("asegurado con", "frecuencia_asegurado"),
+    ("vehículo con", "frecuencia_vehiculo"),
+    ("vehiculo con", "frecuencia_vehiculo"),
+    ("conductor presente", "frecuencia_conductor"),
+    ("conductor en", "frecuencia_conductor"),
+    ("solo rc", "frecuencia_rc"),
+    ("proveedor", "proveedor_recurrente"),
+    ("documentos incompletos", "documentos_incompletos"),
+    ("inconsistencias detectadas", "documentos_inconsistentes"),
+    ("dinámica del siniestro", "dinamica_sospechosa"),
+    ("dinamica del siniestro", "dinamica_sospechosa"),
+    ("sin tercero", "sin_tercero_identificado"),
+    ("reporte tardío", "reporte_tardio"),
+    ("reporte tardio", "reporte_tardio"),
+    ("monto reclamado", "monto_cercano_suma"),
+    ("similitud textual", "narrativa_similar"),
+)
+
+
+def _reconstruct_detalle_from_alertas(row: pd.Series) -> Dict[str, int]:
+    raw = row.get("alertas_reglas", "")
+    if not isinstance(raw, str) or not raw.strip() or raw.strip() == "Sin alertas":
+        return {}
+    detalle: Dict[str, int] = {}
+    for part in raw.split("|"):
+        msg = part.strip()
+        if not msg or msg.startswith("["):
+            continue
+        m = re.search(r"\((\d+)\s*pts?\)", msg, re.I)
+        pts = int(m.group(1)) if m else 0
+        if pts <= 0:
+            continue
+        low = msg.lower()
+        matched = False
+        for hint, key in _ALERT_SIGNAL_HINTS:
+            if hint in low:
+                detalle[key] = detalle.get(key, 0) + pts
+                matched = True
+                break
+        if not matched:
+            detalle["otros"] = detalle.get("otros", 0) + pts
+    return detalle
+
+
+def _similarity_map_for_row(row: pd.Series) -> Optional[Dict[str, float]]:
+    sid = row.get("id_siniestro")
+    if sid is None or (isinstance(sid, float) and pd.isna(sid)):
+        return None
+    sim = row.get("similitud_narrativa_max")
+    if pd.isna(sim):
+        return None
+    return {str(sid): float(sim)}
+
+
+def resolve_detalle_reglas(row: pd.Series) -> Dict[str, int]:
+    detalle = _parse_detalle(row)
+    if detalle and sum(detalle.values()) > 0:
+        return detalle
+    try:
+        sub = pd.DataFrame([row])
+        scored = apply_rules(sub, similarity_scores=_similarity_map_for_row(row))
+        raw = scored.iloc[0].get("detalle_reglas")
+        if isinstance(raw, dict):
+            rebuilt = {str(k): int(v or 0) for k, v in raw.items() if int(v or 0) > 0}
+            if rebuilt:
+                return rebuilt
+    except Exception:
+        pass
+    return _reconstruct_detalle_from_alertas(row)
+
+
+def _lookup_by_id(
+    df: Optional[pd.DataFrame],
+    id_col: str,
+    key: Any,
+) -> Optional[pd.Series]:
+    if df is None or getattr(df, "empty", True) or key is None:
+        return None
+    if isinstance(key, float) and pd.isna(key):
+        return None
+    key_s = str(key).strip().upper()
+    if not key_s or id_col not in df.columns:
+        return None
+    col = df[id_col].astype(str).str.strip().str.upper()
+    match = df[col == key_s]
+    return match.iloc[0] if not match.empty else None
+
+
+def enrich_case_row(
+    row: pd.Series,
+    datasets: Optional[Dict[str, pd.DataFrame]] = None,
+) -> pd.Series:
+    if not datasets:
+        return row
+    data = row.to_dict()
+    sid = str(row.get("id_siniestro", "")).strip().upper()
+    sin_df = datasets.get("siniestros")
+    if sin_df is not None and sid:
+        base = _lookup_by_id(sin_df, "id_siniestro", sid)
+        if base is not None:
+            for c in base.index:
+                if c not in data or pd.isna(data.get(c)):
+                    data[c] = base[c]
+    pol = _lookup_by_id(datasets.get("polizas"), "id_poliza", row.get("id_poliza") or data.get("id_poliza"))
+    if pol is not None:
+        for field in ("fecha_inicio_vigencia", "fecha_fin_vigencia", "suma_asegurada", "estado_poliza"):
+            if field in pol.index and (field not in data or pd.isna(data.get(field))):
+                data[field] = pol[field]
+    aseg = _lookup_by_id(
+        datasets.get("asegurados"),
+        "id_asegurado",
+        row.get("id_asegurado") or data.get("id_asegurado"),
+    )
+    if aseg is not None:
+        for field in ("nombres_asegurado", "nombre", "nombres", "nombre_completo", "documento", "telefono"):
+            if field in aseg.index and (field not in data or pd.isna(data.get(field))):
+                data[field] = aseg[field]
+    veh = _lookup_by_id(
+        datasets.get("vehiculos"),
+        "id_vehiculo",
+        row.get("id_vehiculo") or data.get("id_vehiculo"),
+    )
+    if veh is not None:
+        for field in ("placa", "marca", "modelo", "anio"):
+            if field in veh.index and (field not in data or pd.isna(data.get(field))):
+                data[field] = veh[field]
+        if "placa" in veh.index and (not data.get("placa_vehiculo") or pd.isna(data.get("placa_vehiculo"))):
+            data["placa_vehiculo"] = veh["placa"]
+    return pd.Series(data)
+
+
+def build_case_report_extra(
+    row: pd.Series,
+    datasets: Optional[Dict[str, pd.DataFrame]] = None,
+) -> Dict[str, Any]:
+    extra: Dict[str, Any] = {}
+    enriched = enrich_case_row(row, datasets) if datasets else row
+    for field in ("nombres_asegurado", "nombre", "nombres", "nombre_completo"):
+        if field in enriched.index and pd.notna(enriched.get(field)):
+            extra["nombre_asegurado"] = str(enriched[field]).strip()
+            break
+    placa = enriched.get("placa_vehiculo") or enriched.get("placa")
+    if pd.notna(placa):
+        extra["placa_vehiculo"] = str(placa).strip()
+    return extra
+
+
+def _format_fecha(val: Any) -> str:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    if hasattr(val, "strftime"):
+        return val.strftime("%d/%m/%Y")
+    s = str(val).strip()
+    if not s or s.lower() == "nan":
+        return ""
+    return s[:10] if len(s) > 10 else s
+
+
+def _build_justificacion(row: pd.Series, case: Dict[str, Any]) -> str:
+    existing = row.get("justificacion_ia")
+    if isinstance(existing, str) and existing.strip():
+        return existing.strip()
+    parts = []
+    sc = case.get("score_hibrido")
+    if sc is not None:
+        parts.append(f"Score de riesgo {float(sc):.1f}/100")
+    sem = case.get("semaforo")
+    if sem:
+        parts.append(f"Semáforo {sem}")
+    alertas = case.get("alertas") or []
+    if alertas:
+        parts.append("; ".join(str(a) for a in alertas[:4])[:450])
+    return ". ".join(parts) if parts else "Sin alertas destacadas en este caso."
 
 
 def _infer_umbral(descripcion: str, detalle: Dict[str, int]) -> str:
@@ -158,7 +339,7 @@ def _build_conclusion(case: Dict[str, Any]) -> str:
 def build_case_report(row: pd.Series, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Payload estructurado para previsualización HTML y PDF."""
     case = explain_single_case(row)
-    detalle = _parse_detalle(row)
+    detalle = resolve_detalle_reglas(row)
     alertas_tabla = _build_alertas_tabla(case.get("alertas") or [], detalle)
     score_bars = _build_score_bars(detalle)
     raw_pts = sum(int(v or 0) for v in detalle.values())
@@ -186,6 +367,7 @@ def build_case_report(row: pd.Series, extra: Optional[Dict[str, Any]] = None) ->
     generated = datetime.now().strftime("%d/%m/%Y")
     sem_meta = get_risk_metadata(case.get("semaforo", "Verde"))
 
+    extra = extra or {}
     report = {
         **case,
         "titulo": "REPORTE DE EVALUACIÓN ANTIFRAUDE",
@@ -194,7 +376,17 @@ def build_case_report(row: pd.Series, extra: Optional[Dict[str, Any]] = None) ->
         "confidencial": "DOCUMENTO CONFIDENCIAL — USO EXCLUSIVO UNIDAD ANTIFRAUDE",
         "id_poliza": poliza,
         "reporte_tardio": reporte_tardio_txt,
-        "nombre_asegurado": extra.get("nombre_asegurado") if extra else row.get("nombres_asegurado"),
+        "nombre_asegurado": extra.get("nombre_asegurado") or row.get("nombres_asegurado"),
+        "placa_vehiculo": extra.get("placa_vehiculo") or row.get("placa_vehiculo") or row.get("placa"),
+        "estado": row.get("estado"),
+        "sucursal": row.get("sucursal"),
+        "beneficiario": row.get("beneficiario"),
+        "fecha_ocurrencia": _format_fecha(row.get("fecha_ocurrencia")),
+        "fecha_reporte": _format_fecha(row.get("fecha_reporte")),
+        "monto_estimado": row.get("monto_estimado") if pd.notna(row.get("monto_estimado")) else None,
+        "reglas_criticas": row.get("reglas_criticas") or "",
+        "num_alertas_dataset": row.get("num_alertas"),
+        "justificacion_ia": _build_justificacion(row, case),
         "alertas_tabla": alertas_tabla,
         "num_alertas": len(alertas_tabla),
         "score_bars": score_bars,

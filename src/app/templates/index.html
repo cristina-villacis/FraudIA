@@ -9,8 +9,8 @@
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/ingest.css?v=3">
-    <link rel="stylesheet" href="/static/dashboard-premium.css?v=1">
-    <link rel="stylesheet" href="/static/ml-premium.css?v=1">
+    <link rel="stylesheet" href="/static/dashboard-premium.css?v=3">
+    <link rel="stylesheet" href="/static/ml-premium.css?v=3">
     <link rel="stylesheet" href="/static/audit-agent.css?v=1">
     <link rel="stylesheet" href="/static/case-report.css?v=1">
     <style>
@@ -1716,13 +1716,6 @@
                 </div>
 
                 <div class="ingest-secondary">
-                    <div class="ingest-db-bar">
-                        <div>
-                            <div style="font-weight:600; font-size:0.9rem;" id="dbTypeLabel">TiDB Cloud</div>
-                            <div style="font-size:0.78rem; color:var(--text-muted);" id="dbHostLabel">--</div>
-                        </div>
-                        <span id="dbStatusBadge" class="badge badge-cyan">Verificando</span>
-                    </div>
                     <details class="ingest-panel" style="margin-bottom:0;">
                         <summary style="cursor:pointer; font-weight:600; color:var(--cyan);">Documentos PDF (opcional)</summary>
                         <p style="color:var(--text-secondary); margin:0.75rem 0; font-size:0.85rem;">Declaraciones, facturas o partes policiales — análisis independiente por archivo.</p>
@@ -1917,9 +1910,32 @@
         const hint = bar.querySelector('.ingest-actions-hint');
         if (hint) {
             hint.textContent = uploading
-                ? 'Subiendo Excel… después: guardado en TiDB y análisis (dashboard + ML).'
-                : 'Dataset listo. Al analizar se guarda en TiDB y se generan scores.';
+                ? 'Cargando datos… el motor IA analizará y abrirá el dashboard al terminar.'
+                : 'Dataset listo. El análisis se ejecuta automáticamente.';
         }
+    }
+
+    function switchToAppTab(tabName) {
+        const item = document.querySelector('.nav-item[data-tab="' + tabName + '"]');
+        if (item) item.click();
+    }
+
+    function ensureAnalysisAfterLoad(data) {
+        const canAnalyze = data.has_siniestros !== false;
+        if (!canAnalyze) return;
+        const pipe = data.pipeline;
+        if (pipe && (pipe.auto_analyzed || pipe.total_records) && !pipe.pipeline_error) {
+            if (window.IngestUI && IngestUI.applyPipelineResultSteps && pipe.steps) {
+                IngestUI.applyPipelineResultSteps(pipe.steps);
+            }
+            handlePipelineComplete(pipe);
+            return;
+        }
+        if (data.pipeline_async || (pipe && pipe.pipeline_async)) {
+            pollPipelineUntilDone();
+            return;
+        }
+        startBackgroundAnalysis();
     }
 
     async function startBackgroundAnalysis() {
@@ -2051,63 +2067,34 @@
         } catch (_) {}
     }
 
-    // ── DB Status ──
+    // ── DB Status (sin UI; solo hidrata sesión si hay datos en BD) ──
     async function checkDBStatus(full) {
         try {
             const q = full ? '?quick=false' : '?quick=true';
             const resp = await fetchWithTimeout('/api/db-status' + q, {}, 8000);
             const data = await resp.json();
-            const dbInd = document.getElementById('dbIndicator');
-            const dbType = document.getElementById('dbTypeLabel');
-            const dbHost = document.getElementById('dbHostLabel');
-            const dbBadge = document.getElementById('dbStatusBadge');
-            if(data.status === 'ok') {
-                dbInd.innerHTML = '';
-                dbInd.className = 'badge badge-green';
-                dbType.textContent = 'Base de datos: ' + data.type;
-                let hostLine = (data.user ? data.user + ' · ' : '') + data.host + (data.database ? ' / ' + data.database : '');
-                if (data.local && data.app_url) {
-                    hostLine = 'Servidor local: ' + data.app_url + ' · ' + hostLine;
+            if (data.status !== 'ok' || !data.stats || !data.stats.tables) return;
+            const sinRows = data.stats.tables.siniestros || 0;
+            if (sinRows <= 0) return;
+            const b = await bootstrapSessionFromServer();
+            if (!b) return;
+            if (b.pipeline_ready) {
+                const aiBadge = document.getElementById('aiEngineBadge');
+                if (aiBadge) {
+                    aiBadge.className = 'badge badge-green';
+                    aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo';
                 }
-                dbHost.textContent = hostLine;
-                dbBadge.textContent = 'Conectada';
-                dbBadge.className = 'badge badge-green';
-                if(data.stats && data.stats.tables) {
-                    const total = Object.values(data.stats.tables).reduce((a,b) => a+b, 0);
-                    if(total > 0) dbHost.textContent += ' · ' + total.toLocaleString() + ' registros';
-                    const sinRows = data.stats.tables.siniestros || 0;
-                    if (sinRows > 0) {
-                        bootstrapSessionFromServer().then((b) => {
-                            if (!b) return;
-                            if (b.pipeline_ready) {
-                                const aiBadge = document.getElementById('aiEngineBadge');
-                                if (aiBadge) {
-                                    aiBadge.className = 'badge badge-green';
-                                    aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo';
-                                }
-                                setPipelineButtonsEnabled(true);
-                            } else if (b.datasets_ready) {
-                                const st = document.getElementById('datasetLoadStatus');
-                                if (st && !st.querySelector('.alert-success')) {
-                                    st.innerHTML = '<div class="alert alert-info" style="margin:0;">Hay ' +
-                                        b.siniestros_rows.toLocaleString() +
-                                        ' siniestros en TiDB. Suba el Excel de nuevo o pulse <strong>Activar motor IA</strong>.</div>';
-                                }
-                                setPipelineButtonsEnabled(true);
-                            }
-                        });
-                    }
+                setPipelineButtonsEnabled(true);
+            } else if (b.datasets_ready) {
+                const st = document.getElementById('datasetLoadStatus');
+                if (st && !st.querySelector('.alert-success')) {
+                    st.innerHTML = '<div class="alert alert-info" style="margin:0;">Hay ' +
+                        b.siniestros_rows.toLocaleString() +
+                        ' siniestros guardados. Suba el Excel de nuevo o pulse <strong>Activar motor IA</strong>.</div>';
                 }
-            } else {
-                dbInd.innerHTML = '<span class="pulse-dot pulse-dot-red"></span> DB: Error';
-                dbInd.className = 'badge badge-red';
-                dbType.textContent = 'Base de datos: Error de conexión';
-                const who = data.user ? 'Usuario: ' + data.user + ' — ' : '';
-                const hint = data.hint ? ' — ' + data.hint : '';
-                dbHost.textContent = who + (data.message || 'Revise TIDB_* en .env') + hint;
-                dbBadge.textContent = 'Error'; dbBadge.className = 'badge badge-red';
+                setPipelineButtonsEnabled(true);
             }
-        } catch(e) { console.error('DB status error:', e); }
+        } catch (e) { console.error('DB status error:', e); }
     }
     checkDBStatus();
     checkPipelineOnLoad();
@@ -2285,25 +2272,19 @@
         if (window.IngestUI) IngestUI.onLoadComplete(data);
         else if (data.tables) showTablesInfo(data.tables);
         setPipelineButtonsEnabled(canAnalyze || (data.pipeline && data.pipeline.auto_analyzed));
-        if (canAnalyze || (data.pipeline && data.pipeline.auto_analyzed)) {
+        if (canAnalyze) {
             const done = data.pipeline && data.pipeline.auto_analyzed;
             const aiBadge = document.getElementById('aiEngineBadge');
             if (aiBadge) {
-                aiBadge.className = done ? 'badge badge-green' : 'badge badge-cyan';
+                aiBadge.className = done ? 'badge badge-green' : 'badge badge-yellow';
                 aiBadge.innerHTML = done
                     ? '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo'
-                    : '<span class="pulse-dot pulse-dot-cyan"></span> IA: Datos listos';
+                    : '<span class="pulse-dot pulse-dot-yellow"></span> IA: Analizando…';
             }
-        }
-        if (data.pipeline && (data.pipeline.auto_analyzed || data.pipeline.total_records) && !data.pipeline.pipeline_error) {
-            if (window.IngestUI && IngestUI.applyPipelineResultSteps && data.pipeline.steps) {
-                IngestUI.applyPipelineResultSteps(data.pipeline.steps);
+            if (!(data.pipeline && data.pipeline.auto_analyzed)) {
+                setPipelineUiRunning('Analizando siniestros para el dashboard…');
             }
-            handlePipelineComplete(data.pipeline);
-        } else if (data.pipeline_async) {
-            pollPipelineUntilDone();
-        } else if (canAnalyze && data.auto_pipeline) {
-            startBackgroundAnalysis();
+            ensureAnalysisAfterLoad(data);
         } else {
             applyAutoPipelineFromApiResponse(data);
         }
@@ -2369,7 +2350,7 @@
         if (window.IngestUI) IngestUI.onUploadStart('datos-aleatorios.xlsx');
         if (status) status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Generando datos aleatorios...</span>';
         try {
-            const resp = await fetch('/api/load-synthetic', { method: 'POST' });
+            const resp = await fetchWithTimeout('/api/load-synthetic', { method: 'POST' }, 180000);
             const data = await resp.json();
             if (data.error) {
                 status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>';
@@ -2433,7 +2414,13 @@
             if (b) b.textContent = 'Activar motor IA';
         });
         if (typeof dashboardState !== 'undefined') dashboardState.initialized = false;
+        const status = document.getElementById('datasetLoadStatus');
+        if (status) {
+            status.innerHTML = '<div class="alert alert-success" style="margin:0;">Análisis completado: ' +
+                totalRecords.toLocaleString() + ' siniestros listos en el dashboard.</div>';
+        }
         bootstrapSessionFromServer().then(() => {
+            switchToAppTab('dashboard');
             initDashboard();
             loadCases();
             loadModelMetrics();
@@ -2724,9 +2711,9 @@
 </script>
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>
-    <script src="/static/cases-bandeja.js?v=2"></script>
+    <script src="/static/cases-bandeja.js?v=3"></script>
     <script src="/static/audit-agent.js?v=2"></script>
-    <script src="/static/ml-engine.js?v=6"></script>
-    <script src="/static/dashboard.js?v=7"></script>
+    <script src="/static/ml-engine.js?v=11"></script>
+    <script src="/static/dashboard.js?v=10"></script>
 </body>
 </html>

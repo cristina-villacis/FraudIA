@@ -78,7 +78,7 @@ def _should_persist_dataset_on_load() -> bool:
 
 
 def _should_auto_pipeline_on_load() -> bool:
-    """El análisis se dispara desde el frontend tras /api/upload (respuesta rápida)."""
+    """Tras cargar Excel o datos sintéticos, ejecutar pipeline y alimentar dashboard/ML."""
     return os.getenv("AUTO_PIPELINE_ON_LOAD", "true").lower() in ("1", "true", "yes")
 
 
@@ -479,10 +479,19 @@ def _persist_runtime_analysis(result: dict) -> None:
         "source_row_counts": app_state.get("source_row_counts"),
         "auc_roc": result.get("auc_roc"),
     }
+    df_out = df.copy()
+    if "detalle_reglas" in df_out.columns:
+        def _serialize_detalle(val):
+            if isinstance(val, dict):
+                return json.dumps(val, ensure_ascii=False)
+            return val
+
+        df_out["detalle_reglas"] = df_out["detalle_reglas"].apply(_serialize_detalle)
+
     for out_dir in _runtime_analysis_dirs():
         try:
             os.makedirs(out_dir, exist_ok=True)
-            df.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
+            df_out.to_csv(os.path.join(out_dir, "siniestros_scored.csv"), index=False)
             with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, default=str)
         except Exception:
@@ -502,6 +511,22 @@ def _hydrate_runtime_analysis() -> bool:
     if not csv_path:
         return False
     df = pd.read_csv(csv_path)
+    if "detalle_reglas" in df.columns:
+        from src.reporting.case_report import _parse_detalle
+
+        def _cell_to_detalle(val):
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, str) and val.strip().startswith("{"):
+                try:
+                    return _parse_detalle(pd.Series({"detalle_reglas": val}))
+                except Exception:
+                    return {}
+            return {}
+
+        df["detalle_reglas"] = df["detalle_reglas"].apply(
+            lambda v: _cell_to_detalle(v) if pd.notna(v) and str(v).strip() else {}
+        )
     app_state["df_scored"] = df
     app_state["df_features"] = df.copy()
     app_state["pipeline_status"] = "completed"
@@ -965,10 +990,8 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     elif db_early:
         resp["db_persist_warning"] = db_early
     if validation["has_siniestros"]:
-        if auto_pipeline:
-            _apply_workflow_to_response(resp, _start_load_workflow())
-        else:
-            resp["message"] += " Pulse «Activar motor IA» para el análisis."
+        resp["auto_pipeline"] = True
+        _apply_workflow_to_response(resp, _start_load_workflow())
     return resp
 
 
@@ -1009,8 +1032,8 @@ def load_synthetic() -> dict:
         resp["db_persisted_on_upload"] = True
     elif db_early:
         resp["db_persist_warning"] = db_early
-    if auto_pipeline:
-        _apply_workflow_to_response(resp, _start_load_workflow())
+    resp["auto_pipeline"] = True
+    _apply_workflow_to_response(resp, _start_load_workflow())
     return resp
 
 
@@ -1210,6 +1233,18 @@ def _asegurado_nombre_for_row(row: pd.Series) -> Optional[str]:
     return None
 
 
+def _datasets_for_case_report() -> Dict[str, pd.DataFrame]:
+    """Datasets de sesión + caché /tmp (Vercel) para enriquecer el reporte."""
+    datasets = dict(app_state.get("datasets") or {})
+    if is_vercel_runtime():
+        runtime = _load_runtime_datasets()
+        if runtime:
+            for name, df in runtime.items():
+                if name not in datasets or datasets[name] is None or getattr(datasets[name], "empty", True):
+                    datasets[name] = df
+    return datasets
+
+
 def get_case(case_id: str) -> dict:
     if not _ensure_session_state(require_scored=True):
         raise ValueError("Pipeline no ejecutado")
@@ -1218,9 +1253,15 @@ def get_case(case_id: str) -> dict:
     if mask.sum() == 0:
         raise LookupError(f"Siniestro {case_id} no encontrado")
     row = df[mask].iloc[0]
-    from src.reporting.case_report import build_case_report
+    from src.reporting.case_report import (
+        build_case_report,
+        build_case_report_extra,
+        enrich_case_row,
+    )
 
-    extra: Dict[str, Any] = {}
+    datasets = _datasets_for_case_report()
+    row = enrich_case_row(row, datasets)
+    extra = build_case_report_extra(row, datasets)
     nombre = _asegurado_nombre_for_row(row)
     if nombre:
         extra["nombre_asegurado"] = nombre
@@ -1386,6 +1427,75 @@ def case_forensic_pdf(case_id: str) -> bytes:
     return build_case_forensic_pdf(case)
 
 
+def _build_ml_probability_charts(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Gráficos de probabilidad ML vs decisión operativa (semáforo).
+    Destaca casos con alta prob. de fraude sin alerta roja.
+    """
+    if df is None or getattr(df, "empty", True) or "ml_fraud_probability" not in df.columns:
+        return {}
+
+    prob = pd.to_numeric(df["ml_fraud_probability"], errors="coerce").fillna(0).clip(0, 1)
+    sem_col = "semaforo_final" if "semaforo_final" in df.columns else (
+        "semaforo_reglas" if "semaforo_reglas" in df.columns else None
+    )
+    if not sem_col:
+        return {}
+
+    sem = df[sem_col].astype(str).str.strip().str.capitalize()
+    not_red = ~sem.eq("Rojo")
+    hidden_mask = not_red & (prob >= 0.5)
+
+    bands_def = [
+        (0.0, 0.3, "0-30%"),
+        (0.3, 0.5, "30-50%"),
+        (0.5, 0.7, "50-70%"),
+        (0.7, 0.85, "70-85%"),
+        (0.85, 1.001, "85-100%"),
+    ]
+    hidden_labels = []
+    hidden_counts = []
+    for lo, hi, label in bands_def:
+        m = not_red & (prob >= lo) & (prob < hi)
+        hidden_labels.append(label)
+        hidden_counts.append(int(m.sum()))
+
+    semaforos = ["Verde", "Amarillo", "Rojo"]
+    avg_prob_pct = []
+    high_prob_counts = []
+    totals = []
+    for s in semaforos:
+        m = sem.eq(s)
+        if not m.any():
+            avg_prob_pct.append(0.0)
+            high_prob_counts.append(0)
+            totals.append(0)
+            continue
+        p = prob[m]
+        totals.append(int(m.sum()))
+        avg_prob_pct.append(round(float(p.mean()) * 100, 1))
+        high_prob_counts.append(int((p >= 0.7).sum()))
+
+    hidden_total = int(hidden_mask.sum())
+    hidden_high = int((not_red & (prob >= 0.7)).sum())
+
+    return {
+        "prob_hidden_risk": {
+            "labels": hidden_labels,
+            "counts": hidden_counts,
+            "total_sin_rojo_alta_prob": hidden_total,
+            "total_sin_rojo_prob_70": hidden_high,
+        },
+        "prob_by_semaforo": {
+            "semaforos": semaforos,
+            "avg_prob_pct": avg_prob_pct,
+            "high_prob_counts": high_prob_counts,
+            "totals": totals,
+        },
+        "casos_prob_alta_sin_rojo": hidden_high,
+    }
+
+
 def _enrich_ml_metrics(metrics: dict) -> dict:
     """Campos extra para la pantalla AI / ML Engine."""
     ar = app_state.get("anomaly_results")
@@ -1425,6 +1535,7 @@ def _enrich_ml_metrics(metrics: dict) -> dict:
                     int((scores >= 76).sum()),
                 ],
             }
+        metrics.update(_build_ml_probability_charts(df))
     return metrics
 
 
