@@ -150,7 +150,10 @@ const CasesBandeja = (function () {
                 <td><span class="badge ${bcls}">${sc.toFixed(1)}</span></td>
                 <td><span class="badge ${bcls}">${escapeHtml(sem)}</span></td>
                 <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(c.alertas_reglas || '')}">${escapeHtml((c.alertas_reglas || '—').slice(0, 60))}</td>
-                <td><button type="button" class="btn btn-ghost btn-sm" data-case-detail="${escapeAttr(id)}">Detalle</button></td>
+                <td class="bandeja-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" data-case-detail="${escapeAttr(id)}">Detalle</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-case-pdf="${escapeAttr(id)}">PDF</button>
+                </td>
             </tr>`;
         }).join('');
         tbody.querySelectorAll('[data-case-detail]').forEach((btn) => {
@@ -158,6 +161,40 @@ const CasesBandeja = (function () {
                 if (typeof viewCase === 'function') viewCase(btn.dataset.caseDetail);
             });
         });
+        tbody.querySelectorAll('[data-case-pdf]').forEach((btn) => {
+            btn.addEventListener('click', () => downloadCasePdf(btn.dataset.casePdf, btn));
+        });
+    }
+
+    async function downloadCasePdf(caseId, btn) {
+        if (!caseId) return;
+        const headers = {};
+        try {
+            const sid = sessionStorage.getItem('fxecure_session_id') || sessionStorage.getItem('fraudia_session_id');
+            if (sid) {
+                headers['X-FXecure-Session'] = sid;
+                headers['X-FraudIA-Session'] = sid;
+            }
+        } catch (e) { /* ignore */ }
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+        try {
+            const r = await fetch('/api/case/' + encodeURIComponent(caseId) + '/pdf', { headers });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                alert(err.error || 'No se pudo generar el PDF');
+                return;
+            }
+            const blob = await r.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'reporte_antifraude_' + caseId + '.pdf';
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch (e) {
+            alert('Error al descargar PDF: ' + e.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'PDF'; }
+        }
     }
 
     function bindFilters() {

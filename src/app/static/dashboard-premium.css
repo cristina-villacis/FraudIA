@@ -474,6 +474,17 @@
     color: var(--cyan);
     margin: 0 0 0.35rem;
 }
+.bandeja-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+.bandeja-actions .btn-sm {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+}
+
 /* ── Bandeja de casos ───────────────────────────── */
 .cases-bandeja-module {
     position: relative;

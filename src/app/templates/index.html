@@ -6,7 +6,8 @@
     <title>FXecure — Gestión inteligente de riesgo en siniestros</title>
     <link rel="icon" type="image/png" href="/static/logo_dark.png">
     <link rel="apple-touch-icon" href="/static/logo_dark.png">
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="/static/vendor/plotly-2.27.0.min.js"></script>
+    <script>window.__plotlyFallbackTimer = setTimeout(function(){if(typeof Plotly==='undefined'){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.27.0/plotly.min.js';document.head.appendChild(s);}},2500);</script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/ingest.css?v=3">
     <link rel="stylesheet" href="/static/dashboard-premium.css?v=4">
@@ -2832,10 +2833,10 @@
 </script>
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>
-    <script src="/static/cases-bandeja.js?v=5"></script>
+    <script src="/static/cases-bandeja.js?v=6"></script>
     <script src="/static/audit-agent.js?v=6"></script>
     <script src="/static/ml-engine.js?v=14"></script>
-    <script src="/static/dashboard.js?v=12"></script>
+    <script src="/static/dashboard.js?v=13"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         bootstrapSessionFromServer().then((b) => {

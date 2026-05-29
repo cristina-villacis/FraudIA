@@ -319,17 +319,23 @@ async def api_ml_simulate(request: Request):
 async def api_case_pdf(case_id: str):
     try:
         pdf_bytes = h.case_forensic_pdf(case_id)
+        if not pdf_bytes or len(pdf_bytes) < 100:
+            return _err(ValueError("PDF vacío o inválido"), 500)
+        safe_id = "".join(c for c in case_id if c.isalnum() or c in "-_")[:40]
         return StreamingResponse(
             iter([pdf_bytes]),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="reporte_antifraude_{case_id}.pdf"',
+                "Content-Disposition": f'attachment; filename="reporte_antifraude_{safe_id}.pdf"',
+                "Content-Length": str(len(pdf_bytes)),
             },
         )
     except LookupError as e:
         return _err(e, 404)
     except ValueError as e:
         return _err(e, 400)
+    except Exception as e:
+        return _err(e, 500)
 
 
 @app.get("/api/download-powerbi")

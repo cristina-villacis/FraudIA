@@ -15,11 +15,24 @@ _MESES_ES = (
 
 
 def _safe_text(value: Any, max_len: int = 800) -> str:
-    """Conserva UTF-8 (tildes, ñ); fpdf2 codifica a Latin-1/Unicode en el PDF."""
+    """Texto compatible con Helvetica/latin-1: conserva tildes y ñ; sustituye símbolos especiales."""
     if value is None:
         return ""
     s = str(value).strip()
-    s = s.replace("\u2014", "—").replace("\u2013", "–")
+    for src, dst in (
+        ("\u2265", ">="),
+        ("\u2264", "<="),
+        ("\u2260", "!="),
+        ("\u2014", "-"),
+        ("\u2013", "-"),
+        ("\u2022", "-"),
+        ("\u00a0", " "),
+    ):
+        s = s.replace(src, dst)
+    try:
+        s.encode("latin-1")
+    except UnicodeEncodeError:
+        s = s.encode("latin-1", "replace").decode("latin-1")
     return s[:max_len]
 
 

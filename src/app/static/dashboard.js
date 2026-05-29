@@ -71,28 +71,70 @@ function buildStackedRiskTraces(xLabels, verdes, amarillos, rojos, C, names) {
     ];
 }
 
+function normalizeSemaforoCounts(sem) {
+    const out = { Rojo: 0, Amarillo: 0, Verde: 0 };
+    if (!sem || typeof sem !== 'object') return out;
+    Object.entries(sem).forEach(([k, v]) => {
+        const key = String(k).trim().toLowerCase();
+        const n = Number(v) || 0;
+        if (key.startsWith('roj') || key === 'alto') out.Rojo += n;
+        else if (key.startsWith('amar') || key === 'medio') out.Amarillo += n;
+        else if (key.startsWith('ver') || key === 'bajo') out.Verde += n;
+    });
+    return out;
+}
+
 function safePlotlyReact(targetId, data, layout, config) {
     if (typeof Plotly === 'undefined') {
-        console.error('Plotly no está cargado; revise la conexión al CDN.');
+        console.error('Plotly no está cargado.');
         return false;
     }
     const el = document.getElementById(targetId);
     if (!el) return false;
+    const cfg = { displayModeBar: false, responsive: true, ...(config || {}) };
+    const lay = { ...layout, autosize: true };
     try {
-        Plotly.react(targetId, data, layout, config);
+        if (el.querySelector('.plotly-graph-div') || el.querySelector('.js-plotly-plot')) {
+            Plotly.react(el, data, lay, cfg);
+        } else {
+            Plotly.newPlot(el, data, lay, cfg);
+        }
         return true;
     } catch (err) {
         console.error('Plotly chart error:', targetId, err);
-        return false;
+        try {
+            Plotly.newPlot(el, data, lay, cfg);
+            return true;
+        } catch (err2) {
+            console.error('Plotly newPlot error:', targetId, err2);
+            return false;
+        }
     }
 }
 
 /** Plotly calcula mal el tamaño si el contenedor estaba oculto (display:none). */
 function scheduleDashboardChartsResize() {
     requestAnimationFrame(() => {
-        setTimeout(() => resizeDashboardCharts(), 80);
-        setTimeout(() => resizeDashboardCharts(), 350);
+        [80, 350, 800, 1500].forEach((ms) => setTimeout(() => resizeDashboardCharts(), ms));
     });
+}
+
+function ensurePlotlyThenRenderCharts(data) {
+    if (typeof Plotly !== 'undefined') {
+        renderDashboardCharts(data);
+        return;
+    }
+    let tries = 0;
+    const t = setInterval(() => {
+        tries += 1;
+        if (typeof Plotly !== 'undefined') {
+            clearInterval(t);
+            renderDashboardCharts(data);
+        } else if (tries > 40) {
+            clearInterval(t);
+            console.error('Plotly no cargó tras varios intentos.');
+        }
+    }, 150);
 }
 
 function dashStackedLayout(PL, C, opts = {}) {
@@ -754,38 +796,61 @@ function renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf) {
 
 function bindPlotlyDashboardCharts(data) {
     const chartSemaforo = document.getElementById('chartSemaforo');
+    const chartScores = document.getElementById('chartScores');
     const chartRamo = document.getElementById('chartRamo');
     const chartTemporal = document.getElementById('chartTemporal');
 
-    if (chartSemaforo && !chartSemaforo._plotlyClickBound) {
-        chartSemaforo.on('plotly_click', (ev) => {
-            const label = ev.points[0].label;
-            setDashboardFilter('semaforo', label);
-            document.getElementById('filterSemaforo').value = label;
-        });
-        chartSemaforo._plotlyClickBound = true;
-    }
-    if (chartRamo && !chartRamo._plotlyClickBound) {
-        chartRamo.on('plotly_click', (ev) => {
-            const ramo = ev.points[0].x;
-            setDashboardFilter('ramo', ramo);
-        });
-        chartRamo._plotlyClickBound = true;
-    }
-    if (chartTemporal && !chartTemporal._plotlyClickBound) {
-        chartTemporal.on('plotly_click', (ev) => {
-            const mes = ev.points[0].x;
-            if (!mes) return;
-            const [y, m] = mes.split('-');
-            const lastDay = new Date(y, m, 0).getDate();
-            setDashboardFilter('fecha_desde', `${mes}-01`, false);
-            setDashboardFilter('fecha_hasta', `${mes}-${String(lastDay).padStart(2, '0')}`, false);
-            document.getElementById('filterFechaDesde').value = dashboardState.filters.fecha_desde;
-            document.getElementById('filterFechaHasta').value = dashboardState.filters.fecha_hasta;
+    const bindClick = (el, handler) => {
+        if (!el || el._plotlyClickBound) return;
+        if (!el.querySelector('.plotly-graph-div') && !el.querySelector('.js-plotly-plot')) return;
+        try {
+            el.on('plotly_click', handler);
+            el._plotlyClickBound = true;
+        } catch (e) { /* ignore */ }
+    };
+
+    bindClick(chartScores, (ev) => {
+        const pt = ev.points[0];
+        const ranges = (dashboardState.lastData && dashboardState.lastData.score_distribution
+            && dashboardState.lastData.score_distribution.click_ranges) || [];
+        const band = ranges[pt.pointNumber] || ranges.find((r) => r.label === pt.x);
+        if (band) {
+            setDashboardFilter('score_min', String(band.min), false);
+            setDashboardFilter('score_max', String(band.max), false);
+            const smin = document.getElementById('filterScoreMin');
+            const smax = document.getElementById('filterScoreMax');
+            const rmin = document.getElementById('filterScoreMinRange');
+            const rmax = document.getElementById('filterScoreMaxRange');
+            if (smin) smin.value = dashboardState.filters.score_min;
+            if (smax) smax.value = dashboardState.filters.score_max;
+            if (rmin) rmin.value = dashboardState.filters.score_min;
+            if (rmax) rmax.value = dashboardState.filters.score_max;
             refreshDashboard();
-        });
-        chartTemporal._plotlyClickBound = true;
-    }
+        }
+    });
+
+    bindClick(chartSemaforo, (ev) => {
+        const label = ev.points[0].label;
+        setDashboardFilter('semaforo', label);
+        document.getElementById('filterSemaforo').value = label;
+    });
+
+    bindClick(chartRamo, (ev) => {
+        const ramo = ev.points[0].x;
+        setDashboardFilter('ramo', ramo);
+    });
+
+    bindClick(chartTemporal, (ev) => {
+        const mes = ev.points[0].x;
+        if (!mes) return;
+        const [y, m] = mes.split('-');
+        const lastDay = new Date(y, m, 0).getDate();
+        setDashboardFilter('fecha_desde', `${mes}-01`, false);
+        setDashboardFilter('fecha_hasta', `${mes}-${String(lastDay).padStart(2, '0')}`, false);
+        document.getElementById('filterFechaDesde').value = dashboardState.filters.fecha_desde;
+        document.getElementById('filterFechaHasta').value = dashboardState.filters.fecha_hasta;
+        refreshDashboard();
+    });
 }
 
 function renderDashboardCharts(data) {
@@ -795,9 +860,9 @@ function renderDashboardCharts(data) {
     }
     const C = getColors(), PL = getPlotlyLayout();
     const theme = getAppTheme();
-    const sem = data.semaforo || {};
-    const rojo = sem.Rojo || 0, amarillo = sem.Amarillo || 0, verde = sem.Verde || 0;
-    const totalSem = rojo + amarillo + verde || data.total || 1;
+    const sem = normalizeSemaforoCounts(data.semaforo || {});
+    const rojo = sem.Rojo, amarillo = sem.Amarillo, verde = sem.Verde;
+    const totalSem = rojo + amarillo + verde || Number(data.total) || 1;
 
     if (!document.getElementById('chartSemaforo')) return;
 
@@ -933,13 +998,13 @@ function renderDashboardCharts(data) {
 
 function resizeDashboardCharts() {
     if (typeof Plotly === 'undefined') return;
-    const tab = document.getElementById('tab-dashboard');
-    if (tab && !tab.classList.contains('active')) return;
     ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         try {
-            if (el.querySelector('.plotly')) Plotly.Plots.resize(el);
+            if (el.querySelector('.plotly-graph-div') || el.querySelector('.js-plotly-plot')) {
+                Plotly.Plots.resize(el);
+            }
         } catch (e) { /* ignore */ }
     });
 }
@@ -1159,7 +1224,7 @@ function renderDashboardData(data) {
         }).join('') || '<tr><td colspan="5" style="color:var(--text-muted);">Sin datos de proveedores.</td></tr>';
     }
 
-    renderDashboardCharts(data);
+    ensurePlotlyThenRenderCharts(data);
 }
 
 async function refreshDashboard() {

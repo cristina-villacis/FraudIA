@@ -19,6 +19,23 @@ def _score_and_semaforo_cols(df: pd.DataFrame) -> Tuple[str, str]:
     return score_col, semaforo_col
 
 
+def _normalize_semaforo_counts(raw: Dict[Any, Any]) -> Dict[str, int]:
+    """Unifica claves a Rojo / Amarillo / Verde para gráficos y API."""
+    out = {"Rojo": 0, "Amarillo": 0, "Verde": 0}
+    if not raw:
+        return out
+    for key, val in raw.items():
+        k = str(key).strip().lower()
+        n = int(val or 0)
+        if k.startswith("roj") or k == "alto":
+            out["Rojo"] += n
+        elif k.startswith("amar") or k == "medio":
+            out["Amarillo"] += n
+        elif k.startswith("ver") or k == "bajo":
+            out["Verde"] += n
+    return out
+
+
 # Bandas alineadas con classify_risk() y parámetros de fraude (score híbrido)
 RISK_BANDS = [
     {
@@ -235,7 +252,8 @@ def build_dashboard_payload(
         }
 
     score_col, semaforo_col = _score_and_semaforo_cols(df)
-    semaforo_counts = df[semaforo_col].value_counts().to_dict() if semaforo_col in df.columns else {}
+    raw_sem = df[semaforo_col].value_counts().to_dict() if semaforo_col in df.columns else {}
+    semaforo_counts = _normalize_semaforo_counts(raw_sem)
 
     ramo_data = []
     if "ramo" in df.columns:

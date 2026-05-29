@@ -1241,8 +1241,9 @@ def _datasets_for_case_report() -> Dict[str, pd.DataFrame]:
 
 
 def get_case(case_id: str) -> dict:
-    if not _ensure_session_state(require_scored=True):
-        raise ValueError("Pipeline no ejecutado")
+    if not _ensure_scored_state():
+        if not _ensure_session_state(require_scored=True):
+            raise ValueError("Pipeline no ejecutado. Cargue datos y active el motor IA.")
     df = app_state.get("df_scored")
     mask = df["id_siniestro"].str.upper() == case_id.upper()
     if mask.sum() == 0:
@@ -1452,10 +1453,16 @@ def ml_simulate(params: dict) -> dict:
 
 
 def case_forensic_pdf(case_id: str) -> bytes:
+    if not _ensure_scored_state():
+        if not _ensure_session_state(require_scored=True):
+            raise ValueError("No hay análisis disponible para generar el PDF.")
     case = get_case(case_id)
     from src.reporting.case_pdf import build_case_forensic_pdf
 
-    return build_case_forensic_pdf(case)
+    try:
+        return build_case_forensic_pdf(case)
+    except Exception as exc:
+        raise ValueError(f"No se pudo generar el PDF: {exc}") from exc
 
 
 def _build_ml_probability_charts(df: pd.DataFrame) -> Dict[str, Any]:
