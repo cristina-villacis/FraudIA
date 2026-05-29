@@ -1,97 +1,464 @@
-# FraudIA Claims - Sistema de Detección de Fraude en Seguros
+# 🛡️ FXecure
 
-## Descripción
-Prototipo funcional de Inteligencia Artificial que analiza siniestros de seguros, detecta patrones anómalos o señales de posible fraude, asigna un score de riesgo y genera explicaciones para apoyar la revisión del analista.
+**Sistema inteligente de detección de fraude en seguros impulsado por Inteligencia Artificial.**
 
-## Arquitectura
-```
-[Dataset Upload Web] → [Flask API] → [Data Pipeline Python]
-     ↓                                      ↓
-[Dashboard Web]  ←  [Análisis ML/NLP]  →  [Power BI Export]
-     ↓
-[Agente IA - Consultas Lenguaje Natural]
-```
+---
 
-## Componentes
-- **Ingesta de datos**: Carga y validación de datasets via web o archivo
-- **Feature Engineering**: Construcción de variables derivadas
-- **Reglas de Negocio**: Motor de reglas con puntuación configurable
-- **ML Supervisado**: Random Forest para predicción de fraude
-- **Detección de Anomalías**: Isolation Forest para casos atípicos
-- **NLP**: Similitud textual de narrativas, extracción de entidades
-- **Explainability**: SHAP values + explicaciones en lenguaje natural
-- **Agente IA**: Consultas en lenguaje natural sobre casos
-- **Dashboard**: Interfaz web con semáforo verde/amarillo/rojo
-- **Power BI**: Exportación automatizada para visualización
+## 📝 Descripción general
 
-## Variables de entorno (OpenAI + base de datos)
+**FXecure** es una plataforma avanzada diseñada para detectar, analizar y prevenir posibles fraudes en reclamaciones de seguros mediante técnicas modernas de Machine Learning, análisis estadístico, procesamiento de lenguaje natural y sistemas de explicabilidad de IA.
 
-| Archivo | Git | Uso |
-|---------|-----|-----|
-| `.env.example` | Sí | Plantilla que viaja con el repo |
-| `.env` | No | Claves reales en tu PC o en el servidor |
+El sistema permite automatizar procesos de auditoría, optimizar tiempos de revisión y reducir pérdidas económicas causadas por reclamaciones fraudulentas.
 
-```powershell
-copy .env.example .env
-# Editar .env: OPENAI_API_KEY, DATABASE_URL, etc.
-```
+FXecure combina:
 
-Tras `git clone` en otro equipo o servidor: repetir `copy .env.example .env` y completar claves ahí.  
-Detalle: [docs/despliegue.md](docs/despliegue.md)
+* 🤖 Inteligencia Artificial.
+* 🔍 Detección de anomalías.
+* 🗣️ NLP (Natural Language Processing).
+* 💡 Explainable AI.
+* 📊 Dashboards interactivos.
+* 🔌 APIs REST.
+* 💬 Agentes IA conversacionales.
 
-## Publicar en Vercel (web pública + chatbot IA)
+---
 
-Repositorio: [github.com/cristina-villacis/FraudIA](https://github.com/cristina-villacis/FraudIA)
+# 🚀 Características principales
 
-1. Importe el repo en [vercel.com](https://vercel.com) → **Add New Project**.
-2. Configure variables de entorno en Vercel: `OPENAI_API_KEY`, `OPENAI_MODEL`, `SECRET_KEY`.
-3. Deploy automático en cada `git push` a `main`.
+## 🧠 Detección inteligente de fraude
+FXecure utiliza múltiples modelos y estrategias para evaluar reclamaciones:
 
-En cada deploy, Vercel **genera datos sintéticos, ejecuta el pipeline completo** (reglas + ML + dashboard) y publica el resultado. El chatbot OpenAI explica ese análisis en runtime.
+* 🌲 Random Forest.
+* 🥷 Isolation Forest.
+* 📏 Reglas heurísticas.
+* 🎯 Scoring de riesgo.
+* ⚙️ Detección híbrida basada en IA + reglas.
 
-Guía paso a paso: [docs/despliegue-vercel.md](docs/despliegue-vercel.md)
+---
 
-## Instalación
+## 🗣️ Procesamiento de lenguaje natural (NLP)
+El sistema analiza descripciones textuales de siniestros para detectar:
+
+* 🔍 Patrones sospechosos.
+* ⚠️ Inconsistencias semánticas.
+* 🗣️ Lenguaje manipulativo.
+* 📑 Descripciones duplicadas.
+* 🚨 Indicadores de fraude.
+
+---
+
+## 💡 Explainable AI (XAI)
+Implementación de SHAP para explicar predicciones del modelo:
+
+* 📊 Variables más influyentes.
+* 🔍 Interpretabilidad del modelo.
+* 🌐 Transparencia algorítmica.
+* 📋 Soporte para auditorías.
+
+---
+
+## 📊 Dashboard analítico
+Visualización en tiempo real de:
+
+* 🚨 Casos sospechosos.
+* 📈 KPIs de fraude.
+* ⚙️ Métricas operativas.
+* 📉 Tendencias de riesgo.
+* 🕒 Estadísticas históricas.
+
+---
+
+## 💬 Agente IA conversacional
+Consultas en lenguaje natural como:
+
+* 🗣️ *“¿Qué reclamaciones tienen mayor riesgo?”*
+* 🗣️ *“Muéstrame los fraudes detectados esta semana.”*
+* 🗣️ *“¿Qué variables afectaron esta predicción?”*
+
+---
+
+# 🏗️ Arquitectura del proyecto
 
 ```bash
-pip install -r requirements-local.txt
-python -m spacy download es_core_news_sm
+FXecure/
+│
+├── Ingestion/           # Ingesta y carga de datos
+├── features/            # Ingeniería de características
+├── rules/               # Motor de reglas
+├── models/              # Modelos ML
+├── explainability/      # SHAP y explicabilidad
+├── nlp/                 # NLP y análisis textual
+├── ai_agent/            # Agente IA
+├── app/                 # Frontend / Dashboard
+├── data/                # Datasets
+├── notebooks/           # Experimentación
+├── tests/               # Testing
+├── requirements.txt
+└── README.md
 ```
 
-> En Vercel se usa `requirements.txt` (ligero, sin torch). Localmente use `requirements-local.txt`.
+# 🛠️ Stack tecnológico
 
-## Ejecución
+## 💻 Backend
 
+* 🐍 Python
+* ⚡ FastAPI
+* 🧪 Flask
+
+## 🤖 Inteligencia Artificial y Data Science
+
+* 📦 Scikit-learn
+* 🐼 Pandas
+* 🔢 NumPy
+* 📊 SHAP
+* 🚀 XGBoost
+
+## 🗣️ NLP
+
+* 🦅 spaCy
+* 🔤 NLTK
+* 🤗 Transformers
+
+## 📊 Visualización
+
+* 🎈 Streamlit
+* 📈 Plotly
+* 📊 Power BI
+
+## 🗄️ Base de datos
+
+* 🐘 PostgreSQL
+* 🗃️ SQLite
+
+## 🚀 DevOps
+
+* 🐋 Docker
+* 🐙 GitHub Actions
+* ☁️ Vercel
+* 🚀 Render
+
+---
+
+# 🔄 Flujo del sistema
+
+```text
+1. Ingesta de reclamaciones
+          ↓
+2. Limpieza y transformación
+          ↓
+3. Feature Engineering
+          ↓
+4. Evaluación mediante reglas
+          ↓
+5. Predicción ML
+          ↓
+6. Detección de anomalías
+          ↓
+7. Explicabilidad SHAP
+          ↓
+8. Dashboard y reportes
+```
+
+---
+
+# 📥 Instalación
+
+## 1. Clonar el repositorio
 ```bash
-pip install -r requirements-local.txt
-python -m src.ingestion.generate_synthetic
-python -m src.app.main
+git clone [https://github.com/tuusuario/fxecure.git](https://github.com/tuusuario/fxecure.git)
+
+cd fxecure
 ```
 
-Servidor **Python (FastAPI + Uvicorn)** en http://localhost:5000
+---
 
-## Estructura
-```
-fraudia-claims/
-├── data/raw/processed/synthetic/
-├── notebooks/ (exploración, modelo, evaluación)
-├── src/
-│   ├── ingestion/     (carga de datos)
-│   ├── features/      (ingeniería de features)
-│   ├── rules/         (reglas de negocio)
-│   ├── models/        (ML supervisado + anomalías)
-│   ├── explainability/(explicaciones SHAP)
-│   ├── nlp/           (procesamiento lenguaje natural)
-│   ├── ai_agent/      (agente consultas)
-│   └── app/           (aplicación web Flask)
-├── docs/
-├── tests/
-└── presentation/
+## 2. Crear entorno virtual
+
+### 🪟 Windows
+```bash
+python -m venv venv
+
+venv\Scripts\activate
 ```
 
-## Niveles de Riesgo
-| Nivel | Score | Acción |
-|-------|-------|--------|
-| 🟢 Verde | 0-40 | Bajo — Continuar flujo normal |
-| 🟡 Amarillo | 41-75 | Medio — Escala a Unidad Antifraude para revisión documental |
-| 🔴 Rojo | 76-100 | Alto — Escala Unidad Antifraude para revisión especializada de campo |
+### 🐧 Linux / 🍏 macOS
+```bash
+python3 -m venv venv
+
+source venv/bin/activate
+```
+
+---
+
+## 3. Instalar dependencias
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# ⚙️ Configuración
+
+Crear archivo `.env`
+```env
+DATABASE_URL=postgresql://user:password@localhost/fxecure
+
+API_KEY=your_api_key
+
+MODEL_PATH=models/
+```
+
+---
+
+# 🚀 Ejecución
+
+## ⚡ Ejecutar FastAPI
+```bash
+uvicorn main:app --reload
+```
+
+## 🧪 Ejecutar Flask
+```bash
+python app.py
+```
+
+## 🎈 Ejecutar dashboard
+```bash
+streamlit run dashboard.py
+```
+
+---
+
+# 🤖 Machine Learning
+
+## 📊 Modelos implementados
+
+| Modelo | Tipo | Objetivo |
+| :--- | :--- | :--- |
+| **Random forest** | Supervisado | Clasificación de fraude |
+| **Isolation forest** | No Supervisado | Detección de anomalías |
+| **XGBoost** | Supervisado | Optimización de precisión |
+| **Reglas heurísticas** | Basado en reglas | Validaciones críticas |
+
+---
+
+## 📋 Variables analizadas
+
+* 💰 Monto reclamado.
+* ⏳ Historial del cliente.
+* 🔄 Frecuencia de reclamaciones.
+* ⏱️ Tiempo entre incidentes.
+* 📝 Descripciones textuales.
+* 📍 Ubicación geográfica.
+* 👥 Patrones de comportamiento.
+
+---
+
+# 💡 Explainable AI
+
+FXecure utiliza **SHAP** para interpretar predicciones del modelo.
+
+Ejemplo:
+```python
+explainer = shap.TreeExplainer(model)
+
+shap_values = explainer.shap_values(X_test)
+```
+
+### ✨ Beneficios:
+
+* 🌐 Transparencia.
+* 🤝 Confianza operativa.
+* 🔍 Interpretabilidad.
+* 📜 Cumplimiento regulatorio.
+
+---
+
+# 🗣️ NLP y Análisis textual
+
+El módulo NLP permite:
+
+* 🔍 Analizar siniestros.
+* 🚨 Detectar lenguaje sospechoso.
+* 🏷️ Extraer entidades relevantes.
+* 📈 Clasificar riesgo textual.
+
+Ejemplo:
+```python
+import spacy
+
+nlp = spacy.load("es_core_news_sm")
+
+doc = nlp(texto)
+```
+
+---
+
+# 🔌 API REST
+
+## 📍 Endpoints
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `POST` | `/predict` | Predicción de fraude |
+| `GET` | `/claims` | Obtener reclamaciones |
+| `GET` | `/metrics` | Métricas del sistema |
+| `POST` | `/chat` | Consultas IA |
+| `GET` | `/explain/{id}` | Explicación SHAP |
+
+---
+
+## 📥 Ejemplo request
+```json
+{
+  "claim_amount": 15000,
+  "claim_history": 5,
+  "incident_description": "El vehículo fue robado durante la madrugada"
+}
+```
+
+---
+
+## 📤 Ejemplo response
+```json
+{
+  "fraud_probability": 0.92,
+  "risk_level": "HIGH",
+  "explanation": "Patrón inconsistente detectado"
+}
+```
+
+---
+
+# 📊 Dashboard
+
+El dashboard permite:
+* 📈 Visualización en tiempo real.
+* ⚙️ Métricas operativas.
+* 🔍 Seguimiento de reclamaciones.
+* 🚨 Análisis de fraude.
+* 💡 Explicaciones SHAP.
+
+---
+
+# 🔒 Seguridad
+
+FXecure implementa:
+* 🌐 Variables de entorno.
+* 🛡️ Validación de datos.
+* 🧼 Sanitización de inputs.
+* 🔑 Protección de endpoints.
+* 🔐 Manejo seguro de credenciales.
+
+---
+
+# 🧪 Testing
+
+## 🏃‍♂️ Ejecutar pruebas
+```bash
+pytest tests/
+```
+
+## 📊 Cobertura
+```bash
+pytest --cov=.
+```
+
+---
+
+# 🐋 Docker
+
+## 🏗️ Construir imagen
+```bash
+docker build -t fxecure .
+```
+
+## 🏃‍♂️ Ejecutar contenedor
+```bash
+docker run -p 8000:8000 fxecure
+```
+
+---
+
+# 🔄 CI/CD
+
+Integración compatible con:
+* 🐙 GitHub Actions
+* 🐋 Docker Hub
+* 🚀 Render
+* 🚊 Railway
+* ☁️ Vercel
+
+Ejemplo básico:
+```yaml
+name: FXecure CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest
+```
+
+---
+
+# 💼 Casos de uso
+
+* 🏢 Aseguradoras.
+* 📋 Auditorías internas.
+* 🛡️ Prevención de fraude.
+* 🤖 Automatización de análisis.
+* 📈 Evaluación de riesgo.
+
+---
+
+# 🗺️ Roadmap
+
+* 🤖 Integración con LLMs.
+* 🖼️ Detección multimodal.
+* 📸 Análisis de imágenes de siniestros.
+* ⏱️ Predicción en tiempo real.
+* ⚙️ Motor avanzado de reglas dinámicas.
+
+---
+
+# 🤝 Contribución
+
+1. 🍴 Fork del proyecto.
+2. 🌿 Crear nueva rama.
+3. 💾 Realizar cambios.
+4. 🚀 Enviar Pull Request.
+
+---
+
+# 📄 Licencia
+Este proyecto se encuentra bajo la licencia **MIT**.
+
+---
+
+# 👥 Autores
+
+| Nombre | Descripción |
+| :--- | :--- |
+| **Cristina Villacís** | ` Futura Ingeniera en Ciencias de la Computación ` |
+| **Jareth Rojas** | `Futuro Ingeniero en Ciencia de Datos e IA ` |
+| **Liskeyla Macías** | `Analista de Datos y Procesos `|
+
+---
+
+# 🏢 Equipo FXecure
+Proyecto desarrollado por un equipo multidisciplinario enfocado en Inteligencia Artificial, análisis de datos y desarrollo de soluciones innovadoras para la detección de fraude en seguros.
