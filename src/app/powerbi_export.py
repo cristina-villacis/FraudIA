@@ -9,6 +9,40 @@ import numpy as np
 import pandas as pd
 
 
+def export_full_session_workbook(
+    df_scored: pd.DataFrame,
+    output_path: str = "data/processed/fxecure_export_completo.xlsx",
+) -> str:
+    """Excel único con todos los siniestros procesados de la sesión (scores + alertas)."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df = df_scored.copy()
+    if "justificacion_ia" not in df.columns:
+        justifs = []
+        for _, row in df.iterrows():
+            parts = []
+            sc = row.get("score_hibrido", row.get("score_reglas"))
+            if pd.notna(sc):
+                parts.append(f"Score de riesgo {float(sc):.1f}/100")
+            sem = row.get("semaforo_final", row.get("semaforo_reglas"))
+            if pd.notna(sem):
+                parts.append(f"Semáforo {sem}")
+            al = row.get("alertas_reglas")
+            if isinstance(al, str) and al.strip() and al != "Sin alertas":
+                parts.append(al.replace("|", "; ")[:450])
+            justifs.append(". ".join(parts) if parts else "Sin alertas destacadas en este caso.")
+        df["justificacion_ia"] = justifs
+
+    rename = {
+        "semaforo_final": "tipo_semaforo",
+        "score_hibrido": "score",
+        "ramo": "tipo_ramo",
+    }
+    export_df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        export_df.to_excel(writer, sheet_name="Siniestros_Procesados", index=False)
+    return output_path
+
+
 def export_to_powerbi(
     datasets: Dict[str, pd.DataFrame],
     df_scored: pd.DataFrame,

@@ -1187,6 +1187,29 @@ def dashboard_data(query_params) -> dict:
     return payload
 
 
+def _asegurado_nombre_for_row(row: pd.Series) -> Optional[str]:
+    """Resuelve nombre del asegurado desde datasets de sesión."""
+    datasets = app_state.get("datasets") or {}
+    aseg_df = datasets.get("asegurados")
+    if aseg_df is None or getattr(aseg_df, "empty", True):
+        return None
+    aid = row.get("id_asegurado")
+    if aid is None or (isinstance(aid, float) and pd.isna(aid)):
+        return None
+    aid_s = str(aid).strip().upper()
+    if not aid_s:
+        return None
+    col = aseg_df["id_asegurado"].astype(str).str.strip().str.upper()
+    match = aseg_df[col == aid_s]
+    if match.empty:
+        return None
+    r = match.iloc[0]
+    for field in ("nombres_asegurado", "nombre", "nombres", "nombre_completo"):
+        if field in r.index and pd.notna(r[field]):
+            return str(r[field]).strip()
+    return None
+
+
 def get_case(case_id: str) -> dict:
     if not _ensure_session_state(require_scored=True):
         raise ValueError("Pipeline no ejecutado")
@@ -1194,7 +1217,14 @@ def get_case(case_id: str) -> dict:
     mask = df["id_siniestro"].str.upper() == case_id.upper()
     if mask.sum() == 0:
         raise LookupError(f"Siniestro {case_id} no encontrado")
-    case = explain_single_case(df[mask].iloc[0])
+    row = df[mask].iloc[0]
+    from src.reporting.case_report import build_case_report
+
+    extra: Dict[str, Any] = {}
+    nombre = _asegurado_nombre_for_row(row)
+    if nombre:
+        extra["nombre_asegurado"] = nombre
+    case = build_case_report(row, extra=extra or None)
     pdfs = documents_for_siniestro(_collect_uploaded_documents(), case_id)
     if pdfs:
         case["documentos_pdf"] = [
@@ -1283,13 +1313,77 @@ def agent_query(body: dict) -> dict:
 
 
 def export_powerbi() -> dict:
+    from src.app.powerbi_export import export_full_session_workbook
+
     df = app_state.get("df_scored")
     if df is None:
-        raise ValueError("Pipeline no ejecutado")
-    output_path = os.path.join("data", "processed", "powerbi_export.xlsx")
-    export_to_powerbi(app_state["datasets"], df, output_path)
+        raise ValueError("Ejecute el análisis desde Carga de datos antes de exportar.")
+    output_path = os.path.join("data", "processed", "fxecure_export_completo.xlsx")
+    export_full_session_workbook(df, output_path)
+    export_to_powerbi(app_state.get("datasets") or {}, df, os.path.join("data", "processed", "powerbi_export.xlsx"))
     export_csv_for_powerbi(df)
-    return {"status": "success", "message": "Exportación completada", "excel_path": output_path}
+    app_state["last_export_path"] = output_path
+    return {
+        "status": "success",
+        "message": "Excel generado con todos los siniestros procesados de la sesión.",
+        "excel_path": output_path,
+        "total_records": len(df),
+    }
+
+
+def cases_all_list() -> dict:
+    if not _ensure_session_state(require_scored=True):
+        raise ValueError("No hay análisis disponible. Cargue datos y ejecute el análisis.")
+    df = app_state["df_scored"].copy()
+    score_col = "score_hibrido" if "score_hibrido" in df.columns else "score_reglas"
+    sem_col = "semaforo_final" if "semaforo_final" in df.columns else "semaforo_reglas"
+    cols = [
+        "id_siniestro", "ramo", "cobertura", "monto_reclamado", score_col, sem_col,
+        "alertas_reglas", "beneficiario", "estado", "sucursal", "score_reglas",
+        "ml_fraud_probability", "anomaly_score",
+    ]
+    cols = [c for c in cols if c in df.columns]
+    out = df[cols].rename(columns={
+        score_col: "score",
+        sem_col: "tipo_semaforo",
+        "ramo": "tipo_ramo",
+    })
+    records = out.where(pd.notnull(out), None).to_dict(orient="records")
+    return {"total": len(records), "cases": records}
+
+
+def ml_simulate(params: dict) -> dict:
+    monto = float(params.get("monto", 0) or 0)
+    dias = float(params.get("dias", 0) or 0)
+    prov = int(params.get("prov", 0) or 0)
+    nlp = float(params.get("nlp", 0) or 0)
+    if nlp > 1:
+        nlp = nlp / 100.0
+    score = 25.0
+    score += min(35.0, (monto / 100000.0) * 25.0)
+    score += min(20.0, dias * 1.2)
+    score += 18.0 if prov else 0.0
+    score += nlp * 25.0
+    score = int(min(100, round(score)))
+    prob = min(0.99, score / 100.0 * 0.92 + 0.05)
+    sem = "Rojo" if score >= 76 else "Amarillo" if score >= 41 else "Verde"
+    sev = "Crítica" if score >= 76 else "Media" if score >= 41 else "Baja"
+    result = {
+        "score": score,
+        "prob_fraude": round(prob * 100, 1),
+        "semaforo": sem,
+        "severidad": sev,
+        "inputs": {"monto": monto, "dias": dias, "prov": prov, "nlp_pct": round(nlp * 100, 1)},
+    }
+    app_state["ml_simulation"] = result
+    return result
+
+
+def case_forensic_pdf(case_id: str) -> bytes:
+    case = get_case(case_id)
+    from src.reporting.case_pdf import build_case_forensic_pdf
+
+    return build_case_forensic_pdf(case)
 
 
 def _enrich_ml_metrics(metrics: dict) -> dict:
@@ -1347,7 +1441,7 @@ def _build_metrics_from_scored_df() -> dict:
     metrics: dict = {
         "trained": bool(has_ml or has_score),
         "active_model": "Random Forest" if has_ml else "Reglas + score híbrido",
-        "model_version": "fraudia-ml-1.0",
+        "model_version": "fxecure-ml-1.0",
         "total_records": int(len(df)),
     }
 
@@ -1492,8 +1586,10 @@ def get_status() -> dict:
 
 def file_download_path(kind: str) -> Tuple[str, str]:
     if kind == "powerbi":
-        path = os.path.join("data", "processed", "powerbi_export.xlsx")
-        name = "powerbi_export.xlsx"
+        path = app_state.get("last_export_path") or os.path.join(
+            "data", "processed", "fxecure_export_completo.xlsx"
+        )
+        name = "fxecure_siniestros_procesados.xlsx"
     else:
         path = os.path.join("data", "processed", "siniestros_scored.csv")
         name = "siniestros_scored.csv"

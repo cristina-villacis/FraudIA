@@ -284,14 +284,14 @@ function buildDashboardShell() {
     return `
         <div class="dash-soc-title">
             <div>
-                <h2>Centro de Inteligencia Antifraude</h2>
+                <h2>Panel de control de riesgo</h2>
                 <div class="dash-soc-meta">
-                    <span>Motor IA: <strong id="dashIaStatus">Activo</strong></span>
-                    <span>AUC-ROC: <strong id="kpiAuc">—</strong></span>
+                    <span>Estado del análisis: <strong id="dashIaStatus">Activo</strong></span>
+                    <span>Precisión del modelo: <strong id="kpiAuc">—</strong></span>
                     <span>Actualizado: <strong id="dashNow">—</strong></span>
                 </div>
             </div>
-            <span class="dash-panel-badge">SOC · Tiempo real</span>
+            <span class="dash-panel-badge">Vista ejecutiva</span>
         </div>
 
         <div class="dash-soc-kpis">
@@ -323,8 +323,8 @@ function buildDashboardShell() {
             </div>
         </div>
 
-        <details class="dash-panel dash-filters-panel" open>
-            <summary>▸ Filtros inteligentes · clic en gráficos para explorar</summary>
+        <details class="dash-panel dash-filters-panel">
+            <summary>▸ Filtros de exploración (también puede hacer clic en los gráficos)</summary>
             <div class="dash-filters-body">
                 <div class="card dashboard-toolbar" style="margin:0;border:none;background:transparent;box-shadow:none;">
                     <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.75rem;">
@@ -362,68 +362,44 @@ function buildDashboardShell() {
         <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
         <span id="kpiClasificacion" style="display:none;"></span>
 
-        <div class="dash-layout-main">
-            <section class="dash-panel">
-                <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Casos críticos · priorización IA</h3>
-                    <span class="dash-panel-badge">Top riesgo</span>
-                </div>
-                <div class="dash-table-wrap">
-                    <table class="dash-table">
-                        <thead><tr>
-                            <th></th><th>ID</th><th>Score IA</th><th>Riesgo</th><th>Proveedor</th><th>Asegurado</th><th>Monto</th><th>Reglas</th><th>Estado</th><th></th>
-                        </tr></thead>
-                        <tbody id="criticalCasesTable"></tbody>
-                    </table>
-                </div>
-                <div id="topAnomaliesList" style="display:none;"></div>
-            </section>
-            <div class="dash-stack">
+        <details class="dash-panel dash-charts-expander">
+            <summary>▸ Gráficos de análisis (desplegar para explorar)</summary>
+            <p class="dash-chart-help">Puede hacer clic en las barras o sectores para filtrar. Use el botón ✕ en cada gráfico para limpiar el filtro aplicado.</p>
+            <div class="dash-layout-duo">
                 <div class="dash-panel card-chart">
                     <div class="dash-panel-head">
-                        <h3 class="dash-panel-title">Distribución score · ML</h3>
-                        <button type="button" class="chart-reset-btn" data-reset-scope="score" title="Limpiar">✕</button>
+                        <h3 class="dash-panel-title">Semáforo de riesgo</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar">✕</button>
                     </div>
-                    <div id="chartScores" class="chart-area" style="min-height:240px;"></div>
+                    <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
                 </div>
                 <div class="dash-panel card-chart">
                     <div class="dash-panel-head">
-                        <h3 class="dash-panel-title">Timeline antifraude</h3>
+                        <h3 class="dash-panel-title">Evolución en el tiempo</h3>
                         <button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar">✕</button>
                     </div>
                     <div id="chartTemporal" class="chart-area" style="min-height:220px;"></div>
                 </div>
             </div>
-        </div>
-
-        <div class="dash-layout-duo">
-            <div class="dash-panel card-chart">
-                <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Semáforo de riesgo</h3>
-                    <button type="button" class="chart-reset-btn" data-reset-scope="semaforo" title="Limpiar">✕</button>
+            <div class="dash-layout-duo">
+                <div class="dash-panel card-chart">
+                    <div class="dash-panel-head">
+                        <h3 class="dash-panel-title">Concentración por sucursal</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
+                    </div>
+                    <div id="chartGeoOperacion" class="chart-area" style="min-height:260px;"></div>
                 </div>
-                <div class="donut-chart-wrap"><div id="chartSemaforo" class="chart-area"></div></div>
+                <div class="dash-panel card-chart">
+                    <div class="dash-panel-head">
+                        <h3 class="dash-panel-title">Riesgo por ramo y cobertura</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
+                    </div>
+                    <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:260px;"></div>
+                </div>
             </div>
             <div class="dash-panel card-chart">
                 <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Mapa calor · sucursales</h3>
-                    <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
-                </div>
-                <div id="chartGeoOperacion" class="chart-area" style="min-height:260px;"></div>
-            </div>
-        </div>
-
-        <div class="dash-layout-duo">
-            <div class="dash-panel card-chart">
-                <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Heatmap ramo × riesgo</h3>
-                    <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
-                </div>
-                <div id="chartHeatmapRamoRiesgo" class="chart-area" style="min-height:260px;"></div>
-            </div>
-            <div class="dash-panel card-chart">
-                <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Análisis por ramo</h3>
+                    <h3 class="dash-panel-title">Comparativo por ramo</h3>
                     <button type="button" class="chart-reset-btn" data-reset-scope="ramo" title="Limpiar">✕</button>
                 </div>
                 <div id="chartRamo" class="chart-area chart-area-ramo" style="min-height:260px;"></div>
@@ -433,7 +409,7 @@ function buildDashboardShell() {
                     <span><i style="background:var(--red);"></i> Alto</span>
                 </div>
             </div>
-        </div>
+        </details>
 
         <div class="dash-panel" style="margin-bottom:1.25rem;">
             <div class="dash-panel-head"><h3 class="dash-panel-title">Ranking proveedores sospechosos</h3></div>
@@ -671,7 +647,6 @@ function renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf) {
 
 function bindPlotlyDashboardCharts(data) {
     const chartSemaforo = document.getElementById('chartSemaforo');
-    const chartScores = document.getElementById('chartScores');
     const chartRamo = document.getElementById('chartRamo');
     const chartTemporal = document.getElementById('chartTemporal');
 
@@ -682,42 +657,6 @@ function bindPlotlyDashboardCharts(data) {
             document.getElementById('filterSemaforo').value = label;
         });
         chartSemaforo._plotlyClickBound = true;
-    }
-    if (chartScores && !chartScores._plotlyClickBound) {
-        chartScores.on('plotly_click', (ev) => {
-            const pt = ev.points[0];
-            const ranges = (dashboardState.lastData && dashboardState.lastData.score_distribution && dashboardState.lastData.score_distribution.click_ranges) || [];
-            const band = ranges[pt.pointNumber] || ranges.find(r => r.label === pt.x);
-            if (band) {
-                setDashboardFilter('score_min', String(band.min), false);
-                setDashboardFilter('score_max', String(band.max), false);
-                const smin = document.getElementById('filterScoreMin');
-                const smax = document.getElementById('filterScoreMax');
-                const rmin = document.getElementById('filterScoreMinRange');
-                const rmax = document.getElementById('filterScoreMaxRange');
-                if (smin) smin.value = band.min;
-                if (smax) smax.value = band.max;
-                if (rmin) rmin.value = band.min;
-                if (rmax) rmax.value = band.max;
-                updateFilterChips();
-                refreshDashboard();
-                return;
-            }
-            const parts = String(pt.x || '').split('-');
-            if (parts.length >= 2) {
-                const lo = Number(parts[0]);
-                const hi = Number(parts[1]);
-                setDashboardFilter('score_min', String(lo), false);
-                setDashboardFilter('score_max', String(hi), false);
-                document.getElementById('filterScoreMin').value = lo;
-                document.getElementById('filterScoreMax').value = hi;
-                document.getElementById('filterScoreMinRange').value = lo;
-                document.getElementById('filterScoreMaxRange').value = hi;
-                updateFilterChips();
-                refreshDashboard();
-            }
-        });
-        chartScores._plotlyClickBound = true;
     }
     if (chartRamo && !chartRamo._plotlyClickBound) {
         chartRamo.on('plotly_click', (ev) => {
@@ -747,6 +686,8 @@ function renderDashboardCharts(data) {
     const rojo = data.semaforo.Rojo || 0, amarillo = data.semaforo.Amarillo || 0, verde = data.semaforo.Verde || 0;
     const totalSem = rojo + amarillo + verde || data.total || 1;
 
+    if (!document.getElementById('chartSemaforo')) return;
+
     Plotly.react('chartSemaforo', [{
         values: [rojo, amarillo, verde],
         labels: ['Rojo', 'Amarillo', 'Verde'],
@@ -768,35 +709,6 @@ function renderDashboardCharts(data) {
             x: 0.5, y: 0.5, xref: 'paper', yref: 'paper', align: 'center',
         }],
     }, PLOTLY_CONFIG);
-
-    if (data.score_distribution && data.score_distribution.labels && data.score_distribution.labels.length) {
-        const sd = data.score_distribution;
-        Plotly.react('chartScores', [{
-            x: sd.labels,
-            y: sd.counts,
-            type: 'bar',
-            marker: {
-                color: sd.colors || [],
-                line: { width: 0 },
-                opacity: 0.9,
-            },
-            text: sd.counts.map(String),
-            textposition: 'outside',
-            textfont: { size: 11, color: C.text },
-            hovertemplate: '<b>%{x}</b><br>%{y:,} casos<extra></extra>',
-        }], {
-            ...PL,
-            xaxis: {
-                title: 'Nivel de riesgo (según score híbrido)',
-                gridcolor: C.grid,
-                tickfont: { size: 10 },
-            },
-            yaxis: { title: 'Cantidad de siniestros', gridcolor: C.grid },
-            height: 280,
-            margin: { t: 10, b: 50, l: 50, r: 20 },
-            bargap: 0.35,
-        }, PLOTLY_CONFIG);
-    }
 
     if (data.ramo_data && data.ramo_data.length) {
         const ramos = data.ramo_data.map(r => r.ramo);
@@ -1024,7 +936,6 @@ function renderDashboardData(data) {
 
     updateFilterChips();
     const topCases = data.top_cases || [];
-    renderCriticalCasesTable(topCases);
     renderAnomaliesList(topCases);
     renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf);
 
@@ -1179,7 +1090,10 @@ async function refreshDashboard() {
         const dashHeaders = {};
         try {
             const sid = sessionStorage.getItem('fraudia_session_id');
-            if (sid) dashHeaders['X-FraudIA-Session'] = sid;
+            if (sid) {
+                dashHeaders['X-FXecure-Session'] = sid;
+                dashHeaders['X-FraudIA-Session'] = sid;
+            }
         } catch (e) { /* ignore */ }
         const resp = await fetch('/api/dashboard-data' + (qs ? '?' + qs : ''), { headers: dashHeaders });
         const data = await resp.json();
@@ -1197,7 +1111,10 @@ async function initDashboard() {
         const dashHeaders = {};
         try {
             const sid = sessionStorage.getItem('fraudia_session_id');
-            if (sid) dashHeaders['X-FraudIA-Session'] = sid;
+            if (sid) {
+                dashHeaders['X-FXecure-Session'] = sid;
+                dashHeaders['X-FraudIA-Session'] = sid;
+            }
         } catch (e) { /* ignore */ }
         const optResp = await fetch('/api/dashboard-filters', { headers: dashHeaders });
         const opts = await optResp.json();

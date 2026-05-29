@@ -1,5 +1,5 @@
 """
-API web FraudIA — FastAPI (Python / ASGI) para Vercel y desarrollo local.
+API web FXecure — FastAPI (Python / ASGI) para Vercel y desarrollo local.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import src.db.config  # noqa: F401 — carga .env del proyecto antes que el rest
 from src.app.core import APP_DIR, reset_request_session_id, set_request_session_id  # noqa: E402
 from src.app import api_handlers as h  # noqa: E402
 
-app = FastAPI(title="FraudIA Claims", version="1.0.0")
+app = FastAPI(title="FXecure", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,10 +38,14 @@ if os.path.isdir(static_dir):
 
 @app.middleware("http")
 async def fraudia_session_middleware(request: Request, call_next):
-    """Propaga X-FraudIA-Session para reutilizar /tmp entre requests en Vercel."""
-    sid = (request.headers.get("X-FraudIA-Session") or "").strip() or None
+    """Propaga sesión FXecure para reutilizar /tmp entre requests en Vercel."""
+    sid = (
+        (request.headers.get("X-FXecure-Session") or request.headers.get("X-FraudIA-Session") or "")
+        .strip()
+        or None
+    )
     if not sid:
-        cookie_sid = request.cookies.get("fraudia_session")
+        cookie_sid = request.cookies.get("fxecure_session") or request.cookies.get("fraudia_session")
         sid = cookie_sid.strip() if cookie_sid else None
     token = set_request_session_id(sid)
     try:
@@ -290,6 +294,40 @@ async def api_agent_query(request: Request):
 async def api_export_powerbi():
     try:
         return h.export_powerbi()
+    except ValueError as e:
+        return _err(e, 400)
+
+
+@app.get("/api/cases-all")
+async def api_cases_all():
+    try:
+        return h.cases_all_list()
+    except ValueError as e:
+        return _err(e, 400)
+
+
+@app.post("/api/ml-simulate")
+async def api_ml_simulate(request: Request):
+    try:
+        body = await request.json()
+        return h.ml_simulate(body or {})
+    except ValueError as e:
+        return _err(e, 400)
+
+
+@app.get("/api/case/{case_id}/pdf")
+async def api_case_pdf(case_id: str):
+    try:
+        pdf_bytes = h.case_forensic_pdf(case_id)
+        return StreamingResponse(
+            iter([pdf_bytes]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="reporte_antifraude_{case_id}.pdf"',
+            },
+        )
+    except LookupError as e:
+        return _err(e, 404)
     except ValueError as e:
         return _err(e, 400)
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FraudIA Claims — Detección Inteligente de Fraude</title>
+    <title>FXecure — Gestión inteligente de riesgo en siniestros</title>
     <link rel="icon" type="image/png" href="/static/logo_dark.png">
     <link rel="apple-touch-icon" href="/static/logo_dark.png">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/static/dashboard-premium.css?v=1">
     <link rel="stylesheet" href="/static/ml-premium.css?v=1">
     <link rel="stylesheet" href="/static/audit-agent.css?v=1">
+    <link rel="stylesheet" href="/static/case-report.css?v=1">
     <style>
         :root, [data-theme="dark"] {
             --bg-primary: #0B1120;
@@ -1584,15 +1585,15 @@
     <!-- HEADER -->
     <div class="header">
         <div class="header-brand">
-            <img id="headerLogo" class="header-logo-img" src="/static/logo_dark.png" alt="FraudIA Claims">
+            <img id="headerLogo" class="header-logo-img" src="/static/logo_dark.png" alt="FXecure">
             <div>
-                <div class="header-title"><span>FraudIA</span> Claims</div>
-                <div class="header-subtitle">Inteligencia Artificial Antifraude</div>
+                <div class="header-title"><span>FX</span>ecure</div>
+                <div class="header-subtitle">Priorización y revisión de siniestros</div>
             </div>
         </div>
         <div class="header-right header-status-row">
-            <span id="dbIndicator" class="badge badge-muted"><span class="pulse-dot pulse-dot-cyan"></span> TiDB: --</span>
-            <span id="aiEngineBadge" class="badge badge-cyan"><span class="pulse-dot pulse-dot-cyan"></span> IA: Activa</span>
+            <span id="dbIndicator" class="badge badge-muted" style="display:none !important;" aria-hidden="true"></span>
+            <span id="aiEngineBadge" class="badge badge-cyan"><span class="pulse-dot pulse-dot-cyan"></span> Análisis: listo</span>
             <span id="apiBadge" class="badge badge-green"><span class="pulse-dot pulse-dot-green"></span> API: OK</span>
             <span id="statusIndicator" class="badge badge-green" style="display:none;"><span class="pulse-dot pulse-dot-green"></span> Operativo</span>
             <div style="display:flex; align-items:center;">
@@ -1621,13 +1622,13 @@
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Inteligencia</div>
-        <div class="nav-item" data-tab="model" title="IA / ML Engine">
+        <div class="nav-item" data-tab="model" title="Análisis predictivo">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
-            <span class="nav-label">IA / ML Engine</span>
+            <span class="nav-label">Análisis predictivo</span>
         </div>
-        <div class="nav-item" data-tab="audit" title="Agente de Auditoría IA">
+        <div class="nav-item" data-tab="audit" title="Asistente de auditoría">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg></div>
-            <span class="nav-label">Consultas de Riesgo</span>
+            <span class="nav-label">Asistente de auditoría</span>
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Salida</div>
@@ -1647,9 +1648,9 @@
 
                 <section class="ingest-hero ingest-hero-split">
                     <div class="ingest-hero-main">
-                        <div class="ingest-hero-badge">Centro de ingestión IA</div>
-                        <h1>Carga Inteligente de Datos</h1>
-                        <p class="ingest-hero-sub">El sistema interpreta automáticamente estructuras Excel, genera relaciones y activa análisis antifraude con IA.</p>
+                        <div class="ingest-hero-badge">Carga de cartera</div>
+                        <h1>Importar su cartera de siniestros</h1>
+                        <p class="ingest-hero-sub">Suba su archivo Excel y FXecure validará la estructura, calculará el riesgo y preparará el panel de revisión.</p>
                         <div class="ingest-hero-actions">
                             <a href="/api/download-template" class="btn btn-primary" download>&#11015; Descargar Plantilla</a>
                             <button type="button" class="btn btn-secondary" onclick="loadSynthetic()" id="btnSynthetic">Generar datos aleatorios</button>
@@ -1678,10 +1679,10 @@
                 <div id="datasetLoadStatus" aria-live="polite" style="margin-bottom:1rem;"></div>
 
                 <div id="ingestActionsBar" class="ingest-actions-bar" style="display:none;">
-                    <p class="ingest-actions-hint">Tras el análisis: guardado en TiDB, scores en siniestros, dashboard y ML listos.</p>
+                    <p class="ingest-actions-hint">Al finalizar verá el panel de control y la bandeja de casos listos para revisión.</p>
                     <div class="ingest-actions-btns">
-                        <button type="button" class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipelineMain" disabled>Activar motor IA</button>
-                        <button type="button" class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDBTop">Guardar en Base de datos</button>
+                        <button type="button" class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipelineMain" disabled>Iniciar análisis de riesgo</button>
+                        <button type="button" class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDBTop" style="display:none;">Guardar en Base de datos</button>
                     </div>
                 </div>
 
@@ -1701,17 +1702,6 @@
                     </div>
                 </div>
 
-                <div class="ingest-ai" id="ingestAi">
-                    <div class="ingest-panel-title"><span class="ai-pulse"></span> Motor IA antifraude</div>
-                    <div class="ai-modules">
-                        <div class="ai-mod"><strong>Variables derivadas</strong><span>Features de riesgo calculadas</span></div>
-                        <div class="ai-mod"><strong>Embeddings NLP</strong><span>Similitud narrativa activa</span></div>
-                        <div class="ai-mod"><strong>Reglas de negocio</strong><span>Motor de alertas cargado</span></div>
-                        <div class="ai-mod"><strong>Score engine</strong><span>Semáforo híbrido listo</span></div>
-                        <div class="ai-mod"><strong>ML supervisado</strong><span>Modelo antifraude entrenado</span></div>
-                        <div class="ai-mod"><strong>Dashboard</strong><span>Payload analítico generado</span></div>
-                    </div>
-                </div>
 
                 <div id="tablesInfo" style="display:none; margin-bottom:1.5rem;">
                     <div class="ingest-panel-title" style="margin-bottom:0.75rem;">Resumen de tablas</div>
@@ -1758,25 +1748,25 @@
         <!-- ═══════ TAB: DASHBOARD ═══════ -->
         <div id="tab-dashboard" class="tab-panel dash-premium-module">
             <div id="dashboardContent">
-                <div class="alert alert-info">Ejecute el pipeline de análisis desde la pestaña «Carga de Datos» para activar el centro de inteligencia antifraude.</div>
+                <div class="alert alert-info">Importe su cartera en «Carga de Datos» y pulse «Iniciar análisis de riesgo» para ver el panel de control.</div>
             </div>
         </div>
 
         <!-- ═══════ TAB: CASES ═══════ -->
         <div id="tab-cases" class="tab-panel">
             <div class="section-header">
-                <h2>Bandeja de Casos Sospechosos</h2>
+                <h2>Bandeja de casos</h2>
                 <div class="section-line"></div>
             </div>
             <div id="casesContent">
-                <div class="alert alert-info">Ejecute el pipeline para ver la bandeja de casos priorizados.</div>
+                <div class="alert alert-info">Complete el análisis en «Carga de Datos» para ver todos los siniestros procesados.</div>
             </div>
         </div>
 
         <!-- ═══════ TAB: MODEL ═══════ -->
         <div id="tab-model" class="tab-panel ml-engine-module">
             <div id="modelContent">
-                <div class="alert alert-info">Ejecute el pipeline desde <strong>Carga de Datos</strong> para activar el AI / ML Engine.</div>
+                <div class="alert alert-info">Complete el análisis en <strong>Carga de Datos</strong> para usar el simulador y las métricas del modelo.</div>
             </div>
         </div>
 
@@ -1788,30 +1778,17 @@
         <!-- ═══════ TAB: EXPORT ═══════ -->
         <div id="tab-export" class="tab-panel">
             <div class="section-header">
-                <h2>Exportación &mdash; Power BI</h2>
+                <h2>Exportar resultados</h2>
                 <div class="section-line"></div>
             </div>
-            <div class="grid-2">
-                <div class="card">
-                    <div class="card-title">Exportar a Excel</div>
-                    <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">Genera un archivo Excel multi-hoja optimizado para importar en Power BI con Dashboard Principal, Semáforo, Ramos, Proveedores, Temporal y Alertas.</p>
-                    <button class="btn btn-primary" onclick="exportPowerBI()" id="btnExport">Generar Exportación</button>
-                    <div id="exportStatus" style="margin-top:1rem;"></div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Conexión Power BI</div>
-                    <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.8;">
-                        <p><span style="color:var(--cyan); font-weight:600;">1.</span> Haga clic en "Generar Exportación"</p>
-                        <p><span style="color:var(--cyan); font-weight:600;">2.</span> Descargue el archivo Excel</p>
-                        <p><span style="color:var(--cyan); font-weight:600;">3.</span> Power BI Desktop &rarr; Obtener datos &rarr; Excel</p>
-                        <p><span style="color:var(--cyan); font-weight:600;">4.</span> Seleccione el archivo descargado</p>
-                        <p><span style="color:var(--cyan); font-weight:600;">5.</span> Use <code>semaforo_final</code> para filtros de color</p>
-                        <p><span style="color:var(--cyan); font-weight:600;">6.</span> Use <code>score_hibrido</code> para distribuciones</p>
-                        <p style="margin-top:0.75rem; padding:0.75rem; background:var(--cyan-dim); border-radius:8px; font-size:0.82rem; color:var(--cyan);">
-                            <strong>CSV directo:</strong> <code>data/processed/siniestros_scored.csv</code>
-                        </p>
-                    </div>
-                </div>
+            <div class="card" style="max-width:640px;">
+                <div class="card-title">Descargar Excel completo de la sesión</div>
+                <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">
+                    Incluye todos los siniestros analizados con score, semáforo, alertas y la justificación generada para cada caso.
+                    Ideal para auditoría interna o trabajo offline.
+                </p>
+                <button class="btn btn-primary" onclick="exportPowerBI()" id="btnExport">Descargar Excel (.xlsx)</button>
+                <div id="exportStatus" style="margin-top:1rem;"></div>
             </div>
         </div>
     </div>
@@ -1819,7 +1796,7 @@
     <!-- STATUS BAR -->
     <div class="status-bar">
         <span id="statusText">Sistema operativo</span>
-        <span>FraudIA Claims v1.0 &mdash; AI-Powered Fraud Detection</span>
+        <span>FXecure &mdash; Alertas de revisión, no acusaciones automáticas</span>
     </div>
 
 <script>
@@ -1891,16 +1868,25 @@
 
     // ── Sesión Vercel: reutiliza /tmp entre peticiones del mismo navegador ──
     function getFraudiaSessionId() {
-        try { return sessionStorage.getItem('fraudia_session_id') || ''; } catch (e) { return ''; }
+        try {
+            return sessionStorage.getItem('fxecure_session_id')
+                || sessionStorage.getItem('fraudia_session_id') || '';
+        } catch (e) { return ''; }
     }
     function setFraudiaSessionId(id) {
         if (!id) return;
-        try { sessionStorage.setItem('fraudia_session_id', id); } catch (e) { /* ignore */ }
+        try {
+            sessionStorage.setItem('fxecure_session_id', id);
+            sessionStorage.setItem('fraudia_session_id', id);
+        } catch (e) { /* ignore */ }
     }
     function withFraudiaSessionHeaders(options) {
         const headers = { ...(options.headers || {}) };
         const sid = getFraudiaSessionId();
-        if (sid) headers['X-FraudIA-Session'] = sid;
+        if (sid) {
+            headers['X-FXecure-Session'] = sid;
+            headers['X-FraudIA-Session'] = sid;
+        }
         return { ...options, headers };
     }
 
@@ -2076,7 +2062,7 @@
             const dbHost = document.getElementById('dbHostLabel');
             const dbBadge = document.getElementById('dbStatusBadge');
             if(data.status === 'ok') {
-                dbInd.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> TiDB: ' + data.type;
+                dbInd.innerHTML = '';
                 dbInd.className = 'badge badge-green';
                 dbType.textContent = 'Base de datos: ' + data.type;
                 let hostLine = (data.user ? data.user + ' · ' : '') + data.host + (data.database ? ' / ' + data.database : '');
@@ -2176,7 +2162,7 @@
             if (item.dataset.tab === 'model') {
                 bootstrapSessionFromServer().then(() => loadModelMetrics());
             }
-            if (item.dataset.tab === 'cases') loadCases();
+            if (item.dataset.tab === 'cases' && window.CasesBandeja) CasesBandeja.init();
             if (item.dataset.tab === 'audit' && window.AuditAgent) {
                 bootstrapSessionFromServer().then(() => AuditAgent.init());
             }
@@ -2520,33 +2506,7 @@
 
     // ── Cases ──
     async function loadCases() {
-        try {
-            const resp = await fetch('/api/dashboard-data');
-            const data = await resp.json();
-            if(data.error || !data.top_cases) return;
-            const container = document.getElementById('casesContent');
-            const scoreCol = data.top_cases[0]?.score_hibrido !== undefined ? 'score_hibrido' : 'score_reglas';
-            const semaforoCol = data.top_cases[0]?.semaforo_final !== undefined ? 'semaforo_final' : 'semaforo_reglas';
-
-            let html = '<div class="table-container"><table><thead><tr><th>ID Siniestro</th><th>Ramo</th><th>Cobertura</th><th>Monto</th><th>Score</th><th>Semáforo</th><th>Alertas</th><th>Acción</th></tr></thead><tbody>';
-            data.top_cases.forEach(c => {
-                const sem = c[semaforoCol] || 'Verde';
-                const badgeCls = sem === 'Rojo' ? 'badge-red' : sem === 'Amarillo' ? 'badge-yellow' : 'badge-green';
-                const dotCls = sem === 'Rojo' ? 'pulse-dot-red' : sem === 'Amarillo' ? 'pulse-dot-yellow' : 'pulse-dot-green';
-                html += `<tr>
-                    <td style="color:var(--cyan); font-weight:600;">${c.id_siniestro}</td>
-                    <td>${c.ramo || ''}</td>
-                    <td>${c.cobertura || ''}</td>
-                    <td>$${(c.monto_reclamado||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                    <td style="font-weight:700; color:${(c[scoreCol]||0)>=56?'var(--red)':(c[scoreCol]||0)>=26?'var(--yellow)':'var(--green)'}">${(c[scoreCol]||0).toFixed(1)}</td>
-                    <td><span class="badge ${badgeCls}"><span class="pulse-dot ${dotCls}"></span>${sem}</span></td>
-                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:Inter,sans-serif;font-size:0.78rem;" title="${c.alertas_reglas||''}">${c.alertas_reglas||'Sin alertas'}</td>
-                    <td><button class="btn btn-ghost" style="padding:0.3rem 0.7rem;font-size:0.78rem;" onclick="viewCase('${c.id_siniestro}')">Detalle</button></td>
-                </tr>`;
-            });
-            html += '</tbody></table></div>';
-            container.innerHTML = html;
-        } catch(e) { console.error(e); }
+        if (window.CasesBandeja) return CasesBandeja.init();
     }
 
     async function viewCase(caseId) {
@@ -2562,7 +2522,10 @@
             modal.innerHTML = `<div class="modal-content">
                 <div class="modal-header">
                     <h3>${data.id_siniestro}</h3>
-                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="padding:0.3rem 0.8rem;">Cerrar</button>
+                    <div style="display:flex;gap:0.5rem;">
+                        <a class="btn btn-primary" href="/api/case/${encodeURIComponent(data.id_siniestro)}/pdf" download style="padding:0.3rem 0.8rem;text-decoration:none;">Descargar PDF</a>
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="padding:0.3rem 0.8rem;">Cerrar</button>
+                    </div>
                 </div>
                 <div style="margin-bottom:1.25rem;">
                     <span class="badge ${badgeCls}" style="font-size:0.88rem; padding:0.4rem 1rem;">
@@ -2749,19 +2712,21 @@
             const data = await resp.json();
             if(data.error) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>'; btn.disabled = false; return; }
             status.innerHTML = `
-                <div class="alert alert-success" style="margin:0 0 0.75rem 0;">Exportación completada.</div>
+                <div class="alert alert-success" style="margin:0 0 0.75rem 0;">Excel generado correctamente.</div>
                 <div style="display:flex;gap:0.5rem;">
-                    <a href="/api/download-powerbi" class="btn btn-primary" download>Descargar Excel</a>
-                    <a href="/api/download-csv" class="btn btn-secondary" download>Descargar CSV</a>
+                    <a href="/api/download-powerbi" class="btn btn-primary" download="fxecure_siniestros_procesados.xlsx">Descargar Excel completo</a>
                 </div>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">${(data.total_records||0).toLocaleString()} siniestros con score y justificación.</p>
             `;
         } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
         btn.disabled = false;
     }
 </script>
-    <script src="/static/ingest.js?v=6"></script>
-    <script src="/static/audit-agent.js?v=1"></script>
-    <script src="/static/ml-engine.js?v=5"></script>
-    <script src="/static/dashboard.js?v=6"></script>
+    <script src="/static/ingest.js?v=7"></script>
+    <script src="/static/case-report-preview.js?v=1"></script>
+    <script src="/static/cases-bandeja.js?v=2"></script>
+    <script src="/static/audit-agent.js?v=2"></script>
+    <script src="/static/ml-engine.js?v=6"></script>
+    <script src="/static/dashboard.js?v=7"></script>
 </body>
 </html>

@@ -47,10 +47,10 @@ class ClaimsAgent:
             lines.append(f"- Reglas críticas activas: {reglas_crit}")
         return "\n".join(lines) if lines else ""
 
-    def build_dataset_context(self, max_top: int = 8) -> str:
-        """Contexto compacto para ChatGPT (estadísticas + top riesgo)."""
+    def build_dataset_context(self, max_top: int = 15) -> str:
+        """Contexto global de la sesión (todos los niveles de riesgo, no solo críticos)."""
         total = len(self.df)
-        lines = [f"Total siniestros: {total}"]
+        lines = [f"Total siniestros en sesión: {total}"]
 
         if self.semaforo_col in self.df.columns:
             for sem in ("Rojo", "Amarillo", "Verde"):
@@ -70,9 +70,18 @@ class ClaimsAgent:
                 f"Score anomalía promedio: {self.df[self.anomaly_col].mean()*100:.1f}%"
             )
 
+        if "ramo" in self.df.columns and self.semaforo_col in self.df.columns:
+            ramo_risk = (
+                self.df.groupby("ramo")[self.semaforo_col]
+                .apply(lambda s: f"R={int((s=='Rojo').sum())} A={int((s=='Amarillo').sum())} V={int((s=='Verde').sum())}")
+            )
+            lines.append("Distribución por ramo (R/A/V):")
+            for ramo, dist in ramo_risk.head(12).items():
+                lines.append(f"  - {ramo}: {dist}")
+
         if self.score_col in self.df.columns:
             top = self.df.nlargest(max_top, self.score_col)
-            lines.append("Top casos por score:")
+            lines.append(f"Top {max_top} por score (referencia):")
             for _, row in top.iterrows():
                 sem = row.get(self.semaforo_col, "N/A")
                 ml = ""
@@ -82,6 +91,16 @@ class ClaimsAgent:
                     f"  - {row['id_siniestro']}: score={row[self.score_col]:.1f}, "
                     f"{sem}{ml}, ramo={row.get('ramo', 'N/A')}"
                 )
+            mid = self.df[
+                (self.df[self.score_col] >= 41) & (self.df[self.score_col] <= 75)
+            ].head(5) if self.score_col in self.df.columns else pd.DataFrame()
+            if len(mid):
+                lines.append("Muestra riesgo medio (amarillo):")
+                for _, row in mid.iterrows():
+                    lines.append(
+                        f"  - {row['id_siniestro']}: score={row[self.score_col]:.1f}, "
+                        f"{row.get(self.semaforo_col, 'N/A')}"
+                    )
 
         dashboard_snapshot = self.extra_context.get("dashboard_snapshot")
         if isinstance(dashboard_snapshot, dict):

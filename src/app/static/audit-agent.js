@@ -29,14 +29,13 @@ const AuditAgent = (function () {
         root.dataset.rendered = '1';
         root.innerHTML = `
             <div class="audit-header">
-                <h2>Agente de Auditoría IA</h2>
-                <p>Consultas de explicabilidad sobre el archivo cargado en Carga Inteligente de Datos.
-                El agente justifica por qué cada siniestro fue catalogado como riesgo <strong>Alto</strong>,
-                <strong>Medio</strong> o <strong>Bajo</strong> usando alertas, reglas y scores del análisis.</p>
+                <h2>Asistente de auditoría</h2>
+                <p>Pregunte en lenguaje natural sobre su cartera completa. Le explico por qué un caso está en
+                <strong>alto</strong>, <strong>medio</strong> o <strong>bajo</strong> riesgo — siempre como alerta de revisión, no como veredicto.</p>
             </div>
             <div class="audit-status-bar" id="auditStatusBar">
-                <span class="audit-status-pill warn" id="auditDatasetPill">Dataset: verificando…</span>
-                <span class="audit-status-pill" id="auditLlmPill">Motor IA: —</span>
+                <span class="audit-status-pill warn" id="auditDatasetPill">Cartera: verificando…</span>
+                <span class="audit-status-pill" id="auditLlmPill">Asistente: —</span>
             </div>
             <div class="audit-suggestions" id="auditSuggestions"></div>
             <div class="audit-chat-shell">
@@ -90,9 +89,9 @@ const AuditAgent = (function () {
         if (!msgs || msgs.dataset.welcome === '1') return;
         msgs.dataset.welcome = '1';
         appendAgentMessage(
-            'Cargue y analice un Excel en «Carga Inteligente de Datos». Luego pregunte por alertas, '
-            + 'semáforos o casos específicos: responderé con justificaciones estructuradas basadas '
-            + 'únicamente en los datos procesados.',
+            'Hola, soy su colega de auditoría en FXecure. Cuando termine de cargar y analizar su Excel, '
+            + 'puede preguntarme por casos, proveedores o patrones — le responderé con tablas claras '
+            + 'y en un lenguaje directo, usando todos los siniestros de la sesión.',
             null
         );
     }
