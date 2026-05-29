@@ -977,17 +977,26 @@ function renderDashboardData(data) {
 
     const activeFilters = getActiveFiltersForUI();
     const isFiltered = activeFilters.length > 0;
+    const sourceTotal = data.source_total_siniestros || data.total_unfiltered || data.total;
+    const analyzedTotal = data.total_unfiltered ?? data.total;
+    const countMismatch = sourceTotal > 0 && analyzedTotal < sourceTotal;
 
     const banner = document.getElementById('dashboardBanner');
     if (isFiltered) {
-        banner.innerHTML = `Mostrando <strong>${data.total.toLocaleString()}</strong> de <strong>${data.total_unfiltered.toLocaleString()}</strong> siniestros (${activeFilters.length} filtro${activeFilters.length > 1 ? 's' : ''} activo${activeFilters.length > 1 ? 's' : ''}).`;
+        banner.innerHTML = `Mostrando <strong>${data.total.toLocaleString()}</strong> de <strong>${analyzedTotal.toLocaleString()}</strong> siniestros analizados (${activeFilters.length} filtro${activeFilters.length > 1 ? 's' : ''} activo${activeFilters.length > 1 ? 's' : ''}).`;
+    } else if (countMismatch) {
+        banner.innerHTML = `Se cargaron <strong>${sourceTotal.toLocaleString()}</strong> siniestros en el dataset; el motor analizó <strong>${analyzedTotal.toLocaleString()}</strong>. Vuelva a cargar el Excel y ejecute el análisis, o revise advertencias en la pestaña Datos.`;
+        banner.classList.add('dashboard-banner-warn');
     } else {
-        banner.innerHTML = `Vista completa: <strong>${data.total.toLocaleString()}</strong> siniestros analizados. Use filtros o haga clic en los gráficos para explorar.`;
+        banner.classList.remove('dashboard-banner-warn');
+        banner.innerHTML = `Vista completa: <strong>${analyzedTotal.toLocaleString()}</strong> siniestros analizados (dataset cargado). Use filtros o haga clic en los gráficos para explorar.`;
     }
 
-    document.getElementById('kpiTotal').textContent = data.total.toLocaleString();
+    const kpiTotalVal = isFiltered ? data.total : analyzedTotal;
+    document.getElementById('kpiTotal').textContent = kpiTotalVal.toLocaleString();
     document.getElementById('kpiTotalSub').textContent = isFiltered
-        ? `de ${data.total_unfiltered.toLocaleString()} totales` : 'Analizados';
+        ? `de ${analyzedTotal.toLocaleString()} analizados`
+        : (sourceTotal > analyzedTotal ? `de ${sourceTotal.toLocaleString()} cargados` : 'Analizados');
     document.getElementById('kpiRojo').textContent = rojo.toLocaleString();
     document.getElementById('kpiRojoPct').textContent = `${pctOf(rojo)}% del filtro`;
     const ek = data.executive_kpis || {};

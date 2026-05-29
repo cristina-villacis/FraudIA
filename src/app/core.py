@@ -18,6 +18,7 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app_state: dict = {
     "datasets": {},
+    "source_row_counts": {},
     "df_features": None,
     "df_scored": None,
     "model_results": None,
@@ -102,6 +103,13 @@ def is_standard_workbook(tables: dict) -> bool:
     return len(set(tables.keys()) & STANDARD_TABLES) >= 2
 
 
+def record_source_row_counts(datasets: dict) -> None:
+    """Totales del archivo cargado (referencia para dashboard y validación)."""
+    app_state["source_row_counts"] = {
+        name: len(df) for name, df in (datasets or {}).items() if df is not None
+    }
+
+
 def apply_loaded_datasets(new_tables: dict) -> None:
     """
     Asigna tablas cargadas sin duplicar datasets previos.
@@ -112,11 +120,13 @@ def apply_loaded_datasets(new_tables: dict) -> None:
     filtered = {k: v for k, v in new_tables.items() if k in STANDARD_TABLES}
     if is_standard_workbook(filtered):
         app_state["datasets"] = filtered
+        record_source_row_counts(filtered)
         return
     if not app_state.get("datasets"):
         app_state["datasets"] = {}
     for name, df in filtered.items():
         app_state["datasets"][name] = df
+    record_source_row_counts(app_state["datasets"])
 
 
 def merge_uploaded_tables(new_tables: dict) -> None:

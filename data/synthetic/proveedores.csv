@@ -1,46 +1,86 @@
 ﻿id_proveedor,nombre_proveedor,tipo,ciudad,reclamos_asociados,monto_promedio_reclamado,casos_observados,porcentaje_casos_observados,en_lista_restrictiva,antiguedad_anos
-PRV-0001,Intermediario Santo Domingo #1,Intermediario,Santo Domingo,6,13226.68,2,33.33,0,8
-PRV-0002,Grúa Machala #2,Grúa,Machala,10,11796.97,3,30.0,0,15
-PRV-0003,Clínica Manta #3,Clínica,Manta,56,2795.13,3,5.36,0,4
-PRV-0004,Clínica Cuenca #4,Clínica,Cuenca,26,11260.77,3,11.54,0,3
-PRV-0005,Intermediario Ambato #5,Intermediario,Ambato,27,2553.61,1,3.7,0,14
-PRV-0006,Intermediario Portoviejo #6,Intermediario,Portoviejo,48,11055.78,1,2.08,0,10
-PRV-0007,Hospital Manta #7,Hospital,Manta,8,2089.61,1,12.5,0,11
-PRV-0008,Taller Manta #8,Taller,Manta,43,7674.3,3,6.98,0,10
-PRV-0009,Clínica Riobamba #9,Clínica,Riobamba,21,16241.88,4,19.05,0,4
-PRV-0010,Clínica Esmeraldas #10,Clínica,Esmeraldas,17,5333.07,5,29.41,0,12
-PRV-0011,Abogado Riobamba #11,Abogado,Riobamba,26,19773.68,1,3.85,0,12
-PRV-0012,Taller Ibarra #12,Taller,Ibarra,33,4640.55,1,3.03,0,7
-PRV-0013,Clínica Riobamba #13,Clínica,Riobamba,24,12248.71,0,0.0,0,3
-PRV-0014,Grúa Cuenca #14,Grúa,Cuenca,31,18116.36,3,9.68,0,4
-PRV-0015,Abogado Portoviejo #15,Abogado,Portoviejo,2,19448.24,1,50.0,0,12
-PRV-0016,Taller Loja #16,Taller,Loja,34,8675.35,0,0.0,0,4
-PRV-0017,Abogado Cuenca #17,Abogado,Cuenca,15,7623.63,0,0.0,0,5
-PRV-0018,Taller Santo Domingo #18,Taller,Santo Domingo,5,8899.5,2,40.0,0,10
-PRV-0019,Hospital Cuenca #19,Hospital,Cuenca,29,18799.28,1,3.45,0,6
-PRV-0020,Perito Guayaquil #20,Perito,Guayaquil,3,19410.68,1,33.33,0,12
-PRV-0021,Intermediario Esmeraldas #21,Intermediario,Esmeraldas,6,7676.89,0,0.0,0,3
-PRV-0022,Intermediario Cuenca #22,Intermediario,Cuenca,48,6516.46,5,10.42,0,11
-PRV-0023,Taller Machala #23,Taller,Machala,28,6271.24,1,3.57,0,12
-PRV-0024,Intermediario Guayaquil #24,Intermediario,Guayaquil,30,3504.65,5,16.67,0,14
-PRV-0025,Grúa Guayaquil #25,Grúa,Guayaquil,55,8916.97,1,1.82,0,3
-PRV-0026,Abogado Santo Domingo #26,Abogado,Santo Domingo,25,19823.76,3,12.0,0,5
-PRV-0027,Abogado Riobamba #27,Abogado,Riobamba,18,18981.98,5,27.78,0,7
-PRV-0028,Hospital Guayaquil #28,Hospital,Guayaquil,49,15926.86,3,6.12,0,9
-PRV-0029,Hospital Guayaquil #29,Hospital,Guayaquil,49,5137.19,4,8.16,0,8
-PRV-0030,Clínica Quito #30,Clínica,Quito,19,6722.36,3,15.79,0,6
-PRV-0031,Taller Portoviejo #31,Taller,Portoviejo,1,19064.84,0,0.0,0,3
-PRV-0032,Hospital Esmeraldas #32,Hospital,Esmeraldas,46,4197.68,2,4.35,0,3
-PRV-0033,Perito Quito #33,Perito,Quito,58,18181.16,2,3.45,0,1
-PRV-0034,Abogado Portoviejo #34,Abogado,Portoviejo,3,11378.69,3,100.0,0,10
-PRV-0035,Taller Cuenca #35,Taller,Cuenca,23,18097.19,5,21.74,0,10
-PRV-0036,Intermediario Guayaquil #36,Intermediario,Guayaquil,60,4605.02,1,1.67,0,4
-PRV-0037,Perito Portoviejo #37,Perito,Portoviejo,31,13906.43,1,3.23,0,11
-PRV-0038,Grúa Manta #38,Grúa,Manta,17,13588.67,3,17.65,0,14
-PRV-0039,Taller Santo Domingo #39,Taller,Santo Domingo,40,17427.92,4,10.0,0,4
-PRV-0040,Taller Riobamba #40,Taller,Riobamba,33,12017.85,3,9.09,0,7
-PRV-0041,Perito Cuenca #41,Perito,Cuenca,33,15529.53,2,6.06,0,2
-PRV-0042,Grúa Manta #42,Grúa,Manta,36,10247.35,4,11.11,0,7
-PRV-0043,Grúa Quito #43,Grúa,Quito,22,3390.54,0,0.0,0,5
-PRV-0044,Grúa Ibarra #44,Grúa,Ibarra,35,15321.94,4,11.43,0,5
-PRV-0045,Abogado Manta #45,Abogado,Manta,53,15595.37,0,0.0,0,6
+PRV-0001,Grúa Ibarra #1,Grúa,Ibarra,36,3616.12,4,11.11,0,8
+PRV-0002,Abogado Ambato #2,Abogado,Ambato,42,1870.17,4,9.52,0,5
+PRV-0003,Taller Ambato #3,Taller,Ambato,10,1557.23,2,20.0,0,11
+PRV-0004,Intermediario Santo Domingo #4,Intermediario,Santo Domingo,2,8681.16,2,100.0,0,6
+PRV-0005,Taller Loja #5,Taller,Loja,12,5635.2,3,25.0,0,8
+PRV-0006,Abogado Ambato #6,Abogado,Ambato,4,16146.73,5,125.0,0,12
+PRV-0007,Grúa Riobamba #7,Grúa,Riobamba,52,3437.46,1,1.92,0,14
+PRV-0008,Hospital Ibarra #8,Hospital,Ibarra,60,9849.41,1,1.67,0,15
+PRV-0009,Clínica Portoviejo #9,Clínica,Portoviejo,39,13601.31,5,12.82,0,3
+PRV-0010,Taller Ibarra #10,Taller,Ibarra,58,13999.51,0,0.0,0,8
+PRV-0011,Perito Santo Domingo #11,Perito,Santo Domingo,1,13557.44,2,200.0,0,12
+PRV-0012,Hospital Portoviejo #12,Hospital,Portoviejo,56,7543.8,3,5.36,0,10
+PRV-0013,Hospital Esmeraldas #13,Hospital,Esmeraldas,26,4638.88,2,7.69,0,1
+PRV-0014,Taller Quito #14,Taller,Quito,30,509.91,0,0.0,0,2
+PRV-0015,Intermediario Cuenca #15,Intermediario,Cuenca,39,6926.44,4,10.26,0,11
+PRV-0016,Intermediario Loja #16,Intermediario,Loja,43,14957.02,5,11.63,0,9
+PRV-0017,Hospital Esmeraldas #17,Hospital,Esmeraldas,1,9439.6,1,100.0,0,12
+PRV-0018,Hospital Cuenca #18,Hospital,Cuenca,59,16962.36,4,6.78,0,2
+PRV-0019,Hospital Esmeraldas #19,Hospital,Esmeraldas,36,1933.94,0,0.0,0,15
+PRV-0020,Grúa Santo Domingo #20,Grúa,Santo Domingo,18,15379.4,0,0.0,0,12
+PRV-0021,Abogado Cuenca #21,Abogado,Cuenca,15,7240.59,0,0.0,0,8
+PRV-0022,Perito Loja #22,Perito,Loja,3,3390.78,4,133.33,0,15
+PRV-0023,Clínica Cuenca #23,Clínica,Cuenca,32,15295.96,3,9.38,0,6
+PRV-0024,Taller Manta #24,Taller,Manta,14,991.74,4,28.57,0,2
+PRV-0025,Hospital Quito #25,Hospital,Quito,45,14442.76,3,6.67,0,15
+PRV-0026,Taller Esmeraldas #26,Taller,Esmeraldas,59,4253.77,4,6.78,0,1
+PRV-0027,Hospital Cuenca #27,Hospital,Cuenca,18,4911.55,0,0.0,0,5
+PRV-0028,Clínica Ibarra #28,Clínica,Ibarra,39,951.95,5,12.82,0,13
+PRV-0029,Intermediario Ambato #29,Intermediario,Ambato,54,12539.69,0,0.0,1,14
+PRV-0030,Grúa Ambato #30,Grúa,Ambato,48,6679.92,5,10.42,0,4
+PRV-0031,Grúa Quito #31,Grúa,Quito,27,8921.83,4,14.81,0,10
+PRV-0032,Clínica Ibarra #32,Clínica,Ibarra,3,2651.59,3,100.0,0,10
+PRV-0033,Perito Esmeraldas #33,Perito,Esmeraldas,17,5069.9,0,0.0,0,10
+PRV-0034,Hospital Santo Domingo #34,Hospital,Santo Domingo,39,16436.76,0,0.0,0,5
+PRV-0035,Grúa Portoviejo #35,Grúa,Portoviejo,22,19649.04,0,0.0,0,1
+PRV-0036,Hospital Loja #36,Hospital,Loja,41,10686.14,2,4.88,0,8
+PRV-0037,Intermediario Riobamba #37,Intermediario,Riobamba,24,9576.3,4,16.67,0,1
+PRV-0038,Clínica Esmeraldas #38,Clínica,Esmeraldas,19,6066.34,3,15.79,0,12
+PRV-0039,Taller Portoviejo #39,Taller,Portoviejo,40,7095.62,3,7.5,0,15
+PRV-0040,Taller Ibarra #40,Taller,Ibarra,37,8632.18,5,13.51,0,11
+PRV-0041,Intermediario Guayaquil #41,Intermediario,Guayaquil,45,16951.69,4,8.89,0,3
+PRV-0042,Clínica Portoviejo #42,Clínica,Portoviejo,1,5905.69,2,200.0,0,9
+PRV-0043,Taller Portoviejo #43,Taller,Portoviejo,24,15950.6,3,12.5,0,4
+PRV-0044,Taller Machala #44,Taller,Machala,34,19967.42,2,5.88,0,8
+PRV-0045,Grúa Santo Domingo #45,Grúa,Santo Domingo,15,1781.9,4,26.67,0,4
+PRV-0046,Clínica Santo Domingo #46,Clínica,Santo Domingo,40,11544.27,3,7.5,0,11
+PRV-0047,Intermediario Quito #47,Intermediario,Quito,25,16556.86,2,8.0,0,10
+PRV-0048,Abogado Guayaquil #48,Abogado,Guayaquil,31,10327.52,4,12.9,0,9
+PRV-0049,Intermediario Loja #49,Intermediario,Loja,16,13032.83,3,18.75,0,10
+PRV-0050,Clínica Cuenca #50,Clínica,Cuenca,29,16601.35,0,0.0,1,12
+PRV-0051,Hospital Quito #51,Hospital,Quito,30,9870.41,0,0.0,0,12
+PRV-0052,Clínica Loja #52,Clínica,Loja,45,6929.13,1,2.22,0,14
+PRV-0053,Grúa Machala #53,Grúa,Machala,34,15323.9,0,0.0,0,9
+PRV-0054,Abogado Loja #54,Abogado,Loja,60,1317.63,5,8.33,0,4
+PRV-0055,Hospital Portoviejo #55,Hospital,Portoviejo,4,4410.74,5,125.0,0,13
+PRV-0056,Intermediario Loja #56,Intermediario,Loja,42,1839.07,4,9.52,0,10
+PRV-0057,Hospital Santo Domingo #57,Hospital,Santo Domingo,31,14205.05,0,0.0,0,14
+PRV-0058,Grúa Ambato #58,Grúa,Ambato,40,6490.91,1,2.5,0,10
+PRV-0059,Abogado Portoviejo #59,Abogado,Portoviejo,58,9042.48,5,8.62,0,12
+PRV-0060,Hospital Machala #60,Hospital,Machala,4,17382.88,5,125.0,0,7
+PRV-0061,Taller Manta #61,Taller,Manta,52,8108.96,4,7.69,0,3
+PRV-0062,Clínica Santo Domingo #62,Clínica,Santo Domingo,36,10564.5,4,11.11,0,5
+PRV-0063,Grúa Quito #63,Grúa,Quito,19,9476.34,4,21.05,1,9
+PRV-0064,Intermediario Loja #64,Intermediario,Loja,56,6843.69,3,5.36,0,3
+PRV-0065,Hospital Quito #65,Hospital,Quito,54,9631.81,5,9.26,0,3
+PRV-0066,Hospital Santo Domingo #66,Hospital,Santo Domingo,22,11803.15,5,22.73,0,7
+PRV-0067,Hospital Machala #67,Hospital,Machala,17,13506.19,3,17.65,0,11
+PRV-0068,Perito Esmeraldas #68,Perito,Esmeraldas,59,19750.18,4,6.78,0,5
+PRV-0069,Hospital Cuenca #69,Hospital,Cuenca,27,8607.83,3,11.11,0,13
+PRV-0070,Abogado Cuenca #70,Abogado,Cuenca,55,19739.08,5,9.09,0,12
+PRV-0071,Abogado Loja #71,Abogado,Loja,16,8761.85,0,0.0,0,1
+PRV-0072,Clínica Guayaquil #72,Clínica,Guayaquil,57,5124.17,0,0.0,0,11
+PRV-0073,Intermediario Ambato #73,Intermediario,Ambato,37,16398.49,1,2.7,0,14
+PRV-0074,Abogado Manta #74,Abogado,Manta,54,18103.27,4,7.41,0,6
+PRV-0075,Intermediario Santo Domingo #75,Intermediario,Santo Domingo,42,4097.27,3,7.14,0,15
+PRV-0076,Grúa Esmeraldas #76,Grúa,Esmeraldas,10,11337.28,0,0.0,0,1
+PRV-0077,Intermediario Cuenca #77,Intermediario,Cuenca,41,7220.54,5,12.2,0,3
+PRV-0078,Clínica Esmeraldas #78,Clínica,Esmeraldas,24,3769.01,5,20.83,0,1
+PRV-0079,Hospital Cuenca #79,Hospital,Cuenca,9,7382.47,4,44.44,0,4
+PRV-0080,Perito Loja #80,Perito,Loja,59,16950.01,3,5.08,0,6
+PRV-0081,Intermediario Machala #81,Intermediario,Machala,47,2228.66,3,6.38,1,8
+PRV-0082,Hospital Santo Domingo #82,Hospital,Santo Domingo,28,1868.66,2,7.14,0,5
+PRV-0083,Taller Machala #83,Taller,Machala,30,17732.27,5,16.67,0,10
+PRV-0084,Abogado Santo Domingo #84,Abogado,Santo Domingo,44,636.64,2,4.55,0,7
+PRV-0085,Intermediario Santo Domingo #85,Intermediario,Santo Domingo,38,13658.89,0,0.0,0,9

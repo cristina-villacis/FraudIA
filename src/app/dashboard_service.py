@@ -207,13 +207,16 @@ def build_dashboard_payload(
     df: pd.DataFrame,
     total_unfiltered: int,
     active_filters: Optional[List[Dict[str, str]]] = None,
+    source_total_siniestros: Optional[int] = None,
 ) -> Dict[str, Any]:
     active_filters = active_filters or []
+    source_total = source_total_siniestros or total_unfiltered
     if df is None or df.empty:
         return {
             "semaforo": {"Rojo": 0, "Amarillo": 0, "Verde": 0},
             "total": 0,
             "total_unfiltered": total_unfiltered,
+            "source_total_siniestros": source_total,
             "score_promedio": 0,
             "monto_total": 0,
             "ramo_data": [],
@@ -429,6 +432,8 @@ def build_dashboard_payload(
         "semaforo": semaforo_counts,
         "total": len(df),
         "total_unfiltered": total_unfiltered,
+        "source_total_siniestros": source_total,
+        "analysis_complete": len(df) >= source_total if source_total else True,
         "score_promedio": round(df[score_col].mean(), 1) if score_col in df.columns else 0,
         "monto_total": monto_total,
         "monto_rojo": monto_rojo,

@@ -435,3 +435,12 @@
     background-clip: text;
 }
 [data-theme="light"] .dash-premium-module::before { opacity: 0.5; }
+
+#dashboardBanner.dashboard-banner-warn {
+    border: 1px solid rgba(255, 193, 7, 0.45);
+    background: rgba(255, 193, 7, 0.08);
+    color: var(--text-primary, #e8ecf4);
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md, 8px);
+    margin-bottom: 0.75rem;
+}

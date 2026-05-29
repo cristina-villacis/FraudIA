@@ -18,6 +18,7 @@ from src.app.core import (
     build_agent_context,
     ensure_request_session_id,
     get_request_session_id,
+    record_source_row_counts,
     reset_pipeline_state,
     _db_save_lock,
 )
@@ -142,7 +143,7 @@ def _try_persist_datasets_early() -> Optional[str]:
             init_database()
             result = save_all_datasets(
                 {k: v.copy() for k, v in datasets.items()},
-                full_replace=False,
+                full_replace=True,
             )
             for key, val in result.items():
                 if isinstance(val, str) and val.startswith("error"):
@@ -153,8 +154,11 @@ def _try_persist_datasets_early() -> Optional[str]:
             if not sin_result:
                 return "No se guardaron filas en siniestros"
             dropped = result.get("_fk_rows_dropped", 0)
+            repairs = result.get("_fk_repairs", 0)
             if dropped:
-                return f"ok:{dropped}"
+                return f"ok:dropped:{dropped}"
+            if repairs:
+                return f"ok:repaired:{repairs}"
         return "ok"
     except Exception as exc:
         return str(exc)[:160]
@@ -174,6 +178,16 @@ def _apply_analysis_meta(meta: Optional[dict]) -> None:
         app_state["executive_summary"] = meta["executive_summary"]
 
 
+def _expected_siniestros_count() -> int:
+    src = app_state.get("source_row_counts") or {}
+    if src.get("siniestros"):
+        return int(src["siniestros"])
+    ds = app_state.get("datasets") or {}
+    if "siniestros" in ds and ds["siniestros"] is not None:
+        return len(ds["siniestros"])
+    return 0
+
+
 def _reload_scored_siniestros_from_db() -> bool:
     """Carga siniestros puntuados desde TiDB (siguiente request en Vercel)."""
     if not _should_use_live_database():
@@ -181,6 +195,9 @@ def _reload_scored_siniestros_from_db() -> bool:
     try:
         sin = load_dataframe("siniestros")
         if sin is None or len(sin) == 0:
+            return False
+        expected = _expected_siniestros_count()
+        if expected > 0 and len(sin) < expected:
             return False
         if "score_hibrido" not in sin.columns or sin["score_hibrido"].notna().sum() == 0:
             return False
@@ -269,11 +286,15 @@ def _collect_uploaded_documents() -> List[Dict[str, Any]]:
 
 
 def _prepare_datasets_for_pipeline() -> Dict[str, pd.DataFrame]:
+    from src.utils.dataframe_columns import normalize_dataset_ids
+
     datasets = app_state.get("datasets") or {}
+    datasets = normalize_dataset_ids(datasets)
     docs = _collect_uploaded_documents()
     if docs and "siniestros" in datasets:
         datasets = enrich_datasets_with_uploaded_documents(datasets, docs)
-        app_state["datasets"] = datasets
+    app_state["datasets"] = datasets
+    record_source_row_counts(datasets)
     return datasets
 
 
@@ -293,6 +314,9 @@ def _apply_pipeline_result(result: Dict[str, Any]) -> None:
         df_scored, total_unfiltered=len(df_scored), active_filters=[]
     )
     dashboard_snapshot = build_dashboard_snapshot(dashboard_payload)
+
+    record_source_row_counts(result.get("datasets") or app_state.get("datasets") or {})
+    app_state["source_row_counts"]["siniestros"] = len(df_scored)
 
     app_state.update({
         "datasets": result["datasets"],
@@ -414,7 +438,12 @@ def _runtime_analysis_dirs() -> List[str]:
 
 def _write_datasets_to_cache_dir(datasets: Dict[str, pd.DataFrame], cache_dir: str) -> None:
     os.makedirs(cache_dir, exist_ok=True)
-    manifest = {"tables": []}
+    manifest = {
+        "tables": [],
+        "source_row_counts": app_state.get("source_row_counts") or {
+            name: len(df) for name, df in datasets.items()
+        },
+    }
     for name, df in datasets.items():
         path = os.path.join(cache_dir, f"{name}.csv")
         df.to_csv(path, index=False)
@@ -447,6 +476,7 @@ def _persist_runtime_analysis(result: dict) -> None:
         "dashboard_snapshot": result.get("dashboard_snapshot"),
         "nlp_results": result.get("nlp_results"),
         "total_records": result.get("total_records"),
+        "source_row_counts": app_state.get("source_row_counts"),
         "auc_roc": result.get("auc_roc"),
     }
     for out_dir in _runtime_analysis_dirs():
@@ -479,6 +509,8 @@ def _hydrate_runtime_analysis() -> bool:
     if os.path.exists(meta_path):
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
+        if meta.get("source_row_counts"):
+            app_state["source_row_counts"] = meta["source_row_counts"]
         app_state["model_snapshot"] = meta.get("model_snapshot")
         if meta.get("model_results"):
             app_state["model_results"] = meta.get("model_results")
@@ -523,6 +555,8 @@ def _load_runtime_datasets() -> Dict[str, pd.DataFrame]:
                 if os.path.exists(path):
                     loaded[name] = pd.read_csv(path)
             if loaded and "siniestros" in loaded:
+                if manifest.get("source_row_counts"):
+                    app_state["source_row_counts"] = manifest["source_row_counts"]
                 return normalize_datasets_columns(loaded)
         except Exception:
             continue
@@ -916,11 +950,17 @@ def upload_dataset(filename: str, content: bytes) -> dict:
     if db_early == "ok" or (isinstance(db_early, str) and db_early.startswith("ok:")):
         resp["db_persisted_on_upload"] = True
         resp["message"] += " Datos guardados en base de datos."
-        if isinstance(db_early, str) and db_early.startswith("ok:"):
-            n_drop = db_early.split(":", 1)[1]
-            resp["db_fk_rows_dropped"] = int(n_drop)
+        if isinstance(db_early, str) and db_early.startswith("ok:dropped:"):
+            n_drop = int(db_early.split(":")[-1])
+            resp["db_fk_rows_dropped"] = n_drop
             resp["warnings"] = list(resp.get("warnings") or []) + [
                 f"Se omitieron {n_drop} siniestros con referencias inválidas (póliza/asegurado no encontrados en el Excel)."
+            ]
+        elif isinstance(db_early, str) and db_early.startswith("ok:repaired:"):
+            n_fix = int(db_early.split(":")[-1])
+            resp["db_fk_repairs"] = n_fix
+            resp["warnings"] = list(resp.get("warnings") or []) + [
+                f"Se alinearon {n_fix} registros padre (asegurado/póliza) para conservar todos los siniestros del archivo."
             ]
     elif db_early:
         resp["db_persist_warning"] = db_early
@@ -1136,7 +1176,13 @@ def dashboard_data(query_params) -> dict:
     df = app_state.get("df_scored")
     params = params_from_request(query_params)
     df_filtered, active_filters = apply_dashboard_filters(df, params)
-    payload = build_dashboard_payload(df_filtered, total_unfiltered=len(df), active_filters=active_filters)
+    source_total = _expected_siniestros_count() or len(df)
+    payload = build_dashboard_payload(
+        df_filtered,
+        total_unfiltered=len(df),
+        active_filters=active_filters,
+        source_total_siniestros=source_total,
+    )
     app_state["dashboard_last_payload"] = payload
     return payload
 

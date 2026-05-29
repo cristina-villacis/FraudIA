@@ -16,6 +16,11 @@ from src.db.models import (
     Base, Asegurado, Vehiculo, Poliza, Proveedor,
     Siniestro, Documento, DocumentoSubido, AnalisisRun,
 )
+from src.utils.dataframe_columns import (
+    id_set_from_column,
+    normalize_dataset_ids,
+    normalize_id_value,
+)
 
 TABLE_MODEL_MAP = {
     "asegurados": Asegurado,
@@ -108,66 +113,122 @@ def _truncate_table(engine, table_name: str, is_mysql: Optional[bool] = None) ->
         pass
 
 
+def _stub_asegurados(ids: set) -> pd.DataFrame:
+    return pd.DataFrame({
+        "id_asegurado": sorted(ids),
+        "segmento": "Sintético",
+        "antiguedad_anos": 1,
+        "ciudad": "N/D",
+        "numero_polizas": 1,
+        "reclamos_ultimos_12m": 0,
+        "mora_actual": 0,
+        "score_cliente": 50.0,
+    })
+
+
+def _stub_polizas(ids: set, asegurado_fallback: str = "ASEG-STUB") -> pd.DataFrame:
+    return pd.DataFrame({
+        "id_poliza": sorted(ids),
+        "id_asegurado": asegurado_fallback,
+        "ramo": "Vehículos",
+        "fecha_inicio": pd.Timestamp("2024-01-01").date(),
+        "fecha_fin": pd.Timestamp("2025-12-31").date(),
+        "prima": 0.0,
+        "suma_asegurada": 10000.0,
+        "deducible": 0.0,
+        "canal_venta": "N/D",
+        "ciudad": "N/D",
+        "estado_poliza": "Vigente",
+    })
+
+
 def _sanitize_datasets_for_db(datasets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     """
-    Alinea claves foráneas con las tablas del mismo Excel antes de insertar en TiDB.
-    Evita IntegrityError 1452 por id_poliza / id_asegurado huérfanos.
+    Alinea FK sin eliminar siniestros: normaliza IDs y crea padres mínimos si faltan.
+    El análisis y el dashboard deben reflejar todos los siniestros del archivo cargado.
     """
-    out = {name: df.copy() for name, df in datasets.items()}
+    out = normalize_dataset_ids(datasets)
+    fk_repairs = 0
 
-    def _id_set(table: str, col: str) -> set:
-        if table not in out or col not in out[table].columns:
-            return set()
-        return set(out[table][col].dropna().astype(str).str.strip())
+    if "asegurados" not in out:
+        out["asegurados"] = _stub_asegurados(set())
 
-    aseg_ids = _id_set("asegurados", "id_asegurado")
-    pol_ids = _id_set("polizas", "id_poliza")
-    veh_ids = _id_set("vehiculos", "id_vehiculo")
-    prv_ids = _id_set("proveedores", "id_proveedor")
+    def _merge_stubs(table: str, stub_df: pd.DataFrame) -> None:
+        nonlocal fk_repairs
+        if stub_df.empty:
+            return
+        existing = out.get(table)
+        if existing is None or existing.empty:
+            out[table] = stub_df
+            fk_repairs += len(stub_df)
+            return
+        key = stub_df.columns[0]
+        have = id_set_from_column(existing, key)
+        new_rows = stub_df[~stub_df[key].isin(have)]
+        if len(new_rows):
+            out[table] = pd.concat([existing, new_rows], ignore_index=True)
+            fk_repairs += len(new_rows)
 
-    if "vehiculos" in out and aseg_ids and "id_asegurado" in out["vehiculos"].columns:
-        v = out["vehiculos"]
-        out["vehiculos"] = v[v["id_asegurado"].astype(str).str.strip().isin(aseg_ids)].copy()
-
-    if "polizas" in out and aseg_ids and "id_asegurado" in out["polizas"].columns:
-        p = out["polizas"]
-        out["polizas"] = p[p["id_asegurado"].astype(str).str.strip().isin(aseg_ids)].copy()
-        pol_ids = _id_set("polizas", "id_poliza")
-
+    # Padres referenciados en siniestros (nunca descartar filas de siniestros)
     if "siniestros" in out:
         s = out["siniestros"]
-        mask = pd.Series(True, index=s.index)
-        if pol_ids and "id_poliza" in s.columns:
-            mask &= s["id_poliza"].astype(str).str.strip().isin(pol_ids)
-        if aseg_ids and "id_asegurado" in s.columns:
-            mask &= s["id_asegurado"].astype(str).str.strip().isin(aseg_ids)
-        s = s.loc[mask].copy()
+        aseg_ids = id_set_from_column(out["asegurados"], "id_asegurado")
+        if "id_asegurado" in s.columns:
+            need_aseg = {x for x in id_set_from_column(s, "id_asegurado") if x and x not in aseg_ids}
+            if need_aseg:
+                _merge_stubs("asegurados", _stub_asegurados(need_aseg))
+                aseg_ids |= need_aseg
+
+        if "polizas" not in out:
+            out["polizas"] = _stub_polizas(set())
+        pol_ids = id_set_from_column(out["polizas"], "id_poliza")
+        if "id_poliza" in s.columns:
+            need_pol = {x for x in id_set_from_column(s, "id_poliza") if x and x not in pol_ids}
+            for pid in need_pol:
+                aseg_fb = next(iter(aseg_ids), "ASEG-STUB")
+                if "id_asegurado" in s.columns:
+                    row = s.loc[s["id_poliza"] == pid, "id_asegurado"]
+                    if len(row):
+                        aseg_fb = normalize_id_value(row.iloc[0]) or aseg_fb
+                _merge_stubs("polizas", _stub_polizas({pid}, aseg_fb))
+
+        # Polizas → asegurados
+        if "polizas" in out and "id_asegurado" in out["polizas"].columns:
+            aseg_ids = id_set_from_column(out["asegurados"], "id_asegurado")
+            pol_aseg = {x for x in id_set_from_column(out["polizas"], "id_asegurado") if x}
+            need_aseg = pol_aseg - aseg_ids
+            if need_aseg:
+                _merge_stubs("asegurados", _stub_asegurados(need_aseg))
+
+        veh_ids = id_set_from_column(out.get("vehiculos"), "id_vehiculo")
+        prv_ids = id_set_from_column(out.get("proveedores"), "id_proveedor")
         if "id_vehiculo" in s.columns:
-            if veh_ids:
-                s["id_vehiculo"] = s["id_vehiculo"].apply(
-                    lambda x: str(x).strip()
-                    if pd.notna(x) and str(x).strip() in veh_ids
-                    else None
-                )
-            else:
-                s["id_vehiculo"] = None
-        if prv_ids and "id_proveedor" in s.columns:
-            s["id_proveedor"] = s["id_proveedor"].apply(
-                lambda x: str(x).strip()
-                if pd.notna(x) and str(x).strip() in prv_ids
-                else None
+            s["id_vehiculo"] = s["id_vehiculo"].apply(
+                lambda x: x if x in veh_ids else None
             )
-        elif "id_proveedor" in s.columns:
-            s["id_proveedor"] = None
+        if "id_proveedor" in s.columns:
+            s["id_proveedor"] = s["id_proveedor"].apply(
+                lambda x: x if x in prv_ids else None
+            )
         out["siniestros"] = s
-        sin_ids = _id_set("siniestros", "id_siniestro")
+        sin_ids = id_set_from_column(s, "id_siniestro")
 
         if "documentos" in out and sin_ids and "id_siniestro" in out["documentos"].columns:
             d = out["documentos"]
-            out["documentos"] = d[
-                d["id_siniestro"].astype(str).str.strip().isin(sin_ids)
-            ].copy()
+            out["documentos"] = d[d["id_siniestro"].isin(sin_ids)].copy()
 
+    if "vehiculos" in out and "id_asegurado" in out["vehiculos"].columns:
+        aseg_ids = id_set_from_column(out["asegurados"], "id_asegurado")
+        v = out["vehiculos"]
+        out["vehiculos"] = v[v["id_asegurado"].isin(aseg_ids)].copy()
+
+    out["_fk_repairs"] = fk_repairs
+    original_sin = len(datasets.get("siniestros", []))
+    if "siniestros" in out and original_sin and len(out["siniestros"]) < original_sin:
+        raise ValueError(
+            f"Inconsistencia al alinear FK: se perdieron siniestros "
+            f"({original_sin} → {len(out['siniestros'])})."
+        )
     return out
 
 
@@ -207,11 +268,14 @@ def save_all_datasets(
 
     init_database()
     clean = _sanitize_datasets_for_db(datasets)
+    fk_repairs = int(clean.pop("_fk_repairs", 0) or 0)
     dropped_sin = 0
     if "siniestros" in datasets and "siniestros" in clean:
         dropped_sin = len(datasets["siniestros"]) - len(clean["siniestros"])
     if dropped_sin > 0:
         results["_fk_rows_dropped"] = dropped_sin
+    if fk_repairs > 0:
+        results["_fk_repairs"] = fk_repairs
 
     try:
         with engine.begin() as conn:
