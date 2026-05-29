@@ -39,7 +39,6 @@ from src.ingestion.load_data import (
     load_from_upload,
     validate_datasets,
 )
-from src.app.powerbi_export import export_to_powerbi, export_csv_for_powerbi
 from src.utils.dataframe_columns import ensure_str_columns, normalize_datasets_columns
 from src.db.config import test_connection
 from src.db.config import is_persistent_database_configured
@@ -1385,25 +1384,6 @@ def agent_query(body: dict) -> dict:
     return result
 
 
-def export_powerbi() -> dict:
-    from src.app.powerbi_export import export_full_session_workbook
-
-    df = app_state.get("df_scored")
-    if df is None:
-        raise ValueError("Ejecute el análisis desde Carga de datos antes de exportar.")
-    output_path = os.path.join("data", "processed", "fxecure_export_completo.xlsx")
-    export_full_session_workbook(df, output_path)
-    export_to_powerbi(app_state.get("datasets") or {}, df, os.path.join("data", "processed", "powerbi_export.xlsx"))
-    export_csv_for_powerbi(df)
-    app_state["last_export_path"] = output_path
-    return {
-        "status": "success",
-        "message": "Excel generado con todos los siniestros procesados de la sesión.",
-        "excel_path": output_path,
-        "total_records": len(df),
-    }
-
-
 def cases_all_list() -> dict:
     if not _ensure_session_state(require_scored=True):
         raise ValueError("No hay análisis disponible. Cargue datos y ejecute el análisis.")
@@ -1732,16 +1712,3 @@ def get_status() -> dict:
         "stack": "python-fastapi",
     }
 
-
-def file_download_path(kind: str) -> Tuple[str, str]:
-    if kind == "powerbi":
-        path = app_state.get("last_export_path") or os.path.join(
-            "data", "processed", "fxecure_export_completo.xlsx"
-        )
-        name = "fxecure_siniestros_procesados.xlsx"
-    else:
-        path = os.path.join("data", "processed", "siniestros_scored.csv")
-        name = "siniestros_scored.csv"
-    if not os.path.exists(path):
-        raise FileNotFoundError("Archivo no encontrado. Ejecute la exportación primero.")
-    return path, name

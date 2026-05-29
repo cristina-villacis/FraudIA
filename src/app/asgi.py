@@ -290,14 +290,6 @@ async def api_agent_query(request: Request):
         return _err(e, 400)
 
 
-@app.post("/api/export-powerbi")
-async def api_export_powerbi():
-    try:
-        return h.export_powerbi()
-    except ValueError as e:
-        return _err(e, 400)
-
-
 @app.get("/api/cases-all")
 async def api_cases_all():
     try:
@@ -336,24 +328,6 @@ async def api_case_pdf(case_id: str):
         return _err(e, 400)
     except Exception as e:
         return _err(e, 500)
-
-
-@app.get("/api/download-powerbi")
-async def api_download_powerbi():
-    try:
-        path, name = h.file_download_path("powerbi")
-        return FileResponse(path, filename=name, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    except FileNotFoundError as e:
-        return _err(e, 404)
-
-
-@app.get("/api/download-csv")
-async def api_download_csv():
-    try:
-        path, name = h.file_download_path("csv")
-        return FileResponse(path, filename=name, media_type="text/csv")
-    except FileNotFoundError as e:
-        return _err(e, 404)
 
 
 @app.get("/api/model-metrics")

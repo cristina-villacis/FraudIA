@@ -1632,12 +1632,6 @@
             <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg></div>
             <span class="nav-label">Asistente de IA conversacional</span>
         </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-section">Salida</div>
-        <div class="nav-item" data-tab="export" title="Exportar">
-            <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-            <span class="nav-label">Exportar</span>
-        </div>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -1770,22 +1764,6 @@
             <div id="auditAgentContent"></div>
         </div>
 
-        <!-- ═══════ TAB: EXPORT ═══════ -->
-        <div id="tab-export" class="tab-panel">
-            <div class="section-header">
-                <h2>Exportar resultados</h2>
-                <div class="section-line"></div>
-            </div>
-            <div class="card" style="max-width:640px;">
-                <div class="card-title">Descargar Excel completo de la sesión</div>
-                <p style="color:var(--text-secondary); margin:1rem 0; line-height:1.6; font-size:0.88rem;">
-                    Incluye todos los siniestros analizados con score, semáforo, alertas y la justificación generada para cada caso.
-                    Ideal para auditoría interna o trabajo offline.
-                </p>
-                <button class="btn btn-primary" onclick="exportPowerBI()" id="btnExport">Descargar Excel (.xlsx)</button>
-                <div id="exportStatus" style="margin-top:1rem;"></div>
-            </div>
-        </div>
     </div>
 
     <!-- STATUS BAR -->
@@ -2809,27 +2787,6 @@
         return tableHtml;
     }
     window.renderAgentDataBlock = renderAgentDataBlock;
-
-    // ── Export ──
-    async function exportPowerBI() {
-        const btn = document.getElementById('btnExport');
-        const status = document.getElementById('exportStatus');
-        btn.disabled = true;
-        status.innerHTML = '<span class="spinner"></span> <span style="color:var(--cyan)">Generando exportación...</span>';
-        try {
-            const resp = await fetch('/api/export-powerbi', { method: 'POST' });
-            const data = await resp.json();
-            if(data.error) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error: ' + data.error + '</div>'; btn.disabled = false; return; }
-            status.innerHTML = `
-                <div class="alert alert-success" style="margin:0 0 0.75rem 0;">Excel generado correctamente.</div>
-                <div style="display:flex;gap:0.5rem;">
-                    <a href="/api/download-powerbi" class="btn btn-primary" download="fxecure_siniestros_procesados.xlsx">Descargar Excel completo</a>
-                </div>
-                <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">${(data.total_records||0).toLocaleString()} siniestros con score y justificación.</p>
-            `;
-        } catch(e) { status.innerHTML = '<div class="alert alert-danger" style="margin:0;">Error de conexión</div>'; }
-        btn.disabled = false;
-    }
 </script>
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>

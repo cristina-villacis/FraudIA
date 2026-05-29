@@ -16,7 +16,7 @@
 │         ▼                  ▼                  ▼              │
 │                    CAPA DE API (Flask REST)                   │
 │    /api/upload  /api/run-pipeline  /api/agent-query          │
-│    /api/export-powerbi  /api/dashboard-data  /api/case/:id   │
+│    /api/dashboard-data  /api/case/:id   │
 └─────────┬────────────────────────────────────────────────────┘
           │
 ┌─────────▼────────────────────────────────────────────────────┐
