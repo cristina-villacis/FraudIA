@@ -1136,7 +1136,8 @@
         /* ── CHART AREA ─────────────────────────────────── */
         .chart-area { min-height: 340px; }
         .card.card-chart { overflow: visible; }
-        .card.card-chart .chart-area { overflow: visible; min-height: 0; }
+        .card.card-chart .chart-area { overflow: visible; min-height: 220px; }
+        .dash-premium .chart-area { min-height: 260px; }
         .donut-chart-wrap {
             display: flex;
             justify-content: center;
@@ -2144,10 +2145,14 @@
             item.classList.add('active');
             document.getElementById('tab-' + item.dataset.tab).classList.add('active');
             if (item.dataset.tab === 'dashboard') {
-                bootstrapSessionFromServer().then(() => initDashboard());
+                bootstrapSessionFromServer().then(() => initDashboard().then(() => {
+                    if (typeof scheduleDashboardChartsResize === 'function') scheduleDashboardChartsResize();
+                }));
             }
             if (item.dataset.tab === 'model') {
-                bootstrapSessionFromServer().then(() => loadModelMetrics());
+                bootstrapSessionFromServer().then(() => loadModelMetrics().then(() => {
+                    if (typeof scheduleMlChartsResize === 'function') scheduleMlChartsResize();
+                }));
             }
             if (item.dataset.tab === 'cases' && window.CasesBandeja) CasesBandeja.init();
             if (item.dataset.tab === 'audit' && window.AuditAgent) {
@@ -2421,9 +2426,7 @@
         }
         bootstrapSessionFromServer().then(() => {
             switchToAppTab('dashboard');
-            initDashboard();
             loadCases();
-            loadModelMetrics();
         });
         if (document.getElementById('tab-audit')?.classList.contains('active') && window.AuditAgent) {
             AuditAgent.refreshStatus();
@@ -2713,7 +2716,7 @@
     <script src="/static/case-report-preview.js?v=1"></script>
     <script src="/static/cases-bandeja.js?v=3"></script>
     <script src="/static/audit-agent.js?v=2"></script>
-    <script src="/static/ml-engine.js?v=11"></script>
-    <script src="/static/dashboard.js?v=10"></script>
+    <script src="/static/ml-engine.js?v=12"></script>
+    <script src="/static/dashboard.js?v=11"></script>
 </body>
 </html>

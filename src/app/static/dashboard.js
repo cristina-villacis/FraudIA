@@ -52,31 +52,47 @@ function buildStackedRiskTraces(xLabels, verdes, amarillos, rojos, C, names) {
         {
             x: xLabels, y: verdes, name: names[0], type: 'bar',
             marker: { color: C.green, opacity: 0.92 },
-            text: verdes.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
+            text: verdes.map(fmtChartNum), textposition: 'inside', textfont: segFont,
         },
         {
             x: xLabels, y: amarillos, name: names[1], type: 'bar',
             marker: { color: C.yellow, opacity: 0.92 },
-            text: amarillos.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
+            text: amarillos.map(fmtChartNum), textposition: 'inside', textfont: segFont,
         },
         {
             x: xLabels, y: rojos, name: names[2], type: 'bar',
             marker: { color: C.red, opacity: 0.92 },
-            text: rojos.map(fmtChartNum), textposition: 'inside', insidetextanchor: 'middle', textfont: segFont,
-        },
-        {
-            x: xLabels,
-            y: totals.map((t) => (t > 0 ? t * 1.04 : 0)),
-            type: 'scatter',
-            mode: 'text',
-            text: totals.map(fmtChartNum),
-            textposition: 'top center',
+            text: rojos.map((v, i) => fmtChartNum(v) || fmtChartNum(totals[i])),
+            textposition: 'outside',
             textfont: totalFont,
-            hoverinfo: 'skip',
-            showlegend: false,
-            cliponaxis: false,
+            hovertemplate: '%{x}<br>Total: %{customdata}<extra></extra>',
+            customdata: totals.map((t) => t.toLocaleString('es-CO')),
         },
     ];
+}
+
+function safePlotlyReact(targetId, data, layout, config) {
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly no está cargado; revise la conexión al CDN.');
+        return false;
+    }
+    const el = document.getElementById(targetId);
+    if (!el) return false;
+    try {
+        Plotly.react(targetId, data, layout, config);
+        return true;
+    } catch (err) {
+        console.error('Plotly chart error:', targetId, err);
+        return false;
+    }
+}
+
+/** Plotly calcula mal el tamaño si el contenedor estaba oculto (display:none). */
+function scheduleDashboardChartsResize() {
+    requestAnimationFrame(() => {
+        setTimeout(() => resizeDashboardCharts(), 80);
+        setTimeout(() => resizeDashboardCharts(), 350);
+    });
 }
 
 function dashStackedLayout(PL, C, opts = {}) {
@@ -766,14 +782,19 @@ function bindPlotlyDashboardCharts(data) {
 }
 
 function renderDashboardCharts(data) {
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly no está disponible.');
+        return;
+    }
     const C = getColors(), PL = getPlotlyLayout();
     const theme = getAppTheme();
-    const rojo = data.semaforo.Rojo || 0, amarillo = data.semaforo.Amarillo || 0, verde = data.semaforo.Verde || 0;
+    const sem = data.semaforo || {};
+    const rojo = sem.Rojo || 0, amarillo = sem.Amarillo || 0, verde = sem.Verde || 0;
     const totalSem = rojo + amarillo + verde || data.total || 1;
 
     if (!document.getElementById('chartSemaforo')) return;
 
-    Plotly.react('chartSemaforo', [{
+    safePlotlyReact('chartSemaforo', [{
         values: [rojo, amarillo, verde],
         labels: ['Rojo', 'Amarillo', 'Verde'],
         customdata: ['76-100 · Alto', '41-75 · Medio', '0-40 · Bajo'],
@@ -807,7 +828,7 @@ function renderDashboardCharts(data) {
         const verdes = data.ramo_data.map((r) => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
         const amarillos = data.ramo_data.map((r) => r.amarillos ?? 0);
         const rojos = data.ramo_data.map((r) => r.rojos ?? 0);
-        Plotly.react('chartRamo',
+        safePlotlyReact('chartRamo',
             buildStackedRiskTraces(ramos, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
             dashStackedLayout(PL, C, { height: 340, bottom: 88, tickangle: -35, showlegend: true, legendY: -0.32 }),
             { ...PLOTLY_CONFIG, responsive: true }
@@ -819,7 +840,7 @@ function renderDashboardCharts(data) {
         const verdes = data.temporal_risk_data.map((t) => t.Verde || 0);
         const amarillos = data.temporal_risk_data.map((t) => t.Amarillo || 0);
         const rojos = data.temporal_risk_data.map((t) => t.Rojo || 0);
-        Plotly.react('chartTemporal',
+        safePlotlyReact('chartTemporal',
             buildStackedRiskTraces(months, verdes, amarillos, rojos, C, ['Bajo (Verde)', 'Medio (Amarillo)', 'Alto (Rojo)']),
             dashStackedLayout(PL, C, {
                 height: 300,
@@ -835,7 +856,7 @@ function renderDashboardCharts(data) {
 
     if (data.heatmap_ramo_riesgo && data.heatmap_ramo_riesgo.ramos && data.heatmap_ramo_riesgo.ramos.length) {
         const z = data.heatmap_ramo_riesgo.z;
-        Plotly.react('chartHeatmapRamoRiesgo', [{
+        safePlotlyReact('chartHeatmapRamoRiesgo', [{
             z,
             x: data.heatmap_ramo_riesgo.semaforos,
             y: data.heatmap_ramo_riesgo.ramos,
@@ -863,7 +884,7 @@ function renderDashboardCharts(data) {
         const verdes = data.geo_risk_data.map((g) => g.Verde || 0);
         const amarillos = data.geo_risk_data.map((g) => g.Amarillo || 0);
         const rojos = data.geo_risk_data.map((g) => g.Rojo || 0);
-        Plotly.react('chartGeoOperacion',
+        safePlotlyReact('chartGeoOperacion',
             buildStackedRiskTraces(suc, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
             dashStackedLayout(PL, C, {
                 height: 300,
@@ -878,18 +899,25 @@ function renderDashboardCharts(data) {
     }
 
     bindPlotlyDashboardCharts(data);
-    resizeDashboardCharts();
+    scheduleDashboardChartsResize();
 }
 
 function resizeDashboardCharts() {
-    ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion'].forEach(id => {
+    if (typeof Plotly === 'undefined') return;
+    const tab = document.getElementById('tab-dashboard');
+    if (tab && !tab.classList.contains('active')) return;
+    ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion'].forEach((id) => {
         const el = document.getElementById(id);
-        if (el && el.querySelector('.plotly')) {
-            try { Plotly.Plots.resize(el); } catch (e) { /* ignore */ }
-        }
+        if (!el) return;
+        if (el.offsetParent === null && !el.closest('.tab-panel.active')) return;
+        try {
+            if (el.querySelector('.plotly')) Plotly.Plots.resize(el);
+        } catch (e) { /* ignore */ }
     });
 }
 if (typeof window !== 'undefined') {
+    window.scheduleDashboardChartsResize = scheduleDashboardChartsResize;
+    window.resizeDashboardCharts = resizeDashboardCharts;
     window.addEventListener('resize', () => {
         if (document.getElementById('dashboardShell')) resizeDashboardCharts();
     });
@@ -1158,6 +1186,7 @@ async function initDashboard() {
             await loadDashboardMetricsAuc();
         }
         await refreshDashboard();
+        scheduleDashboardChartsResize();
     } catch (e) {
         console.error('initDashboard:', e);
         container.innerHTML = '<div class="alert alert-danger">Error al cargar el dashboard.</div>';

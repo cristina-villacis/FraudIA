@@ -128,6 +128,29 @@ function safeRender(fn, label) {
     try { fn(); } catch (err) { console.warn('ML render:', label, err); }
 }
 
+function scheduleMlChartsResize() {
+    requestAnimationFrame(() => {
+        setTimeout(() => resizeMlCharts(), 80);
+        setTimeout(() => resizeMlCharts(), 350);
+    });
+}
+
+function resizeMlCharts() {
+    if (typeof Plotly === 'undefined') return;
+    const tab = document.getElementById('tab-model');
+    if (tab && !tab.classList.contains('active')) return;
+    ['chartConfusion', 'chartProbHidden', 'chartProbBySem', 'chartAnomalyScatter', 'chartModelDrift'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || !el.querySelector('.plotly')) return;
+        try { Plotly.Plots.resize(el); } catch (e) { /* ignore */ }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.scheduleMlChartsResize = scheduleMlChartsResize;
+    window.resizeMlCharts = resizeMlCharts;
+}
+
 function renderMlHeader(metrics) {
     const trained = metrics.trained !== false && !metrics.error;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -402,6 +425,7 @@ async function initMlEngine() {
         safeRender(() => renderProbBySemaforoChart(data), 'prob-sem');
         safeRender(() => renderAnomalyScatter(data), 'anomaly');
         safeRender(() => renderMonitorPanel(data), 'monitor');
+        scheduleMlChartsResize();
     } catch (e) {
         container.innerHTML = `<div class="alert alert-danger">No se pudo cargar el análisis predictivo: ${escapeHtml(e.message)}}</div>`;
     }
