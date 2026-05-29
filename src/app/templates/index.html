@@ -1690,7 +1690,7 @@
                     <div class="etl-track" id="etlTrack"></div>
                 </div>
 
-                <div class="ingest-grid ingest-grid-3" id="ingestInsights" style="display:none;">
+                <div class="ingest-grid ingest-grid-2" id="ingestInsights" style="display:none;">
                     <div class="ingest-panel">
                         <div class="ingest-panel-title">&#128202; Hojas detectadas</div>
                         <div class="sheet-list" id="sheetList"></div>
@@ -1698,15 +1698,6 @@
                     <div class="ingest-panel">
                         <div class="ingest-panel-title">&#10003; Validaciones inteligentes</div>
                         <div class="val-grid" id="valGrid"></div>
-                    </div>
-                    <div class="ingest-panel">
-                        <div class="ingest-panel-title">&#9889; Acciones</div>
-                        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">Persistencia opcional y análisis completo.</p>
-                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                            <button class="btn btn-secondary" onclick="persistToDB()" id="btnSaveDB">Guardar en Base de datos</button>
-                            <button class="btn btn-ghost" onclick="loadFromDB()" id="btnLoadDB">Cargar desde TiDB</button>
-                            <button class="btn btn-primary btn-lg" onclick="runPipeline()" id="btnPipeline" disabled style="margin-top:0.5rem;">Activar motor IA</button>
-                        </div>
                     </div>
                 </div>
 
@@ -2166,7 +2157,7 @@
             const data = await resp.json();
             if(data.error) { alert(data.error); btn.disabled = false; btn.textContent = 'Cargar desde BD'; return; }
             showTablesInfo(data.tables);
-            document.getElementById('btnPipeline').disabled = false;
+            document.getElementById('btnPipelineMain').disabled = false;
             document.getElementById('datasetLoadStatus').innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
         } catch(e) { alert('Error: ' + e.message); }
         btn.disabled = false; btn.textContent = 'Cargar desde BD';
@@ -2259,7 +2250,7 @@
             status.innerHTML = '<div class="alert alert-success" style="margin:0;">' + data.message + '</div>';
             renderDocResults(data.documents);
             if (document.getElementById('linkToDataset').checked && data.documents && data.documents.length) {
-                document.getElementById('btnPipeline').disabled = false;
+                document.getElementById('btnPipelineMain').disabled = false;
             }
             applyAutoPipelineFromApiResponse(data);
             checkDBStatus();
@@ -2770,7 +2761,7 @@
 </script>
     <script src="/static/ingest.js?v=6"></script>
     <script src="/static/audit-agent.js?v=1"></script>
-    <script src="/static/ml-engine.js?v=3"></script>
-    <script src="/static/dashboard.js?v=5"></script>
+    <script src="/static/ml-engine.js?v=5"></script>
+    <script src="/static/dashboard.js?v=6"></script>
 </body>
 </html>

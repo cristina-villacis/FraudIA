@@ -396,7 +396,7 @@ function buildDashboardShell() {
             </div>
         </div>
 
-        <div class="dash-layout-triple">
+        <div class="dash-layout-duo">
             <div class="dash-panel card-chart">
                 <div class="dash-panel-head">
                     <h3 class="dash-panel-title">Semáforo de riesgo</h3>
@@ -410,27 +410,6 @@ function buildDashboardShell() {
                     <button type="button" class="chart-reset-btn" data-reset-scope="all" title="Limpiar">✕</button>
                 </div>
                 <div id="chartGeoOperacion" class="chart-area" style="min-height:260px;"></div>
-            </div>
-            <div class="dash-panel">
-                <div class="dash-panel-head">
-                    <h3 class="dash-panel-title">Red de relaciones</h3>
-                    <span class="dash-panel-badge">PK/FK</span>
-                </div>
-                <div class="dash-graph-wrap" id="dashRelationGraph"></div>
-            </div>
-        </div>
-
-        <div class="dash-layout-duo">
-            <div class="dash-panel">
-                <div class="dash-panel-head"><h3 class="dash-panel-title">NLP · similitud narrativa</h3></div>
-                <div id="nlpPanel"></div>
-                <div class="dash-nlp-cluster" id="nlpKeywords"></div>
-            </div>
-            <div class="dash-panel">
-                <div class="dash-panel-head"><h3 class="dash-panel-title">IA explicable · caso activo</h3></div>
-                <div id="explainabilityPanel" class="dash-xai-hero">
-                    Seleccione un caso crítico para ver la explicación automática del motor antifraude.
-                </div>
             </div>
         </div>
 
@@ -456,19 +435,13 @@ function buildDashboardShell() {
             </div>
         </div>
 
-        <div class="dash-layout-duo">
-            <div class="dash-panel">
-                <div class="dash-panel-head"><h3 class="dash-panel-title">Ranking proveedores sospechosos</h3></div>
-                <div class="dash-table-wrap" style="max-height:300px;">
-                    <table class="dash-table">
-                        <thead><tr><th>Proveedor</th><th>Casos</th><th>Score prom.</th><th>Monto</th><th>Alertas</th></tr></thead>
-                        <tbody id="providerRiskTable"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="dash-panel">
-                <div class="dash-panel-head"><h3 class="dash-panel-title">Panel ML · anomalías</h3></div>
-                <div id="dashMlPanel"></div>
+        <div class="dash-panel" style="margin-bottom:1.25rem;">
+            <div class="dash-panel-head"><h3 class="dash-panel-title">Ranking proveedores sospechosos</h3></div>
+            <div class="dash-table-wrap" style="max-height:300px;">
+                <table class="dash-table">
+                    <thead><tr><th>Proveedor</th><th>Casos</th><th>Score prom.</th><th>Monto</th><th>Alertas</th></tr></thead>
+                    <tbody id="providerRiskTable"></tbody>
+                </table>
             </div>
         </div>
 
@@ -500,17 +473,6 @@ function buildDashboardShell() {
         </div>
     `;
 }
-
-const DASH_ER_NODES = [
-    { id: 'sin', label: 'Siniestros', x: 200, y: 150 },
-    { id: 'pol', label: 'Pólizas', x: 80, y: 70 },
-    { id: 'ase', label: 'Asegurados', x: 320, y: 70 },
-    { id: 'pro', label: 'Proveedores', x: 80, y: 230 },
-    { id: 'doc', label: 'Documentos', x: 320, y: 230 },
-];
-const DASH_ER_EDGES = [
-    ['sin', 'pol'], ['sin', 'ase'], ['sin', 'pro'], ['doc', 'sin'], ['pol', 'ase'],
-];
 
 function renderCriticalCasesTable(cases) {
     const tbody = document.getElementById('criticalCasesTable');
@@ -549,82 +511,15 @@ function renderCriticalCasesTable(cases) {
     tbody.querySelectorAll('.dash-case-tr').forEach((row) => {
         row.addEventListener('click', (e) => {
             if (e.target.closest('.dash-btn-analyze')) return;
-            const id = row.dataset.caseId;
-            const c = cases.find((x) => x.id_siniestro === id);
-            renderExplainability(c);
+            if (typeof viewCase === 'function') viewCase(row.dataset.caseId);
         });
     });
     tbody.querySelectorAll('.dash-btn-analyze').forEach((btn) => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const id = btn.dataset.analyze;
-            const c = cases.find((x) => x.id_siniestro === id);
-            renderExplainability(c);
-            if (typeof viewCase === 'function') viewCase(id);
+            if (typeof viewCase === 'function') viewCase(btn.dataset.analyze);
         });
     });
-}
-
-function renderDashRelationGraph(data) {
-    const wrap = document.getElementById('dashRelationGraph');
-    if (!wrap) return;
-    const provN = (data.provider_risk || []).length;
-    const crit = data.rojos || 0;
-    const byId = Object.fromEntries(DASH_ER_NODES.map((n) => [n.id, n]));
-    let edges = '';
-    DASH_ER_EDGES.forEach(([a, b]) => {
-        const n1 = byId[a];
-        const n2 = byId[b];
-        if (!n1 || !n2) return;
-        edges += `<line class="er-edge" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}"/>`;
-    });
-    const nodes = DASH_ER_NODES.map((n) => {
-        const pulse = n.id === 'sin' && crit > 0 ? ' filter="url(#glow)"' : '';
-        return `<g class="er-node"${pulse}>
-            <circle cx="${n.x}" cy="${n.y}" r="34"/>
-            <text x="${n.x}" y="${n.y + 4}" text-anchor="middle">${n.label}</text>
-        </g>`;
-    }).join('');
-    wrap.innerHTML = `<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
-        <defs><filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-        ${edges}${nodes}
-        <text x="200" y="285" text-anchor="middle" fill="var(--text-muted)" font-size="8">${provN} proveedores · ${crit} casos críticos en vista</text>
-    </svg>`;
-}
-
-async function renderDashMlPanel() {
-    const el = document.getElementById('dashMlPanel');
-    if (!el) return;
-    try {
-        const m = await (await fetch('/api/model-metrics')).json();
-        if (m.error) {
-            el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Ejecute el pipeline para activar métricas ML.</div>';
-            return;
-        }
-        const auc = Number(m.auc_roc || 0).toFixed(2);
-        const features = m.top_features || m.feature_importance || [];
-        const featRows = (Array.isArray(features) ? features : []).slice(0, 6).map((f) => {
-            const name = f.feature || f.name || 'feature';
-            const imp = Number(f.importance ?? f.value ?? 0);
-            const pct = Math.min(100, imp * (imp <= 1 ? 100 : 1));
-            return `<div class="dash-shap-bar"><span style="min-width:90px;">${String(name).slice(0, 14)}</span><div class="track"><div class="fill" style="width:${pct}%;"></div></div></div>`;
-        }).join('');
-        el.innerHTML = `
-            <div class="dash-ml-grid">
-                <div class="dash-ml-stat"><label>AUC-ROC</label><span>${auc}</span></div>
-                <div class="dash-ml-stat"><label>Predicción fraude</label><span>${m.trained ? 'Activa' : 'Reglas'}</span></div>
-                <div class="dash-ml-stat"><label>Anomalías</label><span>${m.anomalies_detected ?? '—'}</span></div>
-                <div class="dash-ml-stat"><label>Precisión</label><span>${m.precision != null ? (m.precision * 100).toFixed(0) + '%' : '—'}</span></div>
-            </div>
-            <div style="margin-top:0.85rem;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Feature importance (SHAP)</div>
-            ${featRows || '<div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">Sin importancias disponibles.</div>'}
-        `;
-        dashboardState.metricsAuc = auc;
-        const aucEl = document.getElementById('kpiAuc');
-        if (aucEl) aucEl.textContent = auc;
-    } catch (e) {
-        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">ML no disponible.</div>';
-    }
 }
 
 function bindDashboardEvents() {
@@ -1064,56 +959,15 @@ if (typeof window !== 'undefined') {
     });
 }
 
-async function loadNlpPanel() {
-    const el = document.getElementById('nlpPanel');
-    const kwEl = document.getElementById('nlpKeywords');
-    if (!el) return;
+async function loadDashboardMetricsAuc() {
     try {
-        const nlp = await (await fetch('/api/nlp-summary')).json();
-        if (!nlp.error && nlp.high_similarity_pairs) {
-            const pairs = nlp.high_similarity_pairs.slice(0, 6);
-            el.innerHTML = pairs.map((p) =>
-                `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--border-subtle);">
-                    <div>
-                        <div class="mono" style="font-size:0.78rem;color:var(--cyan);">${p.id_1} ↔ ${p.id_2}</div>
-                        <div style="font-size:0.68rem;color:var(--text-muted);">Reclamo clonado · embedding</div>
-                    </div>
-                    <span class="badge ${p.similarity >= 0.85 ? 'badge-red' : p.similarity >= 0.70 ? 'badge-yellow' : 'badge-green'}" style="font-size:0.7rem;">${(p.similarity * 100).toFixed(0)}% sim.</span>
-                </div>`
-            ).join('') || '<div style="color:var(--text-muted);font-size:0.82rem;">Sin pares similares.</div>';
-            if (kwEl) {
-                const tags = ['narrativa', 'similitud', 'embedding', 'cluster', 'fraude', 'clonado'];
-                kwEl.innerHTML = tags.map((t) => `<span class="dash-nlp-tag">${t}</span>`).join('');
-            }
-        } else {
-            el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">Sin datos NLP. Ejecute el pipeline.</div>';
+        const m = await (await fetch('/api/model-metrics')).json();
+        if (!m.error) {
+            dashboardState.metricsAuc = (m.auc_roc || 0).toFixed(2);
+            const aucEl = document.getElementById('kpiAuc');
+            if (aucEl) aucEl.textContent = dashboardState.metricsAuc;
         }
-    } catch (e) {
-        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;">NLP no disponible.</div>';
-    }
-}
-
-function renderExplainability(caseItem) {
-    const el = document.getElementById('explainabilityPanel');
-    if (!el) return;
-    if (!caseItem) {
-        el.className = 'dash-xai-hero';
-        el.innerHTML = 'Seleccione un caso crítico para ver la explicación automática del motor antifraude.';
-        return;
-    }
-    const score = Number(caseItem.score_hibrido ?? caseItem.score_reglas ?? 0).toFixed(1);
-    const sem = caseItem.semaforo_final || caseItem.semaforo_reglas || 'N/A';
-    const nivel = sem === 'Rojo' ? 'ALTO' : sem === 'Amarillo' ? 'MEDIO' : 'BAJO';
-    const alertas = String(caseItem.alertas_reglas || '').split('|').map((x) => x.trim()).filter(Boolean).slice(0, 6);
-    const bullets = alertas.length
-        ? alertas.map((a) => `<li>${a}</li>`).join('')
-        : '<li>Score híbrido elevado según reglas de negocio</li><li>Patrón detectado por motor de anomalías</li>';
-    el.className = 'dash-xai-hero';
-    el.innerHTML = `
-        <p>El caso <span class="xai-case-id">${caseItem.id_siniestro || 'N/A'}</span> fue clasificado como <strong>${nivel}</strong> riesgo (score ${score}/100) debido a:</p>
-        <ul class="dash-xai-list">${bullets}</ul>
-        <p style="margin-top:0.65rem;font-size:0.75rem;color:var(--text-muted);">Proveedor: ${caseItem.beneficiario || '—'} · Monto: $${Number(caseItem.monto_reclamado || 0).toLocaleString()} · Validación analista requerida.</p>
-    `;
+    } catch (e) { /* ignore */ }
 }
 
 function renderDashboardData(data) {
@@ -1163,8 +1017,6 @@ function renderDashboardData(data) {
     const topCases = data.top_cases || [];
     renderCriticalCasesTable(topCases);
     renderAnomaliesList(topCases);
-    renderDashRelationGraph(data);
-    if (topCases[0]) renderExplainability(topCases[0]);
     renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf);
 
     const alerts = document.getElementById('alertsPanel');
@@ -1183,8 +1035,6 @@ function renderDashboardData(data) {
     }).join('') || '<div style="color:var(--text-muted);font-size:0.82rem;padding:0.5rem;">Sin alertas con los filtros actuales.</div>';
     alerts.querySelectorAll('.anomaly-row-clickable').forEach(row => {
         row.addEventListener('click', () => {
-            const selected = (data.top_cases || []).find(x => x.id_siniestro === row.dataset.caseId);
-            renderExplainability(selected);
             if (typeof viewCase === 'function') viewCase(row.dataset.caseId);
         });
     });
@@ -1310,7 +1160,6 @@ function renderDashboardData(data) {
     }
 
     renderDashboardCharts(data);
-    renderDashMlPanel();
 }
 
 async function refreshDashboard() {
@@ -1356,11 +1205,7 @@ async function initDashboard() {
             populateFilterControls(opts);
             updateSemaforoPills();
             dashboardState.initialized = true;
-            loadNlpPanel();
-            try {
-                const m = await (await fetch('/api/model-metrics')).json();
-                if (!m.error) dashboardState.metricsAuc = (m.auc_roc || 0).toFixed(2);
-            } catch (e) { /* ignore */ }
+            await loadDashboardMetricsAuc();
         }
         await refreshDashboard();
     } catch (e) {
