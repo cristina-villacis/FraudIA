@@ -54,7 +54,7 @@ Guarda y haz **Redeploy**.
 ## 3. Crear tablas (una vez por instancia)
 
 ```bash
-curl -X POST https://fraud-ia.vercel.app/api/db-init
+curl -X POST https://fxecure-ia.vercel.app/api/db-init
 ```
 
 Respuesta esperada: `{"status":"ok","message":"Tablas creadas en la base de datos"}`
@@ -81,7 +81,7 @@ DATABASE_URL=mysql+pymysql://ezF1nSTkhwhsAAD.root:PASSWORD@gateway01.us-east-1.p
 ## 5. Verificar
 
 ```http
-GET https://fraud-ia.vercel.app/api/db-status
+GET https://fxecure-ia.vercel.app/api/db-status
 ```
 
 Badge en la app: `TiDB Cloud (MySQL)` con registros > 0 tras cargar datos.

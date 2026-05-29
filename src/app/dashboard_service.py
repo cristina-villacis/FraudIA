@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import pandas as pd
 
-from src.app.fraudia_dashboard import build_fraudia_view
 from src.risk.classification import (
     SCORE_AMARILLO_MAX,
     SCORE_AMARILLO_MIN,
@@ -906,6 +905,8 @@ def build_dashboard_payload(
     active_filters: Optional[List[Dict[str, str]]] = None,
     source_total_siniestros: Optional[int] = None,
 ) -> Dict[str, Any]:
+    from src.app.fraudia_dashboard import build_fraudia_view
+
     active_filters = active_filters or []
     source_total = source_total_siniestros or total_unfiltered
     if df is None or df.empty:
