@@ -10,8 +10,8 @@ const mlEngineState = {
 
 const ML_CHART_IDS = [
     'chartFraudTrend', 'chartForecast30', 'chartRiskEvolution', 'chartHistorical',
-    'chartForecastIA', 'chartRadarMl', 'chartDonutSem', 'chartRiskHeatmap',
-    'chartSankey', 'chartNetwork', 'chartRiskGauge', 'chartAnomalyHeat',
+    'chartForecastIA', 'chartRadarMl', 'chartRiskHeatmap',
+    'chartNetwork', 'chartRiskGauge', 'chartAnomalyHeat',
     'chartConfusion', 'chartProbHidden', 'chartProbBySem', 'chartAnomalyScatter', 'chartModelDrift',
 ];
 
@@ -37,8 +37,8 @@ function buildMlShell() {
         <header class="ml-topbar ml-topbar--premium">
             <div class="ml-topbar-intro">
                 <div class="ml-ia-title">
-                    <h2>Análisis predictivo</h2>
-                    <p>Forecast IA, tendencia de fraude y evolución de riesgo sobre su cartera.</p>
+                    <h2>Análisis predictivo ML</h2>
+                    <p>Modelo de machine learning, métricas de desempeño y proyección de fraude a 30 días.</p>
                 </div>
                 <div class="ml-neural-pulse" aria-hidden="true">
                     <span></span><span></span><span></span><span></span><span></span>
@@ -49,110 +49,118 @@ function buildMlShell() {
                 </div>
             </div>
             <div class="ml-metrics-strip">
-                <div class="ml-metric-pill"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
-                <div class="ml-metric-pill"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
-                <div class="ml-metric-pill"><label>AUC</label><strong id="mlHdrAccuracy">—</strong></div>
-                <div class="ml-metric-pill"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
-                <div class="ml-metric-pill"><label>F1</label><strong id="mlHdrF1">—</strong></div>
+                <div class="ml-metric-pill" title="Estado del pipeline ML tras el análisis"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
+                <div class="ml-metric-pill" title="Algoritmo entrenado sobre su cartera"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
+                <div class="ml-metric-pill" title="AUC-ROC: capacidad de separar fraude (0–1, mayor es mejor)"><label>AUC-ROC</label><strong id="mlHdrAccuracy">—</strong></div>
+                <div class="ml-metric-pill" title="Recall: % de fraudes reales que el modelo detecta"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
+                <div class="ml-metric-pill" title="F1: equilibrio entre precisión y recall"><label>F1</label><strong id="mlHdrF1">—</strong></div>
             </div>
         </header>
 
         <div class="ml-predict-kpis" id="mlPredictKpis"></div>
 
+        <section class="ml-section-block ml-section-block--first">
+            <h3 class="ml-section-title">Modelo y métricas <span>Random Forest · validación · explicabilidad</span></h3>
+            <p class="ml-section-intro">Resultados del entrenamiento ML sobre los siniestros analizados. Use estas métricas para evaluar la calidad del modelo antes de revisar proyecciones.</p>
+            <div class="ml-main">
+                <div class="ml-panel ml-chart-panel ml-panel--glow">
+                    <div class="ml-panel-title">Matriz de confusión</div>
+                    <p class="ml-panel-help">TN=aciertos normales · FP=falsas alarmas · FN=fraudes no detectados · TP=fraudes detectados.</p>
+                    <div id="chartConfusion" class="chart-area ml-chart-confusion"></div>
+                </div>
+                <div class="ml-grid-2 ml-prob-charts-row">
+                    <div class="ml-panel ml-chart-panel ml-panel--glow">
+                        <div class="ml-panel-title">Prob. ML elevada sin semáforo rojo</div>
+                        <p class="ml-panel-help">Casos con alta probabilidad IA que aún no están en rojo — posible revisión prioritaria.</p>
+                        <div id="chartProbHidden" class="chart-area ml-chart-prob"></div>
+                    </div>
+                    <div class="ml-panel ml-chart-panel ml-panel--glow">
+                        <div class="ml-panel-title">Probabilidad ML por semáforo</div>
+                        <p class="ml-panel-help">Promedio de probabilidad de fraude IA y conteo de casos con prob. ≥70% por color de riesgo.</p>
+                        <div id="chartProbBySem" class="chart-area ml-chart-prob"></div>
+                    </div>
+                </div>
+                <div class="ml-grid-2 ml-monitor-row">
+                    <div class="ml-panel ml-chart-panel ml-panel--glow">
+                        <div class="ml-panel-title">Casos atípicos (detección de anomalías)</div>
+                        <p class="ml-panel-help">Puntos fuera de patrón: eje X=monto reclamado, eje Y=score/anomalía. Color=semáforo final.</p>
+                        <div id="chartAnomalyScatter" class="chart-area ml-chart-anomaly"></div>
+                    </div>
+                    <div class="ml-panel ml-chart-panel ml-panel--glow">
+                        <div class="ml-panel-title">Monitoreo del modelo</div>
+                        <p class="ml-panel-help">Estabilidad del modelo, anomalías detectadas y distribución de scores híbridos en la cartera.</p>
+                        <div id="mlMonitorPanel" class="ml-monitor-stats"></div>
+                        <div id="chartModelDrift" class="chart-area ml-chart-drift"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="ml-section-block">
-            <h3 class="ml-section-title">Panel predictivo IA <span>Forecast · tendencia · riesgo histórico</span></h3>
+            <h3 class="ml-section-title">Panel predictivo IA <span>Forecast · tendencia · proyección 30 días</span></h3>
+            <p class="ml-section-intro">Proyecciones calculadas con regresión lineal (scikit-learn) sobre el histórico diario de casos críticos. La banda sombreada indica intervalo de confianza estimado.</p>
             <div class="ml-predict-grid">
                 <div class="ml-panel ml-panel--glow">
                     <div class="ml-panel-title">Tendencia de fraude <span class="ml-panel-badge">LIVE</span></div>
+                    <p class="ml-panel-help">Evolución mensual de casos en semáforo rojo vs. resto de la cartera.</p>
                     <div id="chartFraudTrend" class="chart-area ml-chart-tall"></div>
                 </div>
                 <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Proyección 30 días</div>
-                    <p class="ml-panel-help">Casos críticos proyectados con banda de confianza.</p>
+                    <div class="ml-panel-title">Proyección 30 días <span class="ml-panel-badge" id="mlForecastMethod">ML</span></div>
+                    <p class="ml-panel-help">Casos críticos (rojo) proyectados día a día. Línea sólida=histórico · punteada=forecast · sombra=banda de confianza.</p>
                     <div id="chartForecast30" class="chart-area ml-chart-tall"></div>
                 </div>
                 <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Evolución de riesgo</div>
+                    <div class="ml-panel-title">Evolución del score de riesgo</div>
+                    <p class="ml-panel-help">Score híbrido promedio por mes — subidas indican mayor exposición agregada.</p>
                     <div id="chartRiskEvolution" class="chart-area ml-chart-med"></div>
                 </div>
                 <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Comportamiento histórico</div>
+                    <div class="ml-panel-title">Comportamiento histórico por semáforo</div>
+                    <p class="ml-panel-help">Distribución mensual apilada: verde (bajo), amarillo (medio) y rojo (alto riesgo).</p>
                     <div id="chartHistorical" class="chart-area ml-chart-med"></div>
                 </div>
             </div>
             <div class="ml-predict-grid" style="margin-top:1rem;">
                 <div class="ml-panel ml-panel--glow" style="grid-column:1/-1;">
                     <div class="ml-panel-title">Forecast IA <span class="ml-panel-badge" id="mlForecastConf">—</span></div>
+                    <p class="ml-panel-help" id="mlForecastNote">Proyección ML unificada: histórico real + predicción a 30 días con banda de confianza.</p>
                     <div id="chartForecastIA" class="chart-area ml-chart-tall"></div>
                 </div>
             </div>
         </section>
 
         <section class="ml-section-block">
-            <h3 class="ml-section-title">Visualizaciones avanzadas <span>Radar · Sankey · red · heatmaps</span></h3>
+            <h3 class="ml-section-title">Visualizaciones avanzadas <span>Radar · heatmaps · red de exposición</span></h3>
             <div class="ml-viz-grid">
                 <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Radar de desempeño</div>
+                    <div class="ml-panel-title">Radar de desempeño del modelo</div>
+                    <p class="ml-panel-help">Comparativa normalizada: AUC, precisión, recall, F1, anomalías y casos alta probabilidad.</p>
                     <div id="chartRadarMl" class="chart-area ml-chart-med"></div>
                 </div>
                 <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Distribución semáforo</div>
-                    <div id="chartDonutSem" class="chart-area ml-chart-med"></div>
-                </div>
-                <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Gauge de riesgo</div>
+                    <div class="ml-panel-title">Gauge de riesgo de cartera</div>
+                    <p class="ml-panel-help">Score híbrido promedio (0–100). Verde ≤40 · Amarillo 41–65 · Rojo &gt;65.</p>
                     <div id="chartRiskGauge" class="chart-area ml-chart-gauge"></div>
                 </div>
             </div>
             <div class="ml-viz-grid ml-viz-grid--2" style="margin-top:1rem;">
                 <div class="ml-panel ml-panel--glow">
                     <div class="ml-panel-title">Heatmap riesgo (monto × score)</div>
+                    <p class="ml-panel-help">Concentración de casos por tramo de monto reclamado y score híbrido.</p>
                     <div id="chartRiskHeatmap" class="chart-area ml-chart-med"></div>
                 </div>
                 <div class="ml-panel ml-panel--glow">
                     <div class="ml-panel-title">Heatmap anomalías temporales</div>
+                    <p class="ml-panel-help">Score medio por día de la semana y semana del mes — detecta patrones atípicos.</p>
                     <div id="chartAnomalyHeat" class="chart-area ml-chart-med"></div>
                 </div>
             </div>
-            <div class="ml-viz-grid ml-viz-grid--2" style="margin-top:1rem;">
-                <div class="ml-panel ml-panel--glow">
-                    <div class="ml-panel-title">Flujo ramo → semáforo (Sankey)</div>
-                    <div id="chartSankey" class="chart-area ml-chart-tall"></div>
-                </div>
-                <div class="ml-panel ml-panel--glow">
+            <div class="ml-predict-grid" style="margin-top:1rem;">
+                <div class="ml-panel ml-panel--glow" style="grid-column:1/-1;">
                     <div class="ml-panel-title">Red de exposición por proveedor</div>
+                    <p class="ml-panel-help">Proveedores con mayor score promedio y volumen de casos vinculados a la cartera.</p>
                     <div id="chartNetwork" class="chart-area ml-chart-tall"></div>
-                </div>
-            </div>
-        </section>
-
-        <section class="ml-section-block">
-            <h3 class="ml-section-title">Modelo y métricas</h3>
-            <div class="ml-main">
-                <div class="ml-panel ml-chart-panel ml-panel--glow">
-                    <div class="ml-panel-title">Matriz de confusión</div>
-                    <div id="chartConfusion" class="chart-area ml-chart-confusion"></div>
-                </div>
-                <div class="ml-grid-2 ml-prob-charts-row">
-                    <div class="ml-panel ml-chart-panel ml-panel--glow">
-                        <div class="ml-panel-title">Prob. elevada sin alerta roja</div>
-                        <div id="chartProbHidden" class="chart-area ml-chart-prob"></div>
-                    </div>
-                    <div class="ml-panel ml-chart-panel ml-panel--glow">
-                        <div class="ml-panel-title">Probabilidad ML por semáforo</div>
-                        <div id="chartProbBySem" class="chart-area ml-chart-prob"></div>
-                    </div>
-                </div>
-                <div class="ml-grid-2 ml-monitor-row">
-                    <div class="ml-panel ml-chart-panel ml-panel--glow">
-                        <div class="ml-panel-title">Casos atípicos (anomalías)</div>
-                        <div id="chartAnomalyScatter" class="chart-area ml-chart-anomaly"></div>
-                    </div>
-                    <div class="ml-panel ml-chart-panel ml-panel--glow">
-                        <div class="ml-panel-title">Monitoreo del modelo</div>
-                        <div id="mlMonitorPanel" class="ml-monitor-stats"></div>
-                        <div id="chartModelDrift" class="chart-area ml-chart-drift"></div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -331,18 +339,35 @@ function renderMlHeader(metrics) {
 function renderMlPredictKpis(metrics) {
     const el = document.getElementById('mlPredictKpis');
     if (!el) return;
+    const k = (metrics.predictive || {}).kpi_summary || {};
     const p = metrics.predictive || {};
     const trend = p.fraud_trend || {};
     const fc = p.forecast_30d || {};
     const dir = trend.direction || 'neutral';
     const trendCls = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'neutral';
-    const sumFc = (fc.forecast_rojos || []).reduce((a, b) => a + Number(b), 0);
-    el.innerHTML = `
-        <div class="ml-predict-kpi"><label>Tendencia fraude</label><strong>${escapeHtml(trend.label || '—')}</strong><div class="ml-kpi-trend ${trendCls}">${dir === 'up' ? '▲' : dir === 'down' ? '▼' : '●'} período</div></div>
-        <div class="ml-predict-kpi"><label>Proyección 30d</label><strong>${Math.round(sumFc)}</strong><div class="ml-kpi-trend neutral">casos críticos est.</div></div>
-        <div class="ml-predict-kpi"><label>Score cartera</label><strong>${p.risk_gauge_score ?? metrics.score_promedio ?? '—'}</strong><div class="ml-kpi-trend neutral">riesgo medio</div></div>
-        <div class="ml-predict-kpi"><label>Atípicos IA</label><strong>${metrics.anomalies_detected ?? '—'}</strong><div class="ml-kpi-trend neutral">detección</div></div>
-        <div class="ml-predict-kpi"><label>Confianza forecast</label><strong>${fc.confidence_pct != null ? fc.confidence_pct + '%' : '—'}</strong><div class="ml-kpi-trend neutral">banda predictiva</div></div>`;
+    const fmtMoney = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n <= 0) return '—';
+        return n >= 1e6 ? '$' + (n / 1e6).toFixed(1) + 'M' : '$' + n.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    };
+    const items = [
+        { label: 'Total siniestros', val: k.total_siniestros ?? metrics.total_records ?? '—', help: 'Universo analizado en el pipeline ML' },
+        { label: 'Casos rojos', val: k.casos_rojos ?? '—', help: 'Semáforo rojo — riesgo alto de fraude', trend: `${k.porcentaje_rojo ?? 0}% del total`, cls: 'up' },
+        { label: 'Tasa sospechosos', val: (k.tasa_sospechosos != null ? k.tasa_sospechosos + '%' : '—'), help: '(Rojos + amarillos) / total × 100', trend: trend.label || '—', cls: trendCls },
+        { label: 'Score promedio', val: k.score_promedio ?? metrics.score_promedio ?? '—', help: 'Score híbrido medio de la cartera (0–100)' },
+        { label: 'Prob. IA promedio', val: (k.prob_ia_promedio != null ? k.prob_ia_promedio + '%' : '—'), help: 'Probabilidad media de fraude del modelo ML' },
+        { label: 'Proyección 30d', val: k.forecast_30d_total ?? '—', help: 'Suma estimada de casos críticos en los próximos 30 días', trend: fc.method || 'Regresión ML', cls: 'neutral' },
+        { label: 'Anomalías IA', val: k.anomalias ?? metrics.anomalies_detected ?? '—', help: 'Casos con anomaly_score > 0.8' },
+        { label: 'Monto en riesgo', val: fmtMoney(k.monto_riesgo), help: 'Suma reclamada en semáforos rojo y amarillo' },
+    ];
+    el.innerHTML = items.map((it) => `
+        <div class="ml-predict-kpi" title="${escapeHtml(it.help)}">
+            <label>${escapeHtml(it.label)}</label>
+            <strong>${escapeHtml(String(it.val))}</strong>
+            <div class="ml-kpi-trend ${it.cls || 'neutral'}">${escapeHtml(it.trend || it.help)}</div>
+        </div>`).join('');
+    const methodBadge = document.getElementById('mlForecastMethod');
+    if (methodBadge && fc.method) methodBadge.textContent = fc.method.split('(')[0].trim().slice(0, 18);
 }
 
 function renderFraudTrendChart(metrics) {
@@ -407,20 +432,22 @@ function renderForecast30(metrics) {
         {
             x: histX,
             y: histY,
-            name: 'Histórico',
+            name: 'Histórico (casos rojos/día)',
             type: 'scatter',
-            mode: 'lines',
+            mode: 'lines+markers',
             line: { color: MC.cyan, width: 2, shape: 'spline' },
+            marker: { size: 4 },
             fill: 'tozeroy',
             fillcolor: 'rgba(59,130,246,0.12)',
         },
         {
             x: fX,
             y: fY,
-            name: 'Proyección',
+            name: 'Proyección ML 30d',
             type: 'scatter',
-            mode: 'lines',
+            mode: 'lines+markers',
             line: { color: MC.yellow, width: 2.5, dash: 'dash', shape: 'spline' },
+            marker: { size: 3 },
         },
         {
             x: fX,
@@ -453,8 +480,14 @@ function renderForecast30(metrics) {
     ], mlLayout({
         margin: { t: 12, b: 56, l: 48, r: 16 },
         height: 300,
-        xaxis: { tickangle: -35, nticks: 12, gridcolor: MC.grid },
-        yaxis: { title: 'Casos críticos', gridcolor: MC.grid },
+        xaxis: { tickangle: -35, nticks: 12, gridcolor: MC.grid, title: 'Fecha' },
+        yaxis: { title: 'Casos críticos (rojo)', gridcolor: MC.grid },
+        annotations: fc.confidence_pct != null ? [{
+            x: 0.02, y: 0.98, xref: 'paper', yref: 'paper',
+            text: `Confianza ${fc.confidence_pct}%${fc.r2 != null ? ' · R²=' + fc.r2 : ''}`,
+            showarrow: false, font: { size: 10, color: MC.muted },
+            bgcolor: 'rgba(0,0,0,0.15)', borderpad: 4,
+        }] : [],
         shapes: histX.length ? [{
             type: 'line',
             x0: histX[histX.length - 1],
@@ -519,34 +552,39 @@ function renderHistorical(metrics) {
 function renderForecastIA(metrics) {
     const el = document.getElementById('chartForecastIA');
     const badge = document.getElementById('mlForecastConf');
+    const note = document.getElementById('mlForecastNote');
     if (!el || typeof Plotly === 'undefined') return;
     const block = (metrics.predictive || {}).forecast_ia;
     const fc = (metrics.predictive || {}).forecast_30d;
     if (badge && fc) badge.textContent = `Conf. ${fc.confidence_pct || 70}%`;
+    if (note && block?.model_note) note.textContent = block.model_note;
     if (!block || !block.labels?.length) {
-        mlEmptyChart(el, 'Forecast IA requiere histórico diario.');
+        mlEmptyChart(el, 'Forecast IA requiere histórico diario con fechas de ocurrencia.');
         return;
     }
     const MC = mlColors();
     const actual = block.actual || [];
     const pred = block.predicted || [];
+    const splitIdx = actual.findIndex((v) => v === null);
     Plotly.react('chartForecastIA', [
         {
             x: block.labels,
             y: actual,
-            name: 'Real',
+            name: 'Histórico real',
             type: 'scatter',
             mode: 'lines+markers',
-            line: { color: MC.cyan, width: 2 },
+            line: { color: MC.cyan, width: 2.5 },
+            marker: { size: 5 },
             connectgaps: false,
         },
         {
             x: block.labels,
             y: pred,
-            name: 'IA forecast',
+            name: 'Predicción ML',
             type: 'scatter',
-            mode: 'lines',
+            mode: 'lines+markers',
             line: { color: '#A78BFA', width: 2.5, shape: 'spline' },
+            marker: { size: 4 },
             connectgaps: false,
         },
         {
@@ -572,9 +610,16 @@ function renderForecastIA(metrics) {
     ], mlLayout({
         height: 300,
         margin: { t: 12, b: 56, l: 48, r: 16 },
-        xaxis: { tickangle: -35, nticks: 14, gridcolor: MC.grid },
-        yaxis: { title: 'Casos críticos', gridcolor: MC.grid },
+        xaxis: { tickangle: -35, nticks: 14, gridcolor: MC.grid, title: 'Fecha' },
+        yaxis: { title: 'Casos críticos (rojo/día)', gridcolor: MC.grid },
         legend: { orientation: 'h', y: 1.08 },
+        shapes: splitIdx > 0 ? [{
+            type: 'line',
+            x0: block.labels[splitIdx - 1],
+            x1: block.labels[splitIdx - 1],
+            y0: 0, y1: 1, yref: 'paper',
+            line: { color: 'rgba(148,163,184,0.45)', dash: 'dot', width: 1 },
+        }] : [],
     }), mlPlotCfg());
 }
 
@@ -915,12 +960,18 @@ function renderMonitorPanel(metrics) {
     if (!el) return;
     const auc = Number(metrics.auc_roc || 0);
     const cv = Number(metrics.cv_auc_mean || auc);
-    const drift = Math.abs(auc - cv) < 0.05 ? 'Estable' : 'Revisar';
+    const drift = Math.abs(auc - cv) < 0.05 ? 'Estable' : 'Revisar calibración';
+    const k = (metrics.predictive || {}).kpi_summary || {};
+    const totalRec = k.total_siniestros ?? metrics.total_records ?? '—';
+    const totalRecTxt = Number.isFinite(Number(totalRec)) ? Number(totalRec).toLocaleString('es-CO') : String(totalRec);
     el.innerHTML = `
-        <div class="ml-grid-3" style="gap:0.5rem;">
-            <div><label style="font-size:0.6rem;color:var(--text-muted);">Estabilidad</label><div style="font-weight:700;">${drift}</div></div>
-            <div><label style="font-size:0.6rem;color:var(--text-muted);">Atípicos</label><div style="font-weight:700;color:#3b82f6;">${metrics.anomalies_detected ?? '—'}</div></div>
-            <div><label style="font-size:0.6rem;color:var(--text-muted);">CV AUC</label><div style="font-weight:700;">${cv.toFixed(3)}</div></div>
+        <div class="ml-grid-3" style="gap:0.65rem;">
+            <div title="Comparación AUC entrenamiento vs validación cruzada"><label style="font-size:0.6rem;color:var(--text-muted);">Estabilidad ML</label><div style="font-weight:700;">${drift}</div></div>
+            <div title="Casos con anomaly_score superior a 0.8"><label style="font-size:0.6rem;color:var(--text-muted);">Anomalías IA</label><div style="font-weight:700;color:#3b82f6;">${k.anomalias ?? metrics.anomalies_detected ?? '—'}</div></div>
+            <div title="AUC promedio en validación cruzada (0–1)"><label style="font-size:0.6rem;color:var(--text-muted);">CV AUC-ROC</label><div style="font-weight:700;">${cv ? cv.toFixed(3) : '—'}</div></div>
+            <div title="Precisión del modelo sobre casos positivos"><label style="font-size:0.6rem;color:var(--text-muted);">Precisión</label><div style="font-weight:700;">${k.precision_pct != null ? k.precision_pct + '%' : '—'}</div></div>
+            <div title="Porcentaje de fraudes detectados"><label style="font-size:0.6rem;color:var(--text-muted);">Recall</label><div style="font-weight:700;">${k.recall_pct != null ? k.recall_pct + '%' : '—'}</div></div>
+            <div title="Registros usados para entrenar/inferir"><label style="font-size:0.6rem;color:var(--text-muted);">Registros</label><div style="font-weight:700;">${totalRecTxt}</div></div>
         </div>`;
     if (metrics.score_histogram && typeof Plotly !== 'undefined') {
         const h = metrics.score_histogram;
@@ -944,23 +995,21 @@ function renderMonitorPanel(metrics) {
 function renderAllMlCharts(metrics) {
     renderMlHeader(metrics);
     renderMlPredictKpis(metrics);
+    safeRender(() => renderConfusionChart(metrics), 'confusion');
+    safeRender(() => renderProbHiddenChart(metrics), 'prob-hidden');
+    safeRender(() => renderProbBySemaforoChart(metrics), 'prob-sem');
+    safeRender(() => renderAnomalyScatter(metrics), 'anomaly');
+    safeRender(() => renderMonitorPanel(metrics), 'monitor');
     safeRender(() => renderFraudTrendChart(metrics), 'fraud-trend');
     safeRender(() => renderForecast30(metrics), 'forecast-30');
     safeRender(() => renderRiskEvolution(metrics), 'risk-evo');
     safeRender(() => renderHistorical(metrics), 'historical');
     safeRender(() => renderForecastIA(metrics), 'forecast-ia');
     safeRender(() => renderRadarMl(metrics), 'radar');
-    safeRender(() => renderDonutSem(metrics), 'donut');
     safeRender(() => renderRiskGauge(metrics), 'gauge');
     safeRender(() => renderRiskHeatmap(metrics), 'heatmap');
     safeRender(() => renderAnomalyHeat(metrics), 'anomaly-heat');
-    safeRender(() => renderSankey(metrics), 'sankey');
     safeRender(() => renderNetwork(metrics), 'network');
-    safeRender(() => renderConfusionChart(metrics), 'confusion');
-    safeRender(() => renderProbHiddenChart(metrics), 'prob-hidden');
-    safeRender(() => renderProbBySemaforoChart(metrics), 'prob-sem');
-    safeRender(() => renderAnomalyScatter(metrics), 'anomaly');
-    safeRender(() => renderMonitorPanel(metrics), 'monitor');
 }
 
 async function initMlEngine() {

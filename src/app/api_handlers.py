@@ -1516,6 +1516,100 @@ def _linear_forecast(values: List[float], periods: int) -> List[float]:
     return [max(0.0, intercept + slope * (start_x + i)) for i in range(periods)]
 
 
+def _ml_forecast_series(values: List[float], periods: int = 30) -> Dict[str, Any]:
+    """Proyección ML (regresión lineal) con banda de confianza sobre serie diaria."""
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+
+    y = np.array([float(v) for v in values], dtype=float)
+    if len(y) < 3:
+        fc = _linear_forecast(list(y), periods)
+        return {
+            "forecast": [round(v, 2) for v in fc],
+            "upper": [round(v * 1.2, 2) for v in fc],
+            "lower": [round(max(0.0, v * 0.8), 2) for v in fc],
+            "confidence_pct": 58,
+            "method": "Tendencia lineal (histórico corto)",
+            "r2": None,
+            "slope": None,
+        }
+
+    X = np.arange(len(y)).reshape(-1, 1)
+    model = LinearRegression()
+    model.fit(X, y)
+    preds_train = model.predict(X)
+    residuals = y - preds_train
+    std = float(np.std(residuals)) if len(residuals) > 1 else max(1.0, float(np.mean(y)) * 0.1)
+    future_X = np.arange(len(y), len(y) + periods).reshape(-1, 1)
+    fc_raw = model.predict(future_X)
+    fc = [max(0.0, float(v)) for v in fc_raw]
+    upper = [round(v + 1.96 * std, 2) for v in fc]
+    lower = [round(max(0.0, v - 1.96 * std), 2) for v in fc]
+    ss_res = float(np.sum(residuals ** 2))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2)) or 1.0
+    r2 = max(0.0, min(1.0, 1.0 - ss_res / ss_tot))
+    confidence_pct = int(min(95, max(55, 55 + r2 * 38)))
+    return {
+        "forecast": [round(v, 2) for v in fc],
+        "upper": upper,
+        "lower": lower,
+        "confidence_pct": confidence_pct,
+        "method": "Regresión lineal (scikit-learn)",
+        "r2": round(r2, 3),
+        "slope": round(float(model.coef_[0]), 4),
+    }
+
+
+def _build_predictive_kpis(df: pd.DataFrame, metrics: dict, forecast_block: Optional[dict]) -> Dict[str, Any]:
+    """KPIs reales de cartera para el panel predictivo ML."""
+    sem_col = "semaforo_final" if "semaforo_final" in df.columns else "semaforo_reglas"
+    score_col = "score_hibrido" if "score_hibrido" in df.columns else "score_reglas"
+    total = len(df)
+    rojos = amarillos = verdes = 0
+    if sem_col in df.columns:
+        vc = df[sem_col].value_counts()
+        rojos = int(vc.get("Rojo", 0))
+        amarillos = int(vc.get("Amarillo", 0))
+        verdes = int(vc.get("Verde", 0))
+    score_prom = round(float(df[score_col].mean()), 1) if score_col in df.columns else 0.0
+    prob_ia = round(float(df["ml_fraud_probability"].fillna(0).mean()) * 100, 1) if "ml_fraud_probability" in df.columns else 0.0
+    anom = int((df["anomaly_score"].fillna(0) > 0.8).sum()) if "anomaly_score" in df.columns else int(metrics.get("anomalies_detected") or 0)
+    monto_riesgo = 0.0
+    if sem_col in df.columns and "monto_reclamado" in df.columns:
+        monto_riesgo = round(float(df.loc[df[sem_col].isin(["Rojo", "Amarillo"]), "monto_reclamado"].sum()), 0)
+    tasa_sospechosos = round(((rojos + amarillos) / total) * 100, 1) if total else 0.0
+    porcentaje_rojo = round((rojos / total) * 100, 1) if total else 0.0
+    fc_sum = 0
+    fc_avg = 0.0
+    if forecast_block and forecast_block.get("forecast_rojos"):
+        fc_vals = [float(x) for x in forecast_block["forecast_rojos"]]
+        fc_sum = int(round(sum(fc_vals)))
+        fc_avg = round(sum(fc_vals) / len(fc_vals), 1) if fc_vals else 0.0
+    auc = metrics.get("cv_auc_mean") or metrics.get("auc_roc")
+
+    def _pct_metric(key: str, alt: str = "") -> float:
+        raw = float(metrics.get(key) or metrics.get(alt) or 0)
+        return round(raw * 100 if 0 <= raw <= 1 else raw, 1)
+
+    return {
+        "total_siniestros": total,
+        "casos_rojos": rojos,
+        "casos_amarillos": amarillos,
+        "casos_verdes": verdes,
+        "porcentaje_rojo": porcentaje_rojo,
+        "tasa_sospechosos": tasa_sospechosos,
+        "score_promedio": score_prom,
+        "prob_ia_promedio": prob_ia,
+        "anomalias": anom,
+        "monto_riesgo": monto_riesgo,
+        "forecast_30d_total": fc_sum,
+        "forecast_30d_promedio_dia": fc_avg,
+        "auc_roc": round(float(auc), 3) if auc is not None else None,
+        "precision_pct": _pct_metric("precision_fraude"),
+        "recall_pct": _pct_metric("recall_fraude", "recall"),
+    }
+
+
 def _fraud_trend_from_monthly(temporal_risk: List[Dict]) -> Dict[str, Any]:
     if len(temporal_risk) < 2:
         return {"delta_pct": 0, "direction": "neutral", "label": "Sin histórico suficiente"}
@@ -1601,34 +1695,49 @@ def _build_ml_predictive_insights(df: pd.DataFrame, metrics: dict) -> Dict[str, 
                 hist_labels = daily["dia"].astype(str).tolist()
                 hist_rojos = [float(x) for x in daily["rojos"].tolist()]
                 hist_score = [round(float(x), 2) for x in daily["score_avg"].tolist()]
-                fc_rojos = _linear_forecast(hist_rojos, 30)
+                ml_fc = _ml_forecast_series(hist_rojos, 30)
+                fc_rojos = ml_fc["forecast"]
                 fc_score = _linear_forecast(hist_score, 30)
                 last_dt = pd.to_datetime(hist_labels[-1])
                 fc_labels = [
                     (last_dt + pd.Timedelta(days=i + 1)).strftime("%Y-%m-%d")
                     for i in range(30)
                 ]
-                fc_upper = [round(v * 1.18, 2) for v in fc_rojos]
-                fc_lower = [round(max(0, v * 0.82), 2) for v in fc_rojos]
                 block = {
                     "historical_labels": hist_labels,
                     "historical_rojos": hist_rojos,
                     "historical_score": hist_score,
                     "forecast_labels": fc_labels,
-                    "forecast_rojos": [round(v, 2) for v in fc_rojos],
+                    "forecast_rojos": fc_rojos,
                     "forecast_score": [round(v, 2) for v in fc_score],
-                    "forecast_upper": fc_upper,
-                    "forecast_lower": fc_lower,
-                    "confidence_pct": 78 if len(hist_rojos) >= 14 else 62,
+                    "forecast_upper": ml_fc["upper"],
+                    "forecast_lower": ml_fc["lower"],
+                    "confidence_pct": ml_fc["confidence_pct"],
+                    "method": ml_fc["method"],
+                    "r2": ml_fc.get("r2"),
+                    "slope": ml_fc.get("slope"),
                 }
                 insights["forecast_30d"] = block
+                hist_tail = min(21, len(hist_rojos))
+                tail_labels = hist_labels[-hist_tail:]
+                tail_actual = hist_rojos[-hist_tail:]
+                ia_labels = tail_labels + fc_labels
+                ia_actual = tail_actual + [None] * 30
+                ia_predicted = [None] * (hist_tail - 1) + [tail_actual[-1]] + fc_rojos
+                ia_upper = [None] * (hist_tail - 1) + [tail_actual[-1]] + ml_fc["upper"]
+                ia_lower = [None] * (hist_tail - 1) + [tail_actual[-1]] + ml_fc["lower"]
                 insights["forecast_ia"] = {
-                    "labels": hist_labels[-14:] + fc_labels,
-                    "actual": hist_rojos[-14:] + [None] * 30,
-                    "predicted": [None] * min(14, len(hist_rojos)) + fc_rojos,
-                    "upper": [None] * min(14, len(hist_rojos)) + fc_upper,
-                    "lower": [None] * min(14, len(hist_rojos)) + fc_lower,
-                    "model_note": "Proyección heurística (tendencia + banda de confianza)",
+                    "labels": ia_labels,
+                    "actual": ia_actual,
+                    "predicted": ia_predicted,
+                    "upper": ia_upper,
+                    "lower": ia_lower,
+                    "method": ml_fc["method"],
+                    "model_note": (
+                        f"Forecast ML: {ml_fc['method']}"
+                        + (f" · R²={ml_fc['r2']}" if ml_fc.get("r2") is not None else "")
+                        + f" · confianza {ml_fc['confidence_pct']}%"
+                    ),
                 }
 
     sem_counts = metrics.get("semaforo_counts") or {}
@@ -1763,6 +1872,7 @@ def _build_ml_predictive_insights(df: pd.DataFrame, metrics: dict) -> Dict[str, 
     }
     if score_col in df.columns:
         insights["risk_gauge_score"] = round(float(df[score_col].mean()), 1)
+    insights["kpi_summary"] = _build_predictive_kpis(df, metrics, insights.get("forecast_30d"))
     return insights
 
 
