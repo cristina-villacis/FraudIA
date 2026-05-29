@@ -4,6 +4,11 @@
 
 ---
 
+# 🌐 Demo en línea
+
+### Acceder al sistema
+🚀 [FXecure - IA de fraudes de siniestros](https://fxecure-ia.vercel.app/)
+
 ## 📝 Descripción general
 
 **FXecure** es una plataforma avanzada diseñada para detectar, analizar y prevenir posibles fraudes en reclamaciones de seguros mediante técnicas modernas de Machine Learning, análisis estadístico, procesamiento de lenguaje natural y sistemas de explicabilidad de IA.
