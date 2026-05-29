@@ -35,7 +35,25 @@ def is_gemini_enabled() -> bool:
 
 
 def get_gemini_model() -> str:
-    return os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip() or "gemini-2.0-flash"
+    return os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+
+
+def _pick_llm_error(errors: list[str]) -> str:
+    """Mensaje útil si todos los modelos fallan."""
+    if not errors:
+        return "Gemini no respondió"
+    for err in errors:
+        low = err.lower()
+        if "api key" in low or "401" in err or "403" in err:
+            return err
+    for err in errors:
+        if "404" not in err and "not found" not in err.lower():
+            return err
+    tried = ", ".join(_model_candidates()[:4])
+    return (
+        f"Ningún modelo Gemini respondió (404 en modelos antiguos). "
+        f"En Vercel use GEMINI_MODEL=gemini-2.5-flash. Probados: {tried}."
+    )
 
 
 def _model_candidates() -> list[str]:
@@ -134,7 +152,7 @@ def chat_conversational(
             return text, None
         if err:
             errors.append(err)
-    return None, errors[-1] if errors else "Gemini no respondió"
+    return None, _pick_llm_error(errors)
 
 
 def enhance_agent_answer(
@@ -158,4 +176,4 @@ def enhance_agent_answer(
             return text, None
         if err:
             errors.append(err)
-    return None, errors[-1] if errors else "Gemini no respondió"
+    return None, _pick_llm_error(errors)
