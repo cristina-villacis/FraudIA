@@ -474,27 +474,121 @@
     color: var(--cyan);
     margin: 0 0 0.35rem;
 }
-.bandeja-filter-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1rem;
-    align-items: flex-end;
-}
-.bandeja-filter-row label {
-    display: flex;
-    flex-direction: column;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    gap: 0.25rem;
-}
-.bandeja-filter-row select,
-.bandeja-filter-row input {
-    min-width: 120px;
+/* ── Bandeja de casos ───────────────────────────── */
+.cases-bandeja-module {
+    position: relative;
 }
 .bandeja-intro {
     color: var(--text-secondary);
     font-size: 0.88rem;
     margin-bottom: 1rem;
+    line-height: 1.5;
+}
+.bandeja-filters-panel {
+    margin-bottom: 1.25rem;
+    padding: 0;
+    overflow: visible;
+}
+.bandeja-filters-panel .dash-panel-head {
+    padding: 0.85rem 1.25rem 0;
+    margin-bottom: 0;
+}
+.bandeja-filters-body {
+    padding: 0.75rem 1.25rem 1.15rem;
+}
+.bandeja-toolbar-grid {
+    margin-bottom: 0.65rem;
+}
+#tab-cases .dashboard-filter label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+}
+#tab-cases .dashboard-filter select,
+#tab-cases .dashboard-filter input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 209, 255, 0.18);
+    background: rgba(11, 17, 32, 0.55);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+#tab-cases .dashboard-filter select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2300D1FF' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    padding-right: 1.75rem;
+}
+#tab-cases .dashboard-filter select:hover,
+#tab-cases .dashboard-filter input[type="number"]:hover {
+    border-color: rgba(0, 209, 255, 0.32);
+}
+#tab-cases .dashboard-filter select:focus,
+#tab-cases .dashboard-filter input[type="number"]:focus {
+    outline: none;
+    border-color: rgba(0, 209, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(0, 209, 255, 0.12);
+    background: rgba(11, 17, 32, 0.75);
+}
+#tab-cases .dashboard-filter input[type="number"]::placeholder {
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+.bandeja-filter-actions {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 209, 255, 0.12);
+}
+.bandeja-count-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 0.75rem 0 0;
+    line-height: 1.45;
+}
+.bandeja-count-label strong {
+    color: var(--cyan);
+    font-weight: 700;
+}
+.bandeja-table-wrap {
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(0, 209, 255, 0.12);
+    background: rgba(11, 17, 32, 0.45);
+    overflow: auto;
+}
+[data-theme="light"] #tab-cases .dashboard-filter select,
+[data-theme="light"] #tab-cases .dashboard-filter input[type="number"] {
+    background: #ffffff;
+    border-color: rgba(3, 105, 161, 0.2);
+    color: var(--text-primary);
+}
+[data-theme="light"] #tab-cases .dashboard-filter select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%230369A1' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-color: #ffffff;
+}
+[data-theme="light"] #tab-cases .dashboard-filter select:focus,
+[data-theme="light"] #tab-cases .dashboard-filter input[type="number"]:focus {
+    border-color: #0369a1;
+    box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.12);
+}
+[data-theme="light"] .bandeja-filters-panel,
+[data-theme="light"] .bandeja-table-wrap {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(3, 105, 161, 0.15);
+}
+[data-theme="light"] .bandeja-filter-actions {
+    border-top-color: rgba(3, 105, 161, 0.12);
 }
 #dashboardBanner.dashboard-banner-warn {
     border: 1px solid rgba(255, 193, 7, 0.45);

@@ -5,11 +5,15 @@ Ideal en Vercel: solo requiere requests + GEMINI_API_KEY en variables de entorno
 from __future__ import annotations
 
 import os
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from src.ai_agent.llm_prompts import SYSTEM_PROMPT, build_user_prompt
+from src.ai_agent.llm_prompts import (
+    SYSTEM_PROMPT,
+    build_conversational_user_prompt,
+    build_user_prompt,
+)
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -42,14 +46,37 @@ def _model_candidates() -> list[str]:
     return out
 
 
-def _call_gemini(model: str, api_key: str, user_text: str) -> Tuple[Optional[str], Optional[str]]:
+def _normalize_history(history: Optional[List[Dict[str, Any]]]) -> List[Dict[str, str]]:
+    turns: List[Dict[str, str]] = []
+    for item in history or []:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role", "user")).lower()
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        if role in ("assistant", "model", "agent"):
+            turns.append({"role": "model", "content": content[:4000]})
+        else:
+            turns.append({"role": "user", "content": content[:4000]})
+    return turns[-8:]
+
+
+def _call_gemini(
+    model: str,
+    api_key: str,
+    contents: List[Dict[str, Any]],
+    *,
+    temperature: float = 0.35,
+    max_tokens: int = 2000,
+) -> Tuple[Optional[str], Optional[str]]:
     url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
     payload = {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": user_text}]}],
+        "contents": contents,
         "generationConfig": {
-            "temperature": 0.25,
-            "maxOutputTokens": 1400,
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
         },
     }
     try:
@@ -57,7 +84,7 @@ def _call_gemini(model: str, api_key: str, user_text: str) -> Tuple[Optional[str
             url,
             params={"key": api_key},
             json=payload,
-            timeout=45,
+            timeout=60,
         )
         if resp.status_code != 200:
             detail = resp.text[:240].replace("\n", " ")
@@ -78,14 +105,14 @@ def _call_gemini(model: str, api_key: str, user_text: str) -> Tuple[Optional[str
         return None, f"Gemini error ({model}): {exc}"
 
 
-def enhance_agent_answer(
+def chat_conversational(
     question: str,
-    factual_answer: str,
     dataset_context: str,
+    history: Optional[List[Dict[str, Any]]] = None,
+    factual_hints: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    Reformula la respuesta factual con Gemini, sin inventar datos.
-    Retorna (texto_enriquecido | None, mensaje_error | None).
+    Chat principal: responde con contexto del análisis y historial de conversación.
     """
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
@@ -93,13 +120,41 @@ def enhance_agent_answer(
     if not is_gemini_enabled():
         return None, "Gemini deshabilitado (GEMINI_ENABLED=false)"
 
-    user_text = build_user_prompt(question, factual_answer, dataset_context)
+    user_text = build_conversational_user_prompt(question, dataset_context, factual_hints)
+    contents: List[Dict[str, Any]] = []
+    for turn in _normalize_history(history):
+        contents.append({"role": turn["role"], "parts": [{"text": turn["content"]}]})
+    contents.append({"role": "user", "parts": [{"text": user_text}]})
+
     errors: list[str] = []
     for model in _model_candidates():
-        text, err = _call_gemini(model, api_key, user_text)
+        text, err = _call_gemini(model, api_key, contents)
         if text:
             return text, None
         if err:
             errors.append(err)
+    return None, errors[-1] if errors else "Gemini no respondió"
 
+
+def enhance_agent_answer(
+    question: str,
+    factual_answer: str,
+    dataset_context: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Reformula la respuesta factual (fallback cuando no se usa chat principal)."""
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None, "GEMINI_API_KEY no configurada en el servidor"
+    if not is_gemini_enabled():
+        return None, "Gemini deshabilitado (GEMINI_ENABLED=false)"
+
+    user_text = build_user_prompt(question, factual_answer, dataset_context)
+    contents = [{"role": "user", "parts": [{"text": user_text}]}]
+    errors: list[str] = []
+    for model in _model_candidates():
+        text, err = _call_gemini(model, api_key, contents, temperature=0.25, max_tokens=1400)
+        if text:
+            return text, None
+        if err:
+            errors.append(err)
     return None, errors[-1] if errors else "Gemini no respondió"

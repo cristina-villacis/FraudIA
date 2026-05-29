@@ -11,7 +11,7 @@ LLM_PROVIDER=gemini | openai | local fuerza un modo.
 from __future__ import annotations
 
 import os
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.ai_agent import gemini_client, openai_client
 
@@ -25,7 +25,6 @@ def get_llm_provider() -> str:
         return "openai" if openai_client.is_openai_configured() else "local"
     if mode == "gemini":
         return "gemini" if gemini_client.is_gemini_configured() else "local"
-    # auto — Gemini primero (requisito explicabilidad Aseguradora del Sur)
     if gemini_client.is_gemini_configured():
         return "gemini"
     if openai_client.is_openai_configured():
@@ -33,15 +32,40 @@ def get_llm_provider() -> str:
     return "local"
 
 
+def chat_with_llm(
+    question: str,
+    dataset_context: str,
+    history: Optional[List[Dict[str, Any]]] = None,
+    factual_hints: Optional[str] = None,
+) -> Tuple[Optional[str], str, Optional[str]]:
+    """
+    Responde como asistente conversacional usando el análisis en contexto.
+    Retorna (texto | None, nombre_motor, error | None).
+    """
+    provider = get_llm_provider()
+    if provider == "gemini":
+        text, err = gemini_client.chat_conversational(
+            question, dataset_context, history=history, factual_hints=factual_hints
+        )
+        if text:
+            return text, "gemini", None
+        return None, "reglas-local", err or "Gemini no respondió"
+    if provider == "openai":
+        text = openai_client.chat_conversational(
+            question, dataset_context, history=history, factual_hints=factual_hints
+        )
+        if text:
+            return text, "chatgpt", None
+        return None, "reglas-local", "OpenAI no respondió — verifique OPENAI_API_KEY"
+    return None, "reglas-local", None
+
+
 def enhance_with_llm(
     question: str,
     factual_answer: str,
     dataset_context: str,
 ) -> Tuple[Optional[str], str, Optional[str]]:
-    """
-    Enriquece respuesta factual con LLM externo si está configurado.
-    Retorna (texto_enriquecido | None, nombre_motor, mensaje_error | None).
-    """
+    """Enriquece respuesta factual (modo legacy / fallback)."""
     provider = get_llm_provider()
     if provider == "openai":
         text = openai_client.enhance_agent_answer(question, factual_answer, dataset_context)

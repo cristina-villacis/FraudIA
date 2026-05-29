@@ -1,8 +1,9 @@
 """
 Agente de IA explicativo para consultas en lenguaje natural.
-Permite al analista hacer preguntas sobre casos, alertas, proveedores y patrones.
-Con OPENAI_API_KEY en .env, enriquece respuestas vía ChatGPT usando solo datos del pipeline.
+Con GEMINI_API_KEY (Vercel) responde como asistente conversacional sobre el análisis cargado.
+Sin LLM externo, usa motor de reglas como respaldo.
 """
+import json
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -10,7 +11,12 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.ai_agent.llm_router import enhance_with_llm, get_llm_provider, llm_status
+from src.ai_agent.llm_router import (
+    chat_with_llm,
+    enhance_with_llm,
+    get_llm_provider,
+    llm_status,
+)
 
 
 class ClaimsAgent:
@@ -168,7 +174,73 @@ class ClaimsAgent:
                     f"{item.get('siniestro')} {item.get('semaforo')} score={item.get('score')}"
                 )
 
+        if "num_alertas" in self.df.columns:
+            with_alerts = int((self.df["num_alertas"] > 0).sum())
+            lines.append(f"Siniestros con al menos una alerta: {with_alerts}")
+
+        if self.semaforo_col in self.df.columns and "alertas_reglas" in self.df.columns:
+            rojos = self.df[self.df[self.semaforo_col] == "Rojo"]
+            if len(rojos) > 0 and self.score_col in rojos.columns:
+                lines.append("Muestra casos rojos (ID | score | alertas):")
+                for _, row in rojos.nlargest(8, self.score_col).iterrows():
+                    al = str(row.get("alertas_reglas", ""))[:120]
+                    lines.append(
+                        f"  - {row['id_siniestro']}: {float(row[self.score_col]):.1f} | {al}"
+                    )
+
         return "\n".join(lines)
+
+    def _gather_factual_hints(self, question: str) -> str:
+        """Hechos del motor de reglas para el LLM (no se muestran tal cual al usuario)."""
+        rule_result = self._run_rule_handlers(question.lower().strip())
+        parts: List[str] = []
+        respuesta = rule_result.get("respuesta")
+        if isinstance(respuesta, str) and respuesta.strip():
+            parts.append("EXTRACTO MOTOR DE REGLAS:\n" + respuesta.strip()[:3500])
+        datos = rule_result.get("datos")
+        if datos is not None:
+            try:
+                if isinstance(datos, list):
+                    slim = []
+                    for item in datos[:12]:
+                        if isinstance(item, dict):
+                            slim.append({k: item.get(k) for k in list(item.keys())[:14]})
+                    parts.append(
+                        "REGISTROS RELACIONADOS (JSON):\n"
+                        + json.dumps(slim, default=str, ensure_ascii=False)[:4500]
+                    )
+                elif isinstance(datos, dict):
+                    slim = {k: datos.get(k) for k in list(datos.keys())[:22]}
+                    parts.append(
+                        "REGISTRO RELACIONADO (JSON):\n"
+                        + json.dumps(slim, default=str, ensure_ascii=False)[:3000]
+                    )
+            except Exception:
+                pass
+        return "\n\n".join(parts)
+
+    def _run_rule_handlers(self, question_lower: str) -> Dict[str, Any]:
+        """Motor de reglas (respaldo cuando no hay LLM o falla la API)."""
+        handlers = [
+            (self._is_case_query, self._handle_case_query),
+            (self._is_explainability_query, self._handle_explainability_query),
+            (self._is_ml_query, self._handle_ml_query),
+            (self._is_summary_query, self._handle_summary_query),
+            (self._is_top_risk_query, self._handle_top_risk_query),
+            (self._is_provider_query, self._handle_provider_query),
+            (self._is_insured_query, self._handle_insured_query),
+            (self._is_branch_query, self._handle_branch_query),
+            (self._is_vehicle_query, self._handle_vehicle_query),
+            (self._is_coverage_query, self._handle_coverage_query),
+            (self._is_pattern_query, self._handle_pattern_query),
+            (self._is_alert_query, self._handle_alert_query),
+            (self._is_count_query, self._handle_count_query),
+            (self._is_amount_query, self._handle_amount_query),
+        ]
+        for check, handler in handlers:
+            if check(question_lower):
+                return handler(question_lower)
+        return self._handle_general_query(question_lower)
 
     def _use_external_llm(self) -> bool:
         return get_llm_provider() != "local"
@@ -187,65 +259,89 @@ class ClaimsAgent:
             return clean
         return clean
 
-    def query(self, question: str) -> Dict:
-        question_lower = question.lower().strip()
-
-        handlers = [
-            (self._is_case_query, self._handle_case_query),
-            (self._is_explainability_query, self._handle_explainability_query),
-            (self._is_ml_query, self._handle_ml_query),
-            (self._is_summary_query, self._handle_summary_query),
-            (self._is_top_risk_query, self._handle_top_risk_query),
-            (self._is_provider_query, self._handle_provider_query),
-            (self._is_insured_query, self._handle_insured_query),
-            (self._is_branch_query, self._handle_branch_query),
-            (self._is_vehicle_query, self._handle_vehicle_query),
-            (self._is_coverage_query, self._handle_coverage_query),
-            (self._is_pattern_query, self._handle_pattern_query),
-            (self._is_alert_query, self._handle_alert_query),
-            (self._is_count_query, self._handle_count_query),
-            (self._is_amount_query, self._handle_amount_query),
-        ]
-
-        result = None
-        for check, handler in handlers:
-            if check(question_lower):
-                result = handler(question_lower)
-                break
-        if result is None:
-            result = self._handle_general_query(question_lower)
-
-        result.setdefault("motor", "reglas-local")
+    def query(
+        self,
+        question: str,
+        history: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict:
+        question = (question or "").strip()
         status = llm_status()
-        result.update(status)
-        result["openai_used"] = False
-        result["gemini_used"] = False
+        result: Dict[str, Any] = {
+            **status,
+            "openai_used": False,
+            "gemini_used": False,
+            "llm_primary": False,
+        }
 
-        if self._use_external_llm() and result.get("tipo") not in ("ayuda",):
-            factual = result.get("respuesta", "")
-            context = self.build_dataset_context()
-            if result.get("datos") and isinstance(result["datos"], dict):
-                context += "\n\nDetalle caso:\n" + str(
-                    {k: result["datos"].get(k) for k in (
-                        "id_siniestro", "score_hibrido", "score_reglas",
-                        "ml_fraud_probability", "anomaly_score",
-                        "semaforo_final", "alertas_reglas", "reglas_criticas",
-                        "ramo", "cobertura", "monto_reclamado",
-                    ) if k in result["datos"]}
-                )
+        if not question:
+            result["respuesta"] = (
+                "Escriba su consulta sobre la cartera analizada: casos, alertas, "
+                "proveedores, montos o cualquier duda del análisis."
+            )
+            result["motor"] = "local"
+            result["tipo"] = "ayuda"
+            return result
+
+        if len(self.df) == 0:
+            result["respuesta"] = (
+                "No hay siniestros analizados en esta sesión. Cargue un Excel en "
+                "«Carga de datos» y active el motor IA antes de consultar."
+            )
+            result["motor"] = "local"
+            result["tipo"] = "ayuda"
+            return result
+
+        # --- Modo principal: asistente conversacional (Gemini / OpenAI) ---
+        if self._use_external_llm():
+            context = self.build_dataset_context(max_top=25)
+            hints = self._gather_factual_hints(question)
+            text, motor, llm_error = chat_with_llm(
+                question,
+                context,
+                history=history,
+                factual_hints=hints or None,
+            )
+            if text:
+                result["respuesta"] = self._apply_response_style(text)
+                result["motor"] = motor
+                result["llm_primary"] = True
+                result["gemini_used"] = motor.startswith("gemini")
+                result["openai_used"] = motor.startswith("chatgpt")
+                result["tipo"] = "conversacion"
+                rule_result = self._run_rule_handlers(question.lower())
+                if rule_result.get("datos") is not None:
+                    result["datos"] = rule_result.get("datos")
+                return result
+            result["llm_error"] = llm_error
+
+        # --- Respaldo: motor de reglas (+ enriquecimiento LLM si aplica) ---
+        rule_result = self._run_rule_handlers(question.lower())
+        rule_result.update(status)
+        rule_result.setdefault("motor", "reglas-local")
+        rule_result["openai_used"] = False
+        rule_result["gemini_used"] = False
+        rule_result["llm_primary"] = False
+
+        if self._use_external_llm() and rule_result.get("tipo") not in ("ayuda",):
+            factual = rule_result.get("respuesta", "")
+            context = self.build_dataset_context(max_top=25)
             enhanced, motor, llm_error = enhance_with_llm(question, factual, context)
             if enhanced:
-                result["respuesta"] = enhanced
-                result["motor"] = motor
-                result["openai_used"] = motor.startswith("chatgpt")
-                result["gemini_used"] = motor.startswith("gemini")
-            else:
-                result["motor"] = motor
-                if llm_error:
-                    result["llm_error"] = llm_error
+                rule_result["respuesta"] = enhanced
+                rule_result["motor"] = motor
+                rule_result["gemini_used"] = motor.startswith("gemini")
+                rule_result["openai_used"] = motor.startswith("chatgpt")
+            elif llm_error:
+                rule_result["llm_error"] = llm_error
+                note = f"*No pude conectar con el asistente IA ({llm_error}). Respuesta del motor local:*\n\n"
+                rule_result["respuesta"] = note + str(rule_result.get("respuesta", ""))
+        elif result.get("llm_error"):
+            note = f"*Asistente IA no disponible ({result['llm_error']}). Respuesta del motor local:*\n\n"
+            rule_result["respuesta"] = note + str(rule_result.get("respuesta", ""))
+            rule_result["llm_error"] = result["llm_error"]
 
-        result["respuesta"] = self._apply_response_style(result.get("respuesta", ""))
-        return result
+        rule_result["respuesta"] = self._apply_response_style(rule_result.get("respuesta", ""))
+        return rule_result
 
     def _is_explainability_query(self, q: str) -> bool:
         return any(w in q for w in [

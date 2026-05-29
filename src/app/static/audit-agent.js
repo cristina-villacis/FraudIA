@@ -3,13 +3,14 @@
  */
 const AuditAgent = (function () {
     const SUGGESTIONS = [
-        '¿Por qué los casos en rojo fueron catalogados como riesgo alto?',
-        'Explica las alertas del siniestro de mayor score.',
-        '¿Qué reglas activaron semáforo amarillo en los casos críticos?',
-        'Resume las justificaciones de riesgo bajo vs alto en el archivo cargado.',
+        '¿Cuántos casos rojos hay y cuál es el monto total expuesto?',
+        'Explícame el siniestro con mayor score y por qué está en rojo.',
+        '¿Qué proveedores concentran más alertas?',
+        'Compara el riesgo entre ramos de la cartera.',
     ];
 
     let initialized = false;
+    const chatHistory = [];
 
     function shell() {
         return document.getElementById('auditAgentContent');
@@ -89,9 +90,9 @@ const AuditAgent = (function () {
         if (!msgs || msgs.dataset.welcome === '1') return;
         msgs.dataset.welcome = '1';
         appendAgentMessage(
-            'Hola, soy su colega de auditoría en FXecure. Cuando termine de cargar y analizar su Excel, '
-            + 'puede preguntarme por casos, proveedores o patrones — le responderé con tablas claras '
-            + 'y en un lenguaje directo, usando todos los siniestros de la sesión.',
+            'Hola, soy su asistente de auditoría en FXecure. Tras cargar y analizar su cartera, '
+            + 'puede preguntarme lo que necesite en lenguaje natural: un caso concreto, comparaciones, '
+            + 'proveedores, montos o el porqué de un semáforo. Respondo con los datos de su análisis actual.',
             null
         );
     }
@@ -188,7 +189,7 @@ const AuditAgent = (function () {
             const resp = await fetch('/api/agent-query', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ question: q }),
+                body: JSON.stringify({ question: q, history: chatHistory.slice(-10) }),
             });
             const data = await resp.json();
             const loader = document.getElementById(loadId);
@@ -200,7 +201,12 @@ const AuditAgent = (function () {
             }
 
             const answer = data.respuesta || data.error || 'Sin respuesta';
+            chatHistory.push({ role: 'user', content: q });
+            chatHistory.push({ role: 'model', content: answer });
+            if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
+
             let meta = data.motor ? `Motor: ${data.motor}` : '';
+            if (data.gemini_used) meta += (meta ? ' · ' : '') + 'Gemini';
             if (data.llm_error) {
                 meta += (meta ? ' · ' : '') + `Aviso: ${data.llm_error}`;
             }
@@ -231,7 +237,11 @@ const AuditAgent = (function () {
         initialized = true;
     }
 
-    return { init, send, refreshStatus, initialized: () => initialized };
+    function clearHistory() {
+        chatHistory.length = 0;
+    }
+
+    return { init, send, refreshStatus, clearHistory, initialized: () => initialized };
 })();
 
 window.AuditAgent = AuditAgent;

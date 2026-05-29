@@ -1282,15 +1282,23 @@ def get_case(case_id: str) -> dict:
 
 
 def agent_status() -> dict:
+    from src.ai_agent.llm_router import llm_status
+
     df = app_state.get("df_scored")
     count = len(df) if df is not None and not getattr(df, "empty", True) else None
+    status = llm_status()
     return {
-        **llm_status(),
-        "openai_configured": is_openai_configured(),
-        "openai_model": get_openai_model() if is_openai_configured() else None,
+        **status,
+        "openai_configured": status.get("openai_configured", is_openai_configured()),
+        "openai_model": status.get("openai_model") or (
+            get_openai_model() if is_openai_configured() else None
+        ),
         "pipeline_ready": app_state.get("agent") is not None,
         "siniestros_count": count,
         "vercel": is_vercel_runtime(),
+        "agent_mode": "gemini_conversacional" if status.get("llm_provider") == "gemini" else (
+            "chatgpt_conversacional" if status.get("llm_provider") == "openai" else "reglas_local"
+        ),
     }
 
 
@@ -1332,6 +1340,25 @@ def _ensure_agent_ready() -> bool:
     return False
 
 
+def _normalize_chat_history(body: dict) -> list:
+    raw = (body or {}).get("history") or []
+    if not isinstance(raw, list):
+        return []
+    turns = []
+    for item in raw[-10:]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role", "user")).strip().lower()
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        if role in ("assistant", "model", "agent"):
+            turns.append({"role": "model", "content": content[:4000]})
+        else:
+            turns.append({"role": "user", "content": content[:4000]})
+    return turns
+
+
 def agent_query(body: dict) -> dict:
     if not _ensure_agent_ready():
         raise ValueError(
@@ -1342,7 +1369,8 @@ def agent_query(body: dict) -> dict:
     if not question:
         raise ValueError("Pregunta vacía")
     agent.set_extra_context(build_agent_context())
-    result = agent.query(question)
+    history = _normalize_chat_history(body or {})
+    result = agent.query(question, history=history)
     if "datos" in result and result["datos"] is not None:
         items = result["datos"] if isinstance(result["datos"], list) else [result["datos"]]
         for item in items:

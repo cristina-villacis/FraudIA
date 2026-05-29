@@ -9,8 +9,8 @@
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/ingest.css?v=3">
-    <link rel="stylesheet" href="/static/dashboard-premium.css?v=3">
-    <link rel="stylesheet" href="/static/ml-premium.css?v=3">
+    <link rel="stylesheet" href="/static/dashboard-premium.css?v=4">
+    <link rel="stylesheet" href="/static/ml-premium.css?v=5">
     <link rel="stylesheet" href="/static/audit-agent.css?v=1">
     <link rel="stylesheet" href="/static/case-report.css?v=1">
     <style>
@@ -1747,7 +1747,7 @@
         </div>
 
         <!-- ═══════ TAB: CASES ═══════ -->
-        <div id="tab-cases" class="tab-panel">
+        <div id="tab-cases" class="tab-panel cases-bandeja-module">
             <div class="section-header">
                 <h2>Bandeja de casos</h2>
                 <div class="section-line"></div>
@@ -2563,10 +2563,14 @@
         messages.innerHTML += `<div class="chat-msg chat-agent" id="${loadId}"><span class="spinner"></span> Analizando...</div>`;
         messages.scrollTop = messages.scrollHeight;
         try {
+            if (!window._fxecureChatHistory) window._fxecureChatHistory = [];
             const baseOpts = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question }),
+                body: JSON.stringify({
+                    question,
+                    history: window._fxecureChatHistory.slice(-10),
+                }),
             };
             const resp = await fetch('/api/agent-query', withFraudiaSessionHeaders(baseOpts));
             const data = await resp.json();
@@ -2579,7 +2583,13 @@
                 return;
             }
             const answer = data.respuesta || data.error || 'Sin respuesta';
+            window._fxecureChatHistory.push({ role: 'user', content: question });
+            window._fxecureChatHistory.push({ role: 'model', content: answer });
+            if (window._fxecureChatHistory.length > 20) {
+                window._fxecureChatHistory.splice(0, window._fxecureChatHistory.length - 20);
+            }
             let motorLine = data.motor ? 'Motor: ' + data.motor : '';
+            if (data.gemini_used) motorLine += (motorLine ? ' · ' : '') + 'Gemini';
             if (data.llm_error) motorLine += (motorLine ? ' · ' : '') + data.llm_error;
             const motor = motorLine
                 ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">' + escapeHtml(motorLine) + '</div>'
@@ -2714,9 +2724,9 @@
 </script>
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>
-    <script src="/static/cases-bandeja.js?v=3"></script>
-    <script src="/static/audit-agent.js?v=2"></script>
-    <script src="/static/ml-engine.js?v=12"></script>
+    <script src="/static/cases-bandeja.js?v=5"></script>
+    <script src="/static/audit-agent.js?v=3"></script>
+    <script src="/static/ml-engine.js?v=14"></script>
     <script src="/static/dashboard.js?v=11"></script>
 </body>
 </html>

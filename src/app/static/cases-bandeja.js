@@ -25,23 +25,47 @@ const CasesBandeja = (function () {
 
     function shellHtml() {
         return `
-            <div class="section-header">
-                <h2>Bandeja de casos</h2>
-                <div class="section-line"></div>
-            </div>
-            <p class="bandeja-intro">Revise todos los siniestros analizados. Los casos de mayor prioridad aparecen primero; use los filtros como en Excel.</p>
-            <div class="bandeja-filters card" style="margin:1rem 0;">
-                <div class="bandeja-filter-row">
-                    <label>Tipo de ramo <select id="filterRamoBandeja"><option value="">Todos</option></select></label>
-                    <label>Cobertura <select id="filterCoberturaBandeja"><option value="">Todas</option></select></label>
-                    <label>Tipo de semáforo <select id="filterSemaforoBandeja"><option value="">Todos</option></select></label>
-                    <label>Monto mín. <input type="number" id="filterMontoMin" placeholder="0" min="0"></label>
-                    <label>Monto máx. <input type="number" id="filterMontoMax" placeholder="Sin límite" min="0"></label>
-                    <label>Score mín. <input type="number" id="filterScoreMinBandeja" min="0" max="100"></label>
-                    <label>Score máx. <input type="number" id="filterScoreMaxBandeja" min="0" max="100"></label>
-                    <button type="button" class="btn btn-secondary" id="btnClearBandejaFilters">Limpiar filtros</button>
+            <p class="bandeja-intro">Revise todos los siniestros analizados. Los casos de mayor prioridad aparecen primero; use los filtros para acotar la tabla.</p>
+            <div class="dash-panel bandeja-filters-panel">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Filtros de búsqueda</h3>
                 </div>
-                <p class="dash-chart-help" id="bandejaCountLabel">—</p>
+                <div class="bandeja-filters-body">
+                    <div class="dashboard-toolbar-grid bandeja-toolbar-grid">
+                        <div class="dashboard-filter">
+                            <label for="filterRamoBandeja">Tipo de ramo</label>
+                            <select id="filterRamoBandeja"><option value="">Todos</option></select>
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterCoberturaBandeja">Cobertura</label>
+                            <select id="filterCoberturaBandeja"><option value="">Todas</option></select>
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterSemaforoBandeja">Semáforo</label>
+                            <select id="filterSemaforoBandeja"><option value="">Todos</option></select>
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterMontoMin">Monto mín.</label>
+                            <input type="number" id="filterMontoMin" placeholder="0" min="0">
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterMontoMax">Monto máx.</label>
+                            <input type="number" id="filterMontoMax" placeholder="Sin límite" min="0">
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterScoreMinBandeja">Score mín.</label>
+                            <input type="number" id="filterScoreMinBandeja" min="0" max="100" placeholder="0">
+                        </div>
+                        <div class="dashboard-filter">
+                            <label for="filterScoreMaxBandeja">Score máx.</label>
+                            <input type="number" id="filterScoreMaxBandeja" min="0" max="100" placeholder="100">
+                        </div>
+                    </div>
+                    <div class="dashboard-filter-actions bandeja-filter-actions">
+                        <button type="button" class="btn btn-secondary" id="btnClearBandejaFilters">Limpiar filtros</button>
+                    </div>
+                    <p class="bandeja-count-label" id="bandejaCountLabel">—</p>
+                </div>
             </div>
             <div class="table-container bandeja-table-wrap">
                 <table class="dash-table bandeja-data-table" id="bandejaMainTable">
@@ -103,7 +127,9 @@ const CasesBandeja = (function () {
         const tbody = document.getElementById('bandejaTableBody');
         const lbl = document.getElementById('bandejaCountLabel');
         if (!tbody) return;
-        if (lbl) lbl.textContent = `Mostrando ${filtered.length.toLocaleString()} de ${allCases.length.toLocaleString()} siniestros`;
+        if (lbl) {
+            lbl.innerHTML = `Mostrando <strong>${filtered.length.toLocaleString()}</strong> de <strong>${allCases.length.toLocaleString()}</strong> siniestros`;
+        }
         if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--text-muted);">Sin registros con los filtros actuales.</td></tr>';
             return;

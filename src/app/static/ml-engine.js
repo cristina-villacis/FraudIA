@@ -8,30 +8,82 @@ const mlEngineState = {
 
 function buildMlShell() {
     return `
-        <header class="ml-ia-header">
-            <div class="ml-ia-header-main">
+        <header class="ml-topbar">
+            <div class="ml-topbar-intro">
                 <div class="ml-ia-title">
                     <h2>Análisis predictivo</h2>
                     <p>Simule escenarios y revise el desempeño del modelo sobre su cartera cargada.</p>
                 </div>
-                <div class="ml-metrics-strip">
-                    <div class="ml-metric-pill"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
-                    <div class="ml-metric-pill"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
-                    <div class="ml-metric-pill"><label>Precisión</label><strong id="mlHdrAccuracy">—</strong></div>
-                    <div class="ml-metric-pill"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
-                    <div class="ml-metric-pill"><label>F1</label><strong id="mlHdrF1">—</strong></div>
+                <div class="ml-neural-pulse" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span><span></span>
                 </div>
             </div>
-            <aside class="ml-panel ml-sim-sidebar">
+            <div class="ml-metrics-strip">
+                <div class="ml-metric-pill"><label>Estado</label><strong id="mlHdrStatus">—</strong></div>
+                <div class="ml-metric-pill"><label>Modelo</label><strong id="mlHdrModel">—</strong></div>
+                <div class="ml-metric-pill"><label>Precisión</label><strong id="mlHdrAccuracy">—</strong></div>
+                <div class="ml-metric-pill"><label>Recall</label><strong id="mlHdrRecall">—</strong></div>
+                <div class="ml-metric-pill"><label>F1</label><strong id="mlHdrF1">—</strong></div>
+            </div>
+        </header>
+
+        <div class="ml-body-layout">
+            <div class="ml-main">
+                <h3 class="ml-section-heading">Visualizaciones del modelo</h3>
+
+                <div class="ml-panel ml-chart-panel">
+                    <div class="ml-panel-title">Matriz de confusión</div>
+                    <div id="chartConfusion" class="chart-area ml-chart-confusion"></div>
+                </div>
+
+                <div class="ml-grid-2 ml-prob-charts-row">
+                    <div class="ml-panel ml-chart-panel">
+                        <div class="ml-panel-title">Prob. elevada sin alerta roja</div>
+                        <p class="ml-panel-help">Probabilidad ML ≥50% con semáforo distinto de rojo.</p>
+                        <div id="chartProbHidden" class="chart-area ml-chart-prob"></div>
+                    </div>
+                    <div class="ml-panel ml-chart-panel">
+                        <div class="ml-panel-title">Probabilidad ML por semáforo</div>
+                        <p class="ml-panel-help">Promedio de probabilidad y casos con prob. ≥70%.</p>
+                        <div id="chartProbBySem" class="chart-area ml-chart-prob"></div>
+                    </div>
+                </div>
+
+                <div class="ml-grid-2 ml-monitor-row">
+                    <div class="ml-panel ml-chart-panel">
+                        <div class="ml-panel-title">Casos atípicos detectados</div>
+                        <p class="ml-panel-help">Monto reclamado vs. score de riesgo por siniestro.</p>
+                        <div id="chartAnomalyScatter" class="chart-area ml-chart-anomaly"></div>
+                    </div>
+                    <div class="ml-panel ml-chart-panel">
+                        <div class="ml-panel-title">Monitoreo del modelo</div>
+                        <div id="mlMonitorPanel" class="ml-monitor-stats"></div>
+                        <div id="chartModelDrift" class="chart-area ml-chart-drift"></div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="ml-panel ml-sim-panel">
                 <div class="ml-panel-title">Simulador predictivo</div>
-                <p class="dash-chart-help">Ajuste los valores y pulse «Recalcular score».</p>
+                <p class="ml-panel-help">Ajuste los valores y pulse «Recalcular score».</p>
                 <div class="ml-sim-grid">
-                    <div class="ml-sim-field"><label>Monto reclamado ($)</label><input type="number" id="simMonto" value="45000" min="0" step="1000"></div>
-                    <div class="ml-sim-field"><label>Días hasta reporte</label><input type="number" id="simDias" value="5" min="0" max="90"></div>
-                    <div class="ml-sim-field"><label>Proveedor recurrente</label>
+                    <div class="ml-sim-field">
+                        <label for="simMonto">Monto reclamado ($)</label>
+                        <input type="number" id="simMonto" value="45000" min="0" step="1000">
+                    </div>
+                    <div class="ml-sim-field">
+                        <label for="simDias">Días hasta reporte</label>
+                        <input type="number" id="simDias" value="5" min="0" max="90">
+                    </div>
+                    <div class="ml-sim-field ml-sim-field-full">
+                        <label for="simProv">Proveedor recurrente</label>
                         <select id="simProv"><option value="0">No</option><option value="1">Sí</option></select>
                     </div>
-                    <div class="ml-sim-field"><label>Similitud narrativa (%)</label><input type="range" id="simNlp" min="0" max="100" value="20"><span id="simNlpVal" class="ml-sim-nlp-val">20%</span></div>
+                    <div class="ml-sim-field ml-sim-field-full">
+                        <label for="simNlp">Similitud narrativa</label>
+                        <input type="range" id="simNlp" min="0" max="100" value="20" class="ml-sim-range">
+                        <span id="simNlpVal" class="ml-sim-nlp-val">20%</span>
+                    </div>
                 </div>
                 <button type="button" class="btn btn-primary ml-sim-btn" id="btnSimRecalc">Recalcular score</button>
                 <div class="ml-sim-result">
@@ -39,60 +91,8 @@ function buildMlShell() {
                     <div class="ml-sim-prob" id="simProbOut">Prob. de revisión — · Severidad —</div>
                 </div>
             </aside>
-        </header>
-
-        <div class="ml-models-grid" id="mlModelsGrid"></div>
-
-        <div class="ml-panel" style="margin-bottom:1.25rem;">
-            <div class="ml-panel-title">Matriz de confusión</div>
-            <div id="chartConfusion" class="chart-area" style="min-height:300px;"></div>
-        </div>
-
-        <div class="ml-grid-2 ml-prob-charts-row">
-            <div class="ml-panel">
-                <div class="ml-panel-title">Prob. elevada sin alerta roja</div>
-                <p class="dash-chart-help">Siniestros con probabilidad ML de fraude ≥50% pero semáforo final distinto de rojo (no acusados como críticos).</p>
-                <div id="chartProbHidden" class="chart-area ml-chart-prob"></div>
-            </div>
-            <div class="ml-panel">
-                <div class="ml-panel-title">Probabilidad ML por semáforo</div>
-                <p class="dash-chart-help">Promedio de probabilidad del modelo y casos con prob. ≥70% según el semáforo operativo.</p>
-                <div id="chartProbBySem" class="chart-area ml-chart-prob"></div>
-            </div>
-        </div>
-
-        <div class="ml-grid-2 ml-monitor-row">
-            <div class="ml-panel">
-                <div class="ml-panel-title">Casos atípicos detectados</div>
-                <div id="chartAnomalyScatter" class="chart-area ml-chart-anomaly"></div>
-                <p class="dash-chart-help">Cada punto es un siniestro: monto vs. score de riesgo.</p>
-            </div>
-            <div class="ml-panel">
-                <div class="ml-panel-title">Monitoreo del modelo</div>
-                <div id="mlMonitorPanel"></div>
-                <div id="chartModelDrift" class="chart-area ml-chart-drift"></div>
-            </div>
         </div>
     `;
-}
-
-function renderModelCards(metrics) {
-    const grid = document.getElementById('mlModelsGrid');
-    if (!grid) return;
-    const auc = Number(metrics.auc_roc || 0).toFixed(3);
-    const anom = metrics.anomalies_detected ?? '—';
-    const trained = metrics.trained !== false && !metrics.error;
-    const cards = [
-        { name: 'Modelo supervisado', status: trained ? 'on' : 'off', note: `AUC ${auc}`, meta: metrics.model_version || 'fxecure-ml-1.0' },
-        { name: 'Detección de anomalías', status: trained ? 'on' : 'off', note: `${anom} atípicos`, meta: 'Comportamiento inusual' },
-    ];
-    grid.innerHTML = cards.map((c) => `
-        <div class="ml-model-card ${c.status === 'on' ? 'active' : 'standby'}">
-            <div class="ml-model-status ${c.status}">${c.status === 'on' ? '● Activo' : '○ En espera'}</div>
-            <h4>${c.name}</h4>
-            <div class="ml-model-meta">${c.note}<br>${c.meta}</div>
-        </div>
-    `).join('');
 }
 
 function mlFetch(url, options = {}) {
@@ -419,7 +419,6 @@ async function initMlEngine() {
         mlEngineState.metrics = data;
         ensureMlShell(container);
         safeRender(() => renderMlHeader(data), 'header');
-        safeRender(() => renderModelCards(data), 'cards');
         safeRender(() => renderConfusionChart(data), 'confusion');
         safeRender(() => renderProbHiddenChart(data), 'prob-hidden');
         safeRender(() => renderProbBySemaforoChart(data), 'prob-sem');

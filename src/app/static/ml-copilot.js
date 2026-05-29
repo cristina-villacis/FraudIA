@@ -216,6 +216,14 @@ const MlCopilot = (function () {
         const el = messagesEl();
         if (!el) return;
         const answer = data.respuesta || data.error || 'Sin respuesta';
+        if (!window._mlCopilotHistory) window._mlCopilotHistory = [];
+        if (question) {
+            window._mlCopilotHistory.push({ role: 'user', content: String(question).slice(0, 4000) });
+            window._mlCopilotHistory.push({ role: 'model', content: String(answer).slice(0, 4000) });
+            if (window._mlCopilotHistory.length > 20) {
+                window._mlCopilotHistory.splice(0, window._mlCopilotHistory.length - 20);
+            }
+        }
         const motor = data.motor
             ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.5rem;">Motor: ${escapeHtml(data.motor)} · auditable</div>`
             : '';
@@ -374,7 +382,10 @@ const MlCopilot = (function () {
 
             const resp = await apiFetch('/api/agent-query', {
                 method: 'POST',
-                body: JSON.stringify({ question: q }),
+                body: JSON.stringify({
+                    question: q,
+                    history: (window._mlCopilotHistory || []).slice(-10),
+                }),
             });
             let data = {};
             try {
