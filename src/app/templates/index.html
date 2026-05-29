@@ -2588,14 +2588,8 @@
             if (window._fxecureChatHistory.length > 20) {
                 window._fxecureChatHistory.splice(0, window._fxecureChatHistory.length - 20);
             }
-            let motorLine = data.motor ? 'Motor: ' + data.motor : '';
-            if (data.gemini_used) motorLine += (motorLine ? ' · ' : '') + 'Gemini';
-            if (data.llm_error) motorLine += (motorLine ? ' · ' : '') + data.llm_error;
-            const motor = motorLine
-                ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">' + escapeHtml(motorLine) + '</div>'
-                : '';
             const extraData = renderAgentDataBlock(data.datos, question);
-            messages.innerHTML += `<div class="chat-msg chat-agent">${renderAgentText(answer)}${extraData}${motor}</div>`;
+            messages.innerHTML += `<div class="chat-msg chat-agent">${renderAgentText(answer)}${extraData}</div>`;
         } catch (e) {
             const loader = document.getElementById(loadId);
             if (loader) loader.remove();
@@ -2725,7 +2719,7 @@
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>
     <script src="/static/cases-bandeja.js?v=5"></script>
-    <script src="/static/audit-agent.js?v=3"></script>
+    <script src="/static/audit-agent.js?v=4"></script>
     <script src="/static/ml-engine.js?v=14"></script>
     <script src="/static/dashboard.js?v=11"></script>
 </body>

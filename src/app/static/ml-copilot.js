@@ -224,16 +224,12 @@ const MlCopilot = (function () {
                 window._mlCopilotHistory.splice(0, window._mlCopilotHistory.length - 20);
             }
         }
-        const motor = data.motor
-            ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.5rem;">Motor: ${escapeHtml(data.motor)} · auditable</div>`
-            : '';
         const extra = renderDataBlock(data.datos, question);
         el.insertAdjacentHTML('beforeend', `
             <div class="copilot-msg agent">
                 <div class="copilot-msg-body">
                     ${plainAgentText(answer)}
                     ${extra}
-                    ${motor}
                 </div>
             </div>`);
         el.querySelectorAll('.copilot-case-card[data-case-id]').forEach((card) => {

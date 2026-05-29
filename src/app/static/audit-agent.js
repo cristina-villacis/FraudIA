@@ -36,7 +36,6 @@ const AuditAgent = (function () {
             </div>
             <div class="audit-status-bar" id="auditStatusBar">
                 <span class="audit-status-pill warn" id="auditDatasetPill">Cartera: verificando…</span>
-                <span class="audit-status-pill" id="auditLlmPill">Asistente: —</span>
             </div>
             <div class="audit-suggestions" id="auditSuggestions"></div>
             <div class="audit-chat-shell">
@@ -129,7 +128,6 @@ const AuditAgent = (function () {
 
     async function refreshStatus() {
         const dsPill = document.getElementById('auditDatasetPill');
-        const llmPill = document.getElementById('auditLlmPill');
         try {
             const opts = typeof withFraudiaSessionHeaders === 'function'
                 ? withFraudiaSessionHeaders({})
@@ -145,13 +143,6 @@ const AuditAgent = (function () {
                     dsPill.textContent = 'Dataset: sin análisis — cargue Excel y active motor IA';
                     dsPill.className = 'audit-status-pill warn';
                 }
-            }
-            if (llmPill) {
-                const prov = data.llm_provider || 'local';
-                const gem = data.gemini_configured ? 'Gemini ✓' : 'Gemini ✗';
-                const model = data.gemini_model || data.openai_model || 'reglas locales';
-                llmPill.textContent = `Motor: ${prov} · ${gem} · ${model}`;
-                llmPill.className = 'audit-status-pill' + (data.pipeline_ready ? ' ready' : '');
             }
         } catch (_) {
             if (dsPill) dsPill.textContent = 'Estado: no disponible';
@@ -205,18 +196,13 @@ const AuditAgent = (function () {
             chatHistory.push({ role: 'model', content: answer });
             if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
 
-            let meta = data.motor ? `Motor: ${data.motor}` : '';
-            if (data.gemini_used) meta += (meta ? ' · ' : '') + 'Gemini';
-            if (data.llm_error) {
-                meta += (meta ? ' · ' : '') + `Aviso: ${data.llm_error}`;
-            }
             const extra = typeof renderAgentDataBlock === 'function'
                 ? renderAgentDataBlock(data.datos, q)
                 : '';
             const html = typeof renderAgentText === 'function'
                 ? renderAgentText(answer)
                 : escapeHtml(answer).replace(/\n/g, '<br>');
-            appendAgentMessage(html + extra, meta || null);
+            appendAgentMessage(html + extra, null);
             refreshStatus();
         } catch (e) {
             const loader = document.getElementById(loadId);
