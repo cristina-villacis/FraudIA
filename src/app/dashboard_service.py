@@ -112,6 +112,361 @@ def _build_score_distribution_by_risk(df: pd.DataFrame, score_col: str) -> Dict[
     }
 
 
+SIGNAL_META: Dict[str, Dict[str, str]] = {
+    "Reclamo cercano al borde de vigencia": {
+        "explanation": "Siniestros declarados en las primeras horas de vigencia de la póliza.",
+        "action": "Auditar fechas de emisión y documentación de apertura.",
+        "priority": "alta",
+    },
+    "Demora denuncia por robo": {
+        "explanation": "Demora atípica entre el hecho y la denuncia en reclamos por robo.",
+        "action": "Solicitar parte policial y cronología del evento.",
+        "priority": "alta",
+    },
+    "Alta frecuencia reclamos asegurado": {
+        "explanation": "Asegurado con múltiples siniestros en ventana corta.",
+        "action": "Revisar historial y posibles reclamaciones coordinadas.",
+        "priority": "alta",
+    },
+    "Alta frecuencia reclamos vehículo": {
+        "explanation": "Vehículo con patrón de reclamos repetidos.",
+        "action": "Cruzar con peritajes y talleres recurrentes.",
+        "priority": "media",
+    },
+    "Alta frecuencia conductor": {
+        "explanation": "Conductor vinculado a varios eventos sospechosos.",
+        "action": "Validar identidad y relación con terceros.",
+        "priority": "media",
+    },
+    "Reclamos solo RC": {
+        "explanation": "Concentración de reclamos de responsabilidad civil sin daño propio.",
+        "action": "Analizar dinámica del accidente y testigos.",
+        "priority": "media",
+    },
+    "Beneficiario/proveedor recurrente": {
+        "explanation": "Proveedor repetido en múltiples siniestros de alto riesgo.",
+        "action": "Escalar a investigación de red de proveedores.",
+        "priority": "critica",
+    },
+    "Documentos incompletos": {
+        "explanation": "Expedientes con documentación insuficiente para liquidar.",
+        "action": "Solicitar documentos faltantes antes de pago.",
+        "priority": "media",
+    },
+    "Dinámica sospechosa": {
+        "explanation": "Descripción del siniestro incompatible con evidencia física.",
+        "action": "Peritaje independiente y entrevista al asegurado.",
+        "priority": "critica",
+    },
+    "Eventos sin tercero identificado": {
+        "explanation": "Siniestros sin contraparte identificable.",
+        "action": "Verificar existencia del tercero y daños.",
+        "priority": "media",
+    },
+    "Documentos inconsistentes": {
+        "explanation": "Incoherencias entre facturas, partes y declaraciones.",
+        "action": "Revisión forense documental.",
+        "priority": "alta",
+    },
+    "Reporte tardío": {
+        "explanation": "Patrón temporal anómalo en el reporte del siniestro.",
+        "action": "Contrastar con fechas de ocurrencia y avisos.",
+        "priority": "media",
+    },
+    "Narrativas similares": {
+        "explanation": "Coincidencia sospechosa entre narrativas de distintos casos.",
+        "action": "Análisis de red y comparación textual.",
+        "priority": "alta",
+    },
+    "Monto cercano a suma asegurada": {
+        "explanation": "Reclamo próximo al límite de cobertura contratada.",
+        "action": "Validar suma asegurada y daños reales.",
+        "priority": "alta",
+    },
+    "Alertas en PDF cargados": {
+        "explanation": "Inconsistencias detectadas en documentos PDF adjuntos.",
+        "action": "Revisar OCR y metadatos de archivos.",
+        "priority": "alta",
+    },
+}
+
+
+def _segment_breakdown(
+    df: pd.DataFrame, col: str, score_col: str, semaforo_col: str, limit: int = 12
+) -> List[Dict[str, Any]]:
+    if col not in df.columns or df.empty:
+        return []
+    g = (
+        df.groupby(col)
+        .agg(
+            casos=("id_siniestro", "count"),
+            monto=("monto_reclamado", "sum"),
+            score_avg=(score_col, "mean"),
+            rojos=(semaforo_col, lambda x: (x == "Rojo").sum()),
+            amarillos=(semaforo_col, lambda x: (x == "Amarillo").sum()),
+            verdes=(semaforo_col, lambda x: (x == "Verde").sum()),
+        )
+        .reset_index()
+        .sort_values(["rojos", "score_avg", "casos"], ascending=[False, False, False])
+        .head(limit)
+    )
+    g = g.round(2)
+    return [
+        {
+            "label": str(row[col]),
+            "casos": int(row["casos"]),
+            "monto": round(float(row["monto"] or 0), 2),
+            "score_avg": round(float(row["score_avg"] or 0), 1),
+            "rojos": int(row["rojos"]),
+            "amarillos": int(row["amarillos"]),
+            "verdes": int(row["verdes"]),
+        }
+        for _, row in g.iterrows()
+    ]
+
+
+def _build_treemap_data(df: pd.DataFrame, score_col: str) -> List[Dict[str, Any]]:
+    if "ramo" not in df.columns or df.empty:
+        return []
+    g = (
+        df.groupby("ramo")
+        .agg(
+            value=("monto_reclamado", "sum"),
+            casos=("id_siniestro", "count"),
+            score_avg=(score_col, "mean"),
+        )
+        .reset_index()
+        .sort_values("value", ascending=False)
+        .head(15)
+    )
+    return [
+        {
+            "label": str(r["ramo"]),
+            "value": max(float(r["value"] or 0), 1.0),
+            "casos": int(r["casos"]),
+            "score_avg": round(float(r["score_avg"] or 0), 1),
+        }
+        for _, r in g.iterrows()
+    ]
+
+
+def _build_risk_matrix(df: pd.DataFrame, score_col: str) -> Dict[str, Any]:
+    if df.empty or score_col not in df.columns:
+        return {"x_labels": [], "y_labels": [], "z": []}
+    scores = pd.to_numeric(df[score_col], errors="coerce").fillna(0)
+    montos = pd.to_numeric(df.get("monto_reclamado", 0), errors="coerce").fillna(0)
+    score_bins = ["0-40", "41-60", "61-75", "76-100"]
+    monto_bins = ["<50K", "50K-200K", "200K-500K", ">500K"]
+
+    def score_bucket(s: float) -> str:
+        if s <= 40:
+            return "0-40"
+        if s <= 60:
+            return "41-60"
+        if s <= 75:
+            return "61-75"
+        return "76-100"
+
+    def monto_bucket(m: float) -> str:
+        if m < 50_000:
+            return "<50K"
+        if m < 200_000:
+            return "50K-200K"
+        if m < 500_000:
+            return "200K-500K"
+        return ">500K"
+
+    tmp = pd.DataFrame({"sb": scores.map(score_bucket), "mb": montos.map(monto_bucket)})
+    piv = (
+        tmp.groupby(["mb", "sb"])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=monto_bins, columns=score_bins, fill_value=0)
+    )
+    return {"x_labels": score_bins, "y_labels": monto_bins, "z": piv.values.tolist()}
+
+
+def _build_sparklines(temporal_risk: List[Dict], temporal: List[Dict]) -> Dict[str, List[float]]:
+    months_r = temporal_risk or []
+    months_t = temporal or []
+    critical = [float(m.get("Rojo") or 0) for m in months_r]
+    scores = [float(m.get("score_avg") or 0) for m in months_t] if months_t else []
+    if not scores and months_r:
+        total = [float(m.get("Rojo", 0) or 0) + float(m.get("Amarillo", 0) or 0) + float(m.get("Verde", 0) or 0) for m in months_r]
+        scores = total
+    alerts = [
+        float(m.get("Rojo", 0) or 0) + float(m.get("Amarillo", 0) or 0) * 0.5
+        for m in months_r
+    ]
+    return {
+        "critical_trend": critical[-8:],
+        "score_trend": scores[-8:],
+        "alert_trend": alerts[-8:],
+    }
+
+
+def _global_risk_level(rojos: int, total: int, score_prom: float) -> Dict[str, Any]:
+    pct = (rojos / total * 100) if total else 0
+    if pct >= 25 or score_prom >= 65:
+        level, color, label = "alto", "#FF4D4F", "Riesgo sistémico alto"
+    elif pct >= 12 or score_prom >= 48:
+        level, color, label = "medio", "#FFC857", "Riesgo sistémico moderado"
+    else:
+        level, color, label = "bajo", "#00C48C", "Riesgo sistémico controlado"
+    return {"level": level, "color": color, "label": label, "pct_critical": round(pct, 1)}
+
+
+def _fraud_trend_delta(temporal_risk: List[Dict]) -> Dict[str, Any]:
+    if len(temporal_risk) < 2:
+        return {"delta_pct": 0, "direction": "neutral", "label": "Sin histórico suficiente"}
+    recent = temporal_risk[-1]
+    prev = temporal_risk[-2]
+    r_now = float(recent.get("Rojo") or 0)
+    r_prev = float(prev.get("Rojo") or 0) or 1
+    delta = round((r_now - r_prev) / r_prev * 100, 1)
+    direction = "up" if delta > 2 else "down" if delta < -2 else "neutral"
+    sign = "+" if delta > 0 else ""
+    return {
+        "delta_pct": delta,
+        "direction": direction,
+        "label": f"{sign}{delta}% casos críticos vs. mes anterior",
+    }
+
+
+def _build_ai_insights(
+    df: pd.DataFrame,
+    rojos: int,
+    total: int,
+    provider_risk: List[Dict],
+    geo_risk: List[Dict],
+    trend: Dict[str, Any],
+    score_col: str,
+    semaforo_col: str,
+) -> List[Dict[str, str]]:
+    insights: List[Dict[str, str]] = []
+    if total <= 0:
+        return insights
+    pct_crit = rojos / total * 100
+    if pct_crit >= 15:
+        insights.append({
+            "type": "warning",
+            "text": f"IA detectó concentración elevada de fraude: {pct_crit:.0f}% de casos en riesgo alto.",
+        })
+    if trend.get("direction") == "up" and abs(trend.get("delta_pct", 0)) >= 5:
+        insights.append({
+            "type": "alert",
+            "text": f"Incremento de casos críticos del {abs(trend['delta_pct']):.0f}% respecto al período anterior.",
+        })
+    elif trend.get("direction") == "down" and trend.get("delta_pct", 0) < -5:
+        insights.append({
+            "type": "success",
+            "text": f"Reducción de exposición crítica del {abs(trend['delta_pct']):.0f}% vs. período anterior.",
+        })
+    if geo_risk:
+        top_geo = max(geo_risk, key=lambda g: float(g.get("Rojo") or 0))
+        if float(top_geo.get("Rojo") or 0) >= 3:
+            insights.append({
+                "type": "pattern",
+                "text": f"Patrón anómalo en sucursal {top_geo.get('sucursal', '—')}: {int(top_geo.get('Rojo', 0))} casos críticos.",
+            })
+    if provider_risk and len(provider_risk) >= 2:
+        top3_monto = sum(float(p.get("monto") or 0) for p in provider_risk[:3])
+        total_monto = float(df["monto_reclamado"].sum()) if "monto_reclamado" in df.columns else 0
+        if total_monto > 0:
+            share = top3_monto / total_monto * 100
+            if share >= 20:
+                n = min(3, len(provider_risk))
+                insights.append({
+                    "type": "concentration",
+                    "text": f"{n} proveedores concentran el {share:.0f}% del monto en riesgo revisado.",
+                })
+    if "sucursal" in df.columns and semaforo_col in df.columns:
+        suc_rojo = df[df[semaforo_col] == "Rojo"].groupby("sucursal").size()
+        if len(suc_rojo) and suc_rojo.max() >= 5:
+            worst = suc_rojo.idxmax()
+            insights.append({
+                "type": "pattern",
+                "text": f"Sucursal {worst} lidera casos críticos ({int(suc_rojo.max())} alertas rojas).",
+            })
+    if not insights:
+        insights.append({
+            "type": "info",
+            "text": "Motor de riesgo operando dentro de parámetros normales para el universo filtrado.",
+        })
+    return insights[:6]
+
+
+def _enrich_alerts(
+    signal_counts: List[Dict[str, Any]],
+    df: pd.DataFrame,
+    score_col: str,
+) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for s in sorted(signal_counts, key=lambda x: x.get("count") or 0, reverse=True):
+        name = s.get("signal") or ""
+        count = int(s.get("count") or 0)
+        if count <= 0:
+            continue
+        meta = SIGNAL_META.get(name, {})
+        mask = None
+        if name in SIGNAL_META and name == "Beneficiario/proveedor recurrente" and "prov_casos_observados" in df.columns:
+            mask = df["prov_casos_observados"].fillna(0) > 2
+        impact = 0.0
+        if mask is not None and mask.any() and "monto_reclamado" in df.columns:
+            impact = round(float(df.loc[mask, "monto_reclamado"].sum()), 2)
+        elif count and "monto_reclamado" in df.columns and len(df):
+            impact = round(float(df["monto_reclamado"].sum()) * min(1.0, count / max(len(df), 1)), 2)
+        priority = meta.get("priority") or ("critica" if count > 50 else "alta" if count > 20 else "media")
+        avg_score = round(float(df[score_col].mean()), 1) if score_col in df.columns and len(df) else 0
+        out.append({
+            "signal": name,
+            "count": count,
+            "priority": priority,
+            "severity": "Crítica" if priority == "critica" else "Alta" if priority == "alta" else "Media",
+            "explanation": meta.get("explanation", "Señal de negocio activa en el universo analizado."),
+            "action": meta.get("action", "Revisar casos vinculados en bandeja."),
+            "economic_impact": impact,
+            "score": min(100, int(40 + count * 1.2 + avg_score * 0.3)),
+        })
+    return out[:12]
+
+
+def _build_cases_table(df: pd.DataFrame, score_col: str, semaforo_col: str, limit: int = 40) -> List[Dict[str, Any]]:
+    if df.empty or score_col not in df.columns:
+        return []
+    cols = [
+        "id_siniestro", "ramo", "cobertura", "sucursal", "monto_reclamado",
+        score_col, semaforo_col, "alertas_reglas", "estado", "beneficiario",
+        "ml_fraud_probability",
+    ]
+    cols = [c for c in cols if c in df.columns]
+    top = df.nlargest(limit, score_col)[cols].copy()
+    records = []
+    for _, row in top.iterrows():
+        sc = float(row[score_col]) if pd.notna(row[score_col]) else 0
+        sem = str(row.get(semaforo_col) or "Verde")
+        alertas = str(row.get("alertas_reglas") or "")
+        parts = [p.strip() for p in alertas.split("|") if p.strip()]
+        records.append({
+            "id_siniestro": row.get("id_siniestro"),
+            "ramo": row.get("ramo"),
+            "cobertura": row.get("cobertura"),
+            "sucursal": row.get("sucursal"),
+            "monto_reclamado": float(row.get("monto_reclamado") or 0),
+            "score": round(sc, 1),
+            "semaforo": sem,
+            "estado": row.get("estado") or "En revisión",
+            "beneficiario": row.get("beneficiario"),
+            "alertas_count": len(parts),
+            "alerta_resumen": parts[0][:80] if parts else "Sin alertas activas",
+            "prioridad": "P1" if sc >= 76 else "P2" if sc >= 41 else "P3",
+            "prob_fraude": round(float(row.get("ml_fraud_probability") or 0) * 100, 1)
+            if "ml_fraud_probability" in row.index
+            else None,
+        })
+    return records
+
+
 def apply_dashboard_filters(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd.DataFrame, List[Dict[str, str]]]:
     """Aplica filtros desde query params. Retorna (df_filtrado, filtros_activos)."""
     if df is None or df.empty:
@@ -249,6 +604,16 @@ def build_dashboard_payload(
             "temporal_data": [],
             "active_filters": active_filters,
             "filtered": len(active_filters) > 0,
+            "global_risk": _global_risk_level(0, 0, 0),
+            "ai_insights": [],
+            "enriched_alerts": [],
+            "segment_data": {},
+            "treemap_data": [],
+            "risk_matrix": {"x_labels": [], "y_labels": [], "z": []},
+            "sparklines": {"critical_trend": [], "score_trend": [], "alert_trend": []},
+            "fraud_trend": {"delta_pct": 0, "direction": "neutral", "label": ""},
+            "cases_analytics": [],
+            "active_alerts_count": 0,
         }
 
     score_col, semaforo_col = _score_and_semaforo_cols(df)
@@ -482,4 +847,16 @@ def build_dashboard_payload(
         "provider_risk": provider_risk,
         "temporal_risk_data": temporal_risk_data,
         "geo_risk_data": geo_risk_data,
+        "global_risk": _global_risk_level(rojos, len(df), float(df[score_col].mean()) if score_col in df.columns else 0),
+        "ai_insights": _build_ai_insights(
+            df, rojos, len(df), provider_risk, geo_risk_data, trend, score_col, semaforo_col
+        ),
+        "enriched_alerts": enriched_alerts,
+        "segment_data": segment_data,
+        "treemap_data": _build_treemap_data(df, score_col),
+        "risk_matrix": _build_risk_matrix(df, score_col),
+        "sparklines": sparklines,
+        "fraud_trend": trend,
+        "cases_analytics": _build_cases_table(df, score_col, semaforo_col),
+        "active_alerts_count": active_alerts_count,
     }
