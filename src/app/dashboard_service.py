@@ -811,6 +811,28 @@ def build_dashboard_payload(
             .to_dict("records")
         )
 
+    trend = _fraud_trend_delta(temporal_risk_data)
+    sparklines = _build_sparklines(temporal_risk_data, temporal_data)
+    segment_data = {
+        "sucursal": _segment_breakdown(df, "sucursal", score_col, semaforo_col),
+        "ramo": _segment_breakdown(df, "ramo", score_col, semaforo_col),
+        "cobertura": _segment_breakdown(df, "cobertura", score_col, semaforo_col),
+        "proveedor": [
+            {
+                "label": str(p.get("beneficiario", ""))[:40],
+                "casos": int(p.get("casos") or 0),
+                "monto": float(p.get("monto") or 0),
+                "score_avg": float(p.get("score_prom") or 0),
+                "rojos": 0,
+                "amarillos": 0,
+                "verdes": 0,
+            }
+            for p in provider_risk
+        ],
+    }
+    enriched_alerts = _enrich_alerts(signal_counts, df, score_col)
+    active_alerts_count = sum(int(s.get("count") or 0) for s in signal_counts)
+
     return {
         "semaforo": semaforo_counts,
         "total": len(df),
