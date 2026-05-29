@@ -424,6 +424,190 @@ function populateFilterControls(opts) {
     if (searchEl) searchEl.value = dashboardState.filters.search || '';
 }
 
+const DASH_SVG_ICONS = {
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+    brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A5.5 5.5 0 004 7.5c0 1.38.56 2.63 1.47 3.54A4.5 4.5 0 002 15.5 4.5 4.5 0 006.5 20H17a5 5 0 100-10 5.5 5.5 0 00-2.47-10.46A5.5 5.5 0 009.5 2z"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+};
+
+function fmtExecValue(item) {
+    const v = Number(item.value);
+    if (item.format === 'currency') {
+        if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+        return '$' + v.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    }
+    if (item.format === 'percent') return v.toFixed(1) + '%';
+    if (item.format === 'hours') return v.toFixed(1) + ' h';
+    if (item.format === 'score') return v.toFixed(1);
+    return (item.value ?? 0).toLocaleString('es-CO');
+}
+
+function initDashParticles() {
+    const canvas = document.getElementById('dashParticles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const parent = canvas.parentElement;
+    let w = 0;
+    let h = 0;
+    const dots = [];
+    const N = 48;
+    for (let i = 0; i < N; i++) {
+        dots.push({
+            x: Math.random(),
+            y: Math.random(),
+            r: 0.5 + Math.random() * 1.5,
+            vx: (Math.random() - 0.5) * 0.0004,
+            vy: (Math.random() - 0.5) * 0.0004,
+            a: 0.15 + Math.random() * 0.35,
+        });
+    }
+    function resize() {
+        if (!parent) return;
+        w = parent.clientWidth;
+        h = parent.clientHeight;
+        canvas.width = w;
+        canvas.height = h;
+    }
+    function tick() {
+        if (!w || !h) { requestAnimationFrame(tick); return; }
+        ctx.clearRect(0, 0, w, h);
+        dots.forEach((d) => {
+            d.x += d.vx;
+            d.y += d.vy;
+            if (d.x < 0 || d.x > 1) d.vx *= -1;
+            if (d.y < 0 || d.y > 1) d.vy *= -1;
+            ctx.beginPath();
+            ctx.arc(d.x * w, d.y * h, d.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(59, 130, 246, ${d.a})`;
+            ctx.fill();
+        });
+        requestAnimationFrame(tick);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    tick();
+}
+
+function renderHeroKpis(highlights) {
+    const el = document.getElementById('heroKpisContainer');
+    if (!el) return;
+    const items = highlights && highlights.length ? highlights : [];
+    el.innerHTML = items.map((h) => {
+        const glow = h.glow ? `glow-${h.glow}` : 'glow-blue';
+        const icon = DASH_SVG_ICONS[h.icon] || DASH_SVG_ICONS.layers;
+        const deltaCls = h.delta_dir || 'neutral';
+        const deltaHtml = h.delta ? `<span class="dash-hero-delta ${deltaCls}">${h.delta}</span>` : '';
+        const color = h.key === 'critical' ? 'var(--red)' : h.key === 'financial' ? 'var(--yellow)' : h.key === 'prevented' ? 'var(--green)' : '#fff';
+        return `<article class="dash-hero-card ${glow}">
+            <div class="dash-hero-top">
+                <span class="dash-hero-icon">${icon}</span>
+                <span class="dash-hero-check">✔</span>
+            </div>
+            <div class="dash-hero-label">${h.label}</div>
+            <div class="dash-hero-value" style="color:${color}">${fmtExecValue(h)}</div>
+            ${deltaHtml}
+        </article>`;
+    }).join('') || '<p style="color:var(--text-muted);grid-column:1/-1;">Sin datos — ejecute el análisis.</p>';
+}
+
+function renderExecGrid(extended, sparklines) {
+    const el = document.getElementById('execKpisContainer');
+    if (!el) return;
+    const sp = sparklines || {};
+    el.innerHTML = (extended || []).map((item, i) => {
+        const spark = item.spark_key && sp[item.spark_key]
+            ? renderSparklineSvg(sp[item.spark_key], 'var(--ai-blue, #3B82F6)', 56, 22)
+            : '';
+        return `<div class="dash-exec-card" style="animation-delay:${i * 0.04}s">
+            <div class="dash-exec-card-label">${item.label}</div>
+            <div class="dash-exec-card-value">${fmtExecValue(item)}</div>
+            <div class="dash-exec-card-foot">
+                <span>${item.delta || ''}</span>
+                <span>${spark}</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderRiskBands(bands) {
+    const el = document.getElementById('riskBandsContainer');
+    if (!el) return;
+    el.innerHTML = (bands || []).map((b) => `
+        <div class="dash-risk-band">
+            <span class="dash-risk-band-label" style="color:${b.color}">${b.label}</span>
+            <div class="dash-risk-band-track">
+                <div class="dash-risk-band-fill" style="width:${b.pct}%;background:${b.color};"></div>
+            </div>
+            <span class="dash-risk-band-pct">${b.pct}%</span>
+        </div>
+    `).join('');
+}
+
+function renderRiskRecommendation(rp) {
+    const el = document.getElementById('riskRecommendation');
+    if (!el || !rp) return;
+    const tier = rp.tier || {};
+    el.innerHTML = `<strong>Recomendación · ${tier.label || '—'} (P${tier.priority || '—'})</strong>
+        ${rp.recommendation || '—'}
+        <div style="margin-top:0.5rem;font-size:0.72rem;color:var(--text-muted);">
+            Prob. fraude: <strong style="color:#93C5FD">${(rp.prob_fraude || 0).toFixed(1)}%</strong>
+        </div>`;
+}
+
+function renderCriticalAlertFeed(feed) {
+    const el = document.getElementById('criticalAlertFeed');
+    if (!el) return;
+    if (!feed || !feed.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);padding:1rem;">Sin alertas críticas en el filtro actual.</p>';
+        return;
+    }
+    el.innerHTML = feed.map((a, i) => {
+        const monto = '$' + Number(a.monto || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+        const prob = a.prob_fraude != null ? `<span class="dash-crit-badge score">IA ${a.prob_fraude}%</span>` : '';
+        return `<article class="dash-crit-alert tier-${a.risk_tier}" data-case-id="${a.id_siniestro}" style="animation-delay:${i * 0.05}s">
+            <div class="dash-crit-alert-head">
+                <span class="dash-crit-id">${a.id_siniestro}</span>
+                <div class="dash-crit-badges">
+                    <span class="dash-crit-badge risk">${a.risk_label}</span>
+                    <span class="dash-crit-badge score">${a.score}</span>
+                    ${prob}
+                </div>
+            </div>
+            <div class="dash-crit-meta">
+                <span>Monto: <strong>${monto}</strong></span>
+                <span>Fecha: ${a.fecha}</span>
+            </div>
+            <div class="dash-crit-anomaly">${a.anomaly}</div>
+            <div class="dash-crit-action">→ ${a.action}</div>
+        </article>`;
+    }).join('');
+    el.querySelectorAll('.dash-crit-alert').forEach((card) => {
+        card.addEventListener('click', () => {
+            if (typeof viewCase === 'function') viewCase(card.dataset.caseId);
+        });
+    });
+}
+
+function renderSocTimeline(events) {
+    const el = document.getElementById('socTimeline');
+    if (!el) return;
+    if (!events || !events.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);">Sin eventos temporales.</p>';
+        return;
+    }
+    el.innerHTML = events.map((ev, i) => `
+        <div class="dash-tl-item type-${ev.type || 'info'}" style="animation-delay:${i * 0.06}s">
+            <span class="dash-tl-dot"></span>
+            <div class="dash-tl-time">${ev.time}</div>
+            <div class="dash-tl-title">${ev.title}</div>
+            <div class="dash-tl-detail">${ev.detail}</div>
+        </div>
+    `).join('');
+}
+
 function renderSparklineSvg(values, color, w = 72, h = 28) {
     const pts = (values || []).map(Number).filter((n) => Number.isFinite(n));
     if (pts.length < 2) {
@@ -442,8 +626,173 @@ function renderSparklineSvg(values, color, w = 72, h = 28) {
     </svg>`;
 }
 
+const DASH_ICON_SVG = {
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 .88.23 1.71.64 2.43L2 14h4l1 4h10l1-4h2.36A5.5 5.5 0 0 0 14.5 2"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+};
+
+function fmtKpiDisplay(item) {
+    const v = item.value;
+    if (item.format === 'currency') {
+        return v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    if (item.format === 'percent') return Number(v).toFixed(1) + '%';
+    if (item.format === 'hours') return Number(v).toFixed(1) + 'h';
+    if (item.format === 'score') return Number(v).toFixed(1);
+    return Number(v || 0).toLocaleString('es-CO');
+}
+
+function initDashParticles() {
+    const canvas = document.getElementById('dashParticles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let w = 0;
+    let h = 0;
+    const dots = [];
+    const resize = () => {
+        const parent = canvas.parentElement;
+        if (!parent) return;
+        w = canvas.width = parent.clientWidth;
+        h = canvas.height = parent.clientHeight;
+    };
+    for (let i = 0; i < 48; i++) {
+        dots.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.5 + 0.3, vx: (Math.random() - 0.5) * 0.0004, vy: (Math.random() - 0.5) * 0.0004 });
+    }
+    function frame() {
+        if (!ctx || !w) { requestAnimationFrame(frame); return; }
+        ctx.clearRect(0, 0, w, h);
+        dots.forEach((d) => {
+            d.x += d.vx;
+            d.y += d.vy;
+            if (d.x < 0 || d.x > 1) d.vx *= -1;
+            if (d.y < 0 || d.y > 1) d.vy *= -1;
+            ctx.beginPath();
+            ctx.arc(d.x * w, d.y * h, d.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.35)';
+            ctx.fill();
+        });
+        requestAnimationFrame(frame);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    frame();
+}
+
+function renderHeroKpis(highlights) {
+    const el = document.getElementById('dashHeroKpis');
+    if (!el) return;
+    const items = highlights && highlights.length ? highlights : [];
+    el.innerHTML = items.map((h) => `
+        <article class="dash-hero-card glow-${h.glow || 'blue'}">
+            <div class="dash-hero-top">
+                <span class="dash-hero-icon">${DASH_ICON_SVG[h.icon] || DASH_ICON_SVG.layers}</span>
+                <span class="dash-hero-check">✔</span>
+            </div>
+            <div class="dash-hero-label">${h.label}</div>
+            <div class="dash-hero-value">${fmtKpiDisplay(h)}</div>
+            ${h.delta ? `<span class="dash-hero-delta ${h.delta_dir || 'neutral'}">${h.delta}</span>` : ''}
+        </article>
+    `).join('') || '<p style="color:var(--text-muted);grid-column:1/-1;">Ejecute el análisis para ver KPIs.</p>';
+}
+
+function renderExecGrid(extended, sparklines) {
+    const el = document.getElementById('dashExecGrid');
+    if (!el) return;
+    const sp = sparklines || {};
+    el.innerHTML = (extended || []).map((k) => {
+        const spark = k.spark_key && sp[k.spark_key] ? renderSparklineSvg(sp[k.spark_key], 'var(--ai-blue, #3B82F6)', 56, 22) : '';
+        return `<div class="dash-exec-card">
+            <div class="dash-exec-card-label">${k.label}</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+                <div class="dash-exec-card-value">${fmtKpiDisplay(k)}</div>
+                ${spark}
+            </div>
+            <div class="dash-exec-card-foot"><span>${k.delta || ''}</span></div>
+        </div>`;
+    }).join('');
+}
+
+function renderRiskBands(bands) {
+    const el = document.getElementById('dashRiskBands');
+    if (!el) return;
+    el.innerHTML = (bands || []).map((b) => `
+        <div class="dash-risk-band">
+            <span class="dash-risk-band-label">${b.label}</span>
+            <div class="dash-risk-band-track"><div class="dash-risk-band-fill" style="width:${b.pct}%;background:${b.color};"></div></div>
+            <span class="dash-risk-band-pct">${b.pct}%</span>
+        </div>
+    `).join('');
+}
+
+function renderCriticalAlertFeed(feed) {
+    const el = document.getElementById('dashCriticalFeed');
+    if (!el) return;
+    if (!feed || !feed.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);padding:1rem;">Sin alertas críticas en el filtro actual.</p>';
+        return;
+    }
+    el.innerHTML = feed.map((a, i) => `
+        <article class="dash-crit-alert tier-${a.risk_tier}" style="animation-delay:${i * 0.05}s" data-case-id="${a.id_siniestro || ''}">
+            <div class="dash-crit-alert-head">
+                <span class="dash-crit-id">${a.id_siniestro}</span>
+                <div class="dash-crit-badges">
+                    <span class="dash-crit-badge risk">${a.risk_label}</span>
+                    <span class="dash-crit-badge score">Score ${a.score}</span>
+                </div>
+            </div>
+            <div class="dash-crit-meta">
+                <span>Monto: $${Number(a.monto || 0).toLocaleString()}</span>
+                <span>Fecha: ${a.fecha}</span>
+                ${a.prob_fraude != null ? `<span>Prob. IA: ${a.prob_fraude}%</span>` : '<span></span>'}
+                <span>${a.semaforo}</span>
+            </div>
+            <div class="dash-crit-anomaly">${a.anomaly}</div>
+            <div class="dash-crit-action">→ ${a.action}</div>
+        </article>
+    `).join('');
+    el.querySelectorAll('.dash-crit-alert').forEach((card) => {
+        card.addEventListener('click', () => {
+            if (typeof viewCase === 'function' && card.dataset.caseId) viewCase(card.dataset.caseId);
+        });
+    });
+}
+
+function renderSocTimeline(events) {
+    const el = document.getElementById('dashSocTimeline');
+    if (!el) return;
+    if (!events || !events.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);">Sin eventos temporales.</p>';
+        return;
+    }
+    el.innerHTML = events.map((e, i) => `
+        <div class="dash-tl-item type-${e.type || 'info'}" style="animation-delay:${i * 0.06}s">
+            <span class="dash-tl-dot"></span>
+            <div class="dash-tl-time">${e.time}</div>
+            <div class="dash-tl-title">${e.title}</div>
+            <div class="dash-tl-detail">${e.detail}</div>
+        </div>
+    `).join('');
+}
+
+function renderRiskProfileUI(rp) {
+    if (!rp) return;
+    const rec = document.getElementById('dashRiskRecommendation');
+    const tierEl = document.getElementById('dashRiskTierLabel');
+    if (rec) rec.textContent = rp.recommendation || '—';
+    if (tierEl && rp.tier) {
+        tierEl.textContent = `${rp.tier.label} · Prioridad ${rp.tier.priority}`;
+        tierEl.style.color = rp.tier.color;
+    }
+    renderRiskBands(rp.bands);
+}
+
 function buildDashboardShell() {
     return `
+        <canvas id="dashParticles" aria-hidden="true"></canvas>
         <header class="dash-exec-header">
             <div class="dash-exec-header-main">
                 <div class="dash-exec-title-row">
@@ -476,45 +825,69 @@ function buildDashboardShell() {
 
         <section class="dash-ai-strip" id="aiInsightsStrip" aria-live="polite"></section>
 
-        <div class="dash-soc-kpis dash-kpi-grid-6">
-            <div class="dash-kpi-card" data-kpi="total">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">📊</span><span class="dash-kpi-spark" id="sparkTotal"></span></div>
-                <div class="dash-kpi-label">Total siniestros</div>
-                <div class="dash-kpi-value" id="kpiTotal" style="color:var(--cyan);">—</div>
-                <div class="dash-kpi-sub" id="kpiTotalSub">Analizados</div>
+        <div class="dash-section-tag">KPIs destacados · Centro de comando</div>
+        <div class="dash-hero-kpis" id="heroKpisContainer"></div>
+
+        <div class="dash-section-tag" style="margin-top:0.5rem;">KPIs ejecutivos</div>
+        <div class="dash-exec-grid" id="execKpisContainer"></div>
+
+        <section class="dash-risk-command">
+            <div class="dash-section-tag">Sistema de score de riesgo · IA explicable</div>
+            <div class="dash-risk-command-grid">
+                <div class="dash-gauge-panel">
+                    <h4>Score híbrido</h4>
+                    <div id="chartScoreGauge" style="min-height:200px;"></div>
+                </div>
+                <div class="dash-gauge-panel">
+                    <h4>Probabilidad de fraude</h4>
+                    <div id="chartProbGauge" style="min-height:200px;"></div>
+                    <div id="riskRecommendation" class="dash-rec-box"></div>
+                </div>
+                <div class="dash-gauge-panel">
+                    <h4>Distribución por nivel</h4>
+                    <div id="riskBandsContainer" class="dash-risk-bands"></div>
+                    <div id="chartRadar" style="min-height:220px;margin-top:0.75rem;"></div>
+                </div>
             </div>
-            <div class="dash-kpi-card accent-red" data-kpi="critical">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">🔴</span><span class="dash-kpi-spark" id="sparkCritical"></span></div>
-                <div class="dash-kpi-label">Casos críticos</div>
-                <div class="dash-kpi-value" id="kpiRojo" style="color:var(--red);">—</div>
-                <div class="dash-kpi-sub" id="kpiRojoPct">—</div>
-                <span class="dash-kpi-trend up" id="kpiCriticalTrend">▲ Prioridad</span>
+        </section>
+
+        <div class="dash-layout-duo" style="margin-bottom:1.25rem;">
+            <div class="dash-panel">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Alertas críticas inteligentes</h3>
+                    <span class="dash-panel-badge" id="critAlertCount">0</span>
+                </div>
+                <div id="criticalAlertFeed" class="dash-critical-feed"></div>
             </div>
-            <div class="dash-kpi-card" data-kpi="score">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">⚡</span><span class="dash-kpi-spark" id="sparkScore"></span></div>
-                <div class="dash-kpi-label">Riesgo promedio</div>
-                <div class="dash-kpi-value" id="kpiScore">—</div>
-                <div class="dash-kpi-sub">Score híbrido / 100</div>
-            </div>
-            <div class="dash-kpi-card accent-yellow" data-kpi="monto">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">💰</span></div>
-                <div class="dash-kpi-label">Monto comprometido</div>
-                <div class="dash-kpi-value" id="kpiMonto" style="color:var(--yellow);">—</div>
-                <div class="dash-kpi-sub">Exposición potencial</div>
-            </div>
-            <div class="dash-kpi-card accent-green" data-kpi="alerts">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">🛡</span><span class="dash-kpi-spark" id="sparkAlerts"></span></div>
-                <div class="dash-kpi-label">Alertas activas</div>
-                <div class="dash-kpi-value" id="kpiAlerts" style="color:var(--cyan);">—</div>
-                <div class="dash-kpi-sub" id="kpiProbFraude">Prob. fraude —</div>
-            </div>
-            <div class="dash-kpi-card" data-kpi="prob">
-                <div class="dash-kpi-top"><span class="dash-kpi-icon">🎯</span></div>
-                <div class="dash-kpi-label">Prob. fraude prom.</div>
-                <div class="dash-kpi-value" id="kpiProbValue" style="color:var(--purple, #a78bfa);">—</div>
-                <div class="dash-kpi-sub">Modelo supervisado</div>
+            <div class="dash-panel">
+                <div class="dash-panel-head"><h3 class="dash-panel-title">Timeline SOC · eventos</h3></div>
+                <div id="socTimeline" class="dash-soc-timeline"></div>
             </div>
         </div>
+
+        <section class="dash-geo-panel dash-panel card-chart">
+            <div class="dash-panel-head">
+                <h3 class="dash-panel-title">Mapa de calor antifraude</h3>
+                <span class="dash-panel-badge" id="geoHeatmapLabel">Por zona</span>
+            </div>
+            <p class="dash-chart-help">Intensidad de fraude por ubicación (ciudad, sucursal o provincia según datos).</p>
+            <div id="chartGeoFraud" class="chart-area"></div>
+        </section>
+
+        <span id="kpiTotal" style="display:none;"></span>
+        <span id="kpiRojo" style="display:none;"></span>
+        <span id="kpiMonto" style="display:none;"></span>
+        <span id="kpiScore" style="display:none;"></span>
+        <span id="kpiAlerts" style="display:none;"></span>
+        <span id="kpiProbValue" style="display:none;"></span>
+        <span id="kpiTotalSub" style="display:none;"></span>
+        <span id="kpiRojoPct" style="display:none;"></span>
+        <span id="kpiProbFraude" style="display:none;"></span>
+        <span id="kpiCriticalTrend" style="display:none;"></span>
+        <span id="sparkTotal" style="display:none;"></span>
+        <span id="sparkCritical" style="display:none;"></span>
+        <span id="sparkScore" style="display:none;"></span>
+        <span id="sparkAlerts" style="display:none;"></span>
 
         <details class="dash-panel dash-filters-panel dash-analyst-only">
             <summary>▸ Filtros de exploración (clic en gráficos para filtrar)</summary>
@@ -554,6 +927,9 @@ function buildDashboardShell() {
         <div id="dashboardChips" class="dashboard-chips"></div>
         <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
         <span id="kpiClasificacion" style="display:none;"></span>
+
+        <details class="dash-analyst-depth dash-analyst-only">
+        <summary>▸ Análisis profundo · gráficos avanzados</summary>
 
         <section class="dash-risk-hub">
             <h3 class="dash-section-title">Mapa central de riesgo</h3>
@@ -699,7 +1075,7 @@ function buildDashboardShell() {
             </div>
         </section>
 
-        <div class="dash-layout-duo dash-analyst-only" style="margin-top:1.25rem;">
+        <div class="dash-layout-duo" style="margin-top:1.25rem;">
             <div class="dash-panel">
                 <div class="dash-panel-head"><h3 class="dash-panel-title">Proveedores de alto riesgo</h3></div>
                 <div class="dash-table-wrap" style="max-height:280px;">
@@ -715,6 +1091,8 @@ function buildDashboardShell() {
                 <div id="topAnomaliesList" class="dash-anomalies-list" style="display:none;"></div>
             </div>
         </div>
+
+        </details>
 
         <aside id="dashDetailDrawer" class="dash-detail-drawer" aria-hidden="true">
             <div class="dash-drawer-head">
@@ -1365,6 +1743,91 @@ function renderDashboardCharts(data) {
 
     renderSegmentChart(data, dashboardState.segmentTab || 'sucursal');
 
+    const rp = data.risk_profile || {};
+    if (rp.score != null) {
+        const tierColor = (rp.tier && rp.tier.color) || C.red;
+        const gaugeLayout = { ...PL, height: 200, margin: { t: 36, b: 8, l: 24, r: 24 } };
+        const steps = [
+            { range: [0, 40], color: 'rgba(0,200,83,0.28)' },
+            { range: [40, 75], color: 'rgba(245,183,0,0.32)' },
+            { range: [75, 100], color: 'rgba(255,77,79,0.38)' },
+        ];
+        safePlotlyReact('chartScoreGauge', [{
+            type: 'indicator',
+            mode: 'gauge+number',
+            value: rp.score,
+            number: { suffix: '/100', font: { size: 26, color: C.text } },
+            gauge: {
+                axis: { range: [0, 100], tickcolor: C.muted, tickwidth: 1 },
+                bar: { color: tierColor, thickness: 0.72 },
+                bgcolor: 'rgba(255,255,255,0.04)',
+                borderwidth: 0,
+                steps,
+            },
+        }], gaugeLayout, { ...PLOTLY_CONFIG, responsive: true });
+
+        safePlotlyReact('chartProbGauge', [{
+            type: 'indicator',
+            mode: 'gauge+number',
+            value: rp.prob_fraude || 0,
+            number: { suffix: '%', font: { size: 26, color: C.text } },
+            gauge: {
+                axis: { range: [0, 100], tickcolor: C.muted },
+                bar: { color: '#6366f1', thickness: 0.72 },
+                bgcolor: 'rgba(255,255,255,0.04)',
+                steps: [{ range: [0, 100], color: 'rgba(99,102,241,0.12)' }],
+            },
+        }], gaugeLayout, { ...PLOTLY_CONFIG, responsive: true });
+
+        if (rp.radar && rp.radar.labels && rp.radar.labels.length) {
+            safePlotlyReact('chartRadar', [{
+                type: 'scatterpolar',
+                r: rp.radar.values,
+                theta: rp.radar.labels,
+                fill: 'toself',
+                fillcolor: 'rgba(59,130,246,0.18)',
+                line: { color: C.cyan, width: 2 },
+            }], {
+                ...PL,
+                height: 220,
+                margin: { t: 24, b: 24, l: 48, r: 48 },
+                showlegend: false,
+                polar: {
+                    bgcolor: 'transparent',
+                    radialaxis: { visible: true, range: [0, 100], gridcolor: C.grid, tickfont: { size: 9, color: C.muted } },
+                    angularaxis: { gridcolor: C.grid, tickfont: { size: 9, color: C.muted } },
+                },
+            }, { ...PLOTLY_CONFIG, responsive: true });
+        }
+    }
+
+    const geo = data.geo_fraud_heatmap || {};
+    if (geo.locations && geo.locations.length) {
+        const colors = geo.intensity.map((v) => {
+            if (v >= 60) return '#B91C1C';
+            if (v >= 40) return '#FF4D4F';
+            if (v >= 25) return '#F5B700';
+            return '#3B82F6';
+        });
+        safePlotlyReact('chartGeoFraud', [{
+            type: 'bar',
+            orientation: 'h',
+            y: geo.locations.map((l) => String(l).slice(0, 32)),
+            x: geo.intensity,
+            marker: { color: colors, opacity: 0.92 },
+            text: (geo.casos || []).map((c, i) => `${c} · ${(geo.rojos || [])[i] || 0} crít.`),
+            textposition: 'outside',
+            textfont: { size: 10, color: C.muted },
+            hovertemplate: '<b>%{y}</b><br>Intensidad: %{x:.1f}<extra></extra>',
+        }], {
+            ...PL,
+            height: Math.max(300, geo.locations.length * 32),
+            margin: { t: 12, b: 40, l: 8, r: 56 },
+            xaxis: { title: { text: 'Índice de intensidad antifraude', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
+            yaxis: { ...dashBarAxis(C), automargin: true },
+        }, { ...PLOTLY_CONFIG, responsive: true });
+    }
+
     bindPlotlyDashboardCharts(data);
     scheduleDashboardChartsResize();
 }
@@ -1372,7 +1835,8 @@ function renderDashboardCharts(data) {
 function resizeDashboardCharts() {
     if (typeof Plotly === 'undefined') return;
     ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion',
-        'chartTreemap', 'chartRiskMatrix', 'chartBubble', 'chartTemporalAlerts', 'chartSegment'].forEach((id) => {
+        'chartTreemap', 'chartRiskMatrix', 'chartBubble', 'chartTemporalAlerts', 'chartSegment',
+        'chartScoreGauge', 'chartProbGauge', 'chartRadar', 'chartGeoFraud'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         try {
@@ -1397,6 +1861,15 @@ async function loadDashboardMetricsAuc() {
             dashboardState.metricsAuc = (m.auc_roc || 0).toFixed(2);
             const aucEl = document.getElementById('kpiAuc');
             if (aucEl) aucEl.textContent = dashboardState.metricsAuc;
+            if (dashboardState.lastData && dashboardState.lastData.executive_dashboard) {
+                const prec = Math.min(99, Math.round((m.auc_roc || 0.85) * 100));
+                const h = dashboardState.lastData.executive_dashboard.highlights;
+                const pItem = h && h.find((x) => x.key === 'precision');
+                if (pItem) {
+                    pItem.value = prec;
+                    renderHeroKpis(h);
+                }
+            }
         }
     } catch (e) { /* ignore */ }
 }
@@ -1423,21 +1896,45 @@ function renderDashboardData(data) {
         banner.innerHTML = `Vista completa: <strong>${analyzedTotal.toLocaleString()}</strong> siniestros analizados (dataset cargado). Use filtros o haga clic en los gráficos para explorar.`;
     }
 
+    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    const ed = data.executive_dashboard || {};
+    renderHeroKpis(ed.highlights);
+    renderExecGrid(ed.extended, data.sparklines);
+    const rp = data.risk_profile || {};
+    renderRiskBands(rp.bands);
+    renderRiskRecommendation(rp);
+    renderCriticalAlertFeed(data.critical_alert_feed);
+    renderSocTimeline(data.soc_timeline);
+    const critCnt = document.getElementById('critAlertCount');
+    if (critCnt) critCnt.textContent = String((data.critical_alert_feed || []).length);
+    const geoLbl = document.getElementById('geoHeatmapLabel');
+    if (geoLbl && data.geo_fraud_heatmap) {
+        geoLbl.textContent = 'Por ' + (data.geo_fraud_heatmap.column || 'zona');
+    }
+    if (rp.tier && document.getElementById('globalRiskLevel')) {
+        document.getElementById('globalRiskLevel').textContent = rp.tier.label.toUpperCase();
+    }
+
     const kpiTotalVal = isFiltered ? data.total : analyzedTotal;
-    document.getElementById('kpiTotal').textContent = kpiTotalVal.toLocaleString();
-    document.getElementById('kpiTotalSub').textContent = isFiltered
+    const kpiTotalEl = document.getElementById('kpiTotal');
+    if (kpiTotalEl) kpiTotalEl.textContent = kpiTotalVal.toLocaleString();
+    const kpiSub = document.getElementById('kpiTotalSub');
+    if (kpiSub) kpiSub.textContent = isFiltered
         ? `de ${analyzedTotal.toLocaleString()} analizados`
         : (sourceTotal > analyzedTotal ? `de ${sourceTotal.toLocaleString()} cargados` : 'Analizados');
-    document.getElementById('kpiRojo').textContent = rojo.toLocaleString();
-    document.getElementById('kpiRojoPct').textContent = `${pctOf(rojo)}% del filtro`;
     const ek = data.executive_kpis || {};
+    setText('kpiRojo', rojo.toLocaleString());
+    setText('kpiRojoPct', `${pctOf(rojo)}% del filtro`);
     const montoComp = ek.monto_potencial_riesgo ?? data.monto_rojo ?? 0;
-    document.getElementById('kpiMonto').textContent = montoComp >= 1e6
-        ? '$' + (montoComp / 1e6).toFixed(1) + 'M'
-        : '$' + Number(montoComp).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    const montoEl = document.getElementById('kpiMonto');
+    if (montoEl) {
+        montoEl.textContent = montoComp >= 1e6
+            ? '$' + (montoComp / 1e6).toFixed(1) + 'M'
+            : '$' + Number(montoComp).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
     const aucEl = document.getElementById('kpiAuc');
     if (aucEl) aucEl.textContent = dashboardState.metricsAuc;
-    document.getElementById('kpiScore').textContent = data.score_promedio;
+    setText('kpiScore', String(data.score_promedio));
     const alertCount = (data.signals_summary || []).reduce((a, s) => a + (s.count || 0), 0) || rojo + amarillo;
     const alertsEl = document.getElementById('kpiAlerts');
     if (alertsEl) alertsEl.textContent = alertCount.toLocaleString();
@@ -1446,8 +1943,8 @@ function renderDashboardData(data) {
     const iaStatus = document.getElementById('dashIaStatus');
     if (iaStatus) iaStatus.textContent = (dashboardState.metricsAuc !== '--' && Number(dashboardState.metricsAuc) > 0) ? 'Modelo supervisado activo' : 'Reglas + anomalías';
 
-    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-    setText('kpiProbFraude', 'Prob. fraude ' + (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
+    setText('kpiProbFraude', 'Señales ' + (data.enriched_alerts || []).length);
+    setText('kpiProbValue', (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
     setText(
         'kpiClasificacion',
         `🔴 ${(ek.riesgo_alto || 0).toLocaleString()} · 🟡 ${(ek.riesgo_medio || 0).toLocaleString()} · 🟢 ${(ek.riesgo_bajo || 0).toLocaleString()}`
@@ -1461,6 +1958,7 @@ function renderDashboardData(data) {
     renderSemaforoLegend(rojo, amarillo, verde, totalSafe, pctOf);
 
     const alerts = document.getElementById('alertsPanel');
+    if (!alerts) { ensurePlotlyThenRenderCharts(data); return; }
     alerts.innerHTML = (data.top_cases || []).slice(0, 8).map(c => {
         const alertText = (c.alertas_reglas || '').split('|')[0].trim() || 'Caso de alto riesgo';
         const sem = c.semaforo_final || c.semaforo_reglas || 'Verde';
@@ -1653,6 +2151,7 @@ async function initDashboard() {
             populateFilterControls(opts);
             updateSemaforoPills();
             dashboardState.initialized = true;
+            initDashParticles();
             await loadDashboardMetricsAuc();
         }
         await refreshDashboard();
