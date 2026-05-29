@@ -113,11 +113,10 @@ def _hydrate_datasets_from_storage() -> bool:
     if "siniestros" in datasets:
         return True
 
-    if is_vercel_runtime():
-        loaded = _load_runtime_datasets()
-        if loaded and "siniestros" in loaded:
-            app_state["datasets"] = loaded
-            return True
+    loaded = _load_runtime_datasets()
+    if loaded and "siniestros" in loaded:
+        app_state["datasets"] = loaded
+        return True
 
     if _should_use_live_database():
         try:
@@ -195,9 +194,6 @@ def _reload_scored_siniestros_from_db() -> bool:
     try:
         sin = load_dataframe("siniestros")
         if sin is None or len(sin) == 0:
-            return False
-        expected = _expected_siniestros_count()
-        if expected > 0 and len(sin) < expected:
             return False
         if "score_hibrido" not in sin.columns or sin["score_hibrido"].notna().sum() == 0:
             return False
@@ -418,12 +414,16 @@ def _documents_storage_dir() -> str:
 
 
 def _runtime_cache_dirs() -> List[str]:
-    """Rutas /tmp: primero sesión (header), luego caché global."""
+    """Rutas de caché: sesión local, /tmp Vercel y caché global."""
     dirs: List[str] = []
     sid = get_request_session_id()
     if sid:
-        dirs.append(f"/tmp/fraudia_sessions/{sid}/datasets")
-    dirs.append("/tmp/fraudia_runtime_datasets")
+        dirs.append(os.path.join("data", "runtime_sessions", sid, "datasets"))
+        if is_vercel_runtime():
+            dirs.append(f"/tmp/fraudia_sessions/{sid}/datasets")
+    dirs.append(os.path.join("data", "runtime_sessions", "_global", "datasets"))
+    if is_vercel_runtime():
+        dirs.append("/tmp/fraudia_runtime_datasets")
     return dirs
 
 
@@ -431,8 +431,11 @@ def _runtime_analysis_dirs() -> List[str]:
     dirs: List[str] = []
     sid = get_request_session_id()
     if sid:
-        dirs.append(f"/tmp/fraudia_sessions/{sid}/analysis")
-    dirs.append("/tmp/fraudia_runtime_analysis")
+        dirs.append(os.path.join("data", "runtime_sessions", sid, "analysis"))
+        if is_vercel_runtime():
+            dirs.append(f"/tmp/fraudia_sessions/{sid}/analysis")
+    if is_vercel_runtime():
+        dirs.append("/tmp/fraudia_runtime_analysis")
     return dirs
 
 
@@ -453,8 +456,6 @@ def _write_datasets_to_cache_dir(datasets: Dict[str, pd.DataFrame], cache_dir: s
 
 
 def _clear_runtime_analysis_cache() -> None:
-    if not is_vercel_runtime():
-        return
     import shutil
 
     for path in _runtime_analysis_dirs():
@@ -499,9 +500,7 @@ def _persist_runtime_analysis(result: dict) -> None:
 
 
 def _hydrate_runtime_analysis() -> bool:
-    """Recupera último análisis guardado en /tmp (si existe)."""
-    if not is_vercel_runtime():
-        return False
+    """Recupera último análisis guardado en caché de sesión (local o /tmp)."""
     csv_path = None
     for analysis_dir in _runtime_analysis_dirs():
         candidate = os.path.join(analysis_dir, "siniestros_scored.csv")
@@ -551,9 +550,7 @@ def _hydrate_runtime_analysis() -> bool:
 
 
 def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
-    """En Vercel guarda datasets en /tmp (sesión + caché global)."""
-    if not is_vercel_runtime():
-        return
+    """Persiste datasets por sesión hasta que se carguen otros datos."""
     if not datasets or "siniestros" not in datasets:
         return
     for cache_dir in _runtime_cache_dirs():
@@ -564,8 +561,6 @@ def _persist_runtime_datasets(datasets: Dict[str, pd.DataFrame]) -> None:
 
 
 def _load_runtime_datasets() -> Dict[str, pd.DataFrame]:
-    if not is_vercel_runtime():
-        return {}
     for cache_dir in _runtime_cache_dirs():
         manifest_path = os.path.join(cache_dir, "manifest.json")
         if not os.path.exists(manifest_path):
@@ -1368,6 +1363,14 @@ def agent_query(body: dict) -> dict:
     question = (body or {}).get("question", "")
     if not question:
         raise ValueError("Pregunta vacía")
+    df = app_state.get("df_scored")
+    if df is not None and len(df) > 0:
+        app_state["dashboard_last_payload"] = build_dashboard_payload(
+            df,
+            total_unfiltered=len(df),
+            active_filters=[],
+            source_total_siniestros=_expected_siniestros_count() or len(df),
+        )
     agent.set_extra_context(build_agent_context())
     history = _normalize_chat_history(body or {})
     result = agent.query(question, history=history)

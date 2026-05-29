@@ -189,12 +189,17 @@ const MlCopilot = (function () {
 
     function renderDataBlock(datos, question) {
         if (!datos) return '';
+        const wantsTable = typeof window.userWantsExplicitDataTable === 'function'
+            ? window.userWantsExplicitDataTable(question)
+            : false;
         const rows = Array.isArray(datos) ? datos : [datos];
         if (!rows.length || typeof rows[0] !== 'object') return '';
 
-        if (rows[0].id_siniestro && rows.length <= 6) {
+        if (rows[0].id_siniestro && rows.length <= 6 && !wantsTable) {
             return rows.map((r) => renderCaseCard(r)).join('');
         }
+
+        if (!wantsTable) return '';
 
         if (typeof window.renderAgentDataBlock === 'function') {
             const html = window.renderAgentDataBlock(datos, question);

@@ -6,6 +6,7 @@ venv/
 .venv/
 data/fraudia_claims.db
 data/fraudia_claims.db-*
+data/runtime_sessions/
 *.db-shm
 *.db-wal
 *.joblib

@@ -475,11 +475,18 @@ function buildDashboardShell() {
                 </div>
                 <div class="dash-panel card-chart">
                     <div class="dash-panel-head">
-                        <h3 class="dash-panel-title">Evolución en el tiempo</h3>
-                        <button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar">✕</button>
+                        <h3 class="dash-panel-title">Distribución del score</h3>
+                        <button type="button" class="chart-reset-btn" data-reset-scope="score" title="Limpiar">✕</button>
                     </div>
-                    <div id="chartTemporal" class="chart-area" style="min-height:220px;"></div>
+                    <div id="chartScores" class="chart-area" style="min-height:240px;"></div>
                 </div>
+            </div>
+            <div class="dash-panel card-chart">
+                <div class="dash-panel-head">
+                    <h3 class="dash-panel-title">Evolución en el tiempo</h3>
+                    <button type="button" class="chart-reset-btn" data-reset-scope="fecha" title="Limpiar">✕</button>
+                </div>
+                <div id="chartTemporal" class="chart-area" style="min-height:220px;"></div>
             </div>
             <div class="dash-layout-duo">
                 <div class="dash-panel card-chart">
@@ -765,7 +772,7 @@ function bindPlotlyDashboardCharts(data) {
         });
         chartRamo._plotlyClickBound = true;
     }
-    if (chartTemporal && !chartTemporal._plotlyClickBound && data.temporal_data) {
+    if (chartTemporal && !chartTemporal._plotlyClickBound) {
         chartTemporal.on('plotly_click', (ev) => {
             const mes = ev.points[0].x;
             if (!mes) return;
@@ -823,80 +830,102 @@ function renderDashboardCharts(data) {
         }],
     }, { ...PLOTLY_CONFIG, responsive: true });
 
-    if (data.ramo_data && data.ramo_data.length) {
-        const ramos = data.ramo_data.map((r) => r.ramo);
-        const verdes = data.ramo_data.map((r) => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
-        const amarillos = data.ramo_data.map((r) => r.amarillos ?? 0);
-        const rojos = data.ramo_data.map((r) => r.rojos ?? 0);
-        safePlotlyReact('chartRamo',
-            buildStackedRiskTraces(ramos, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
-            dashStackedLayout(PL, C, { height: 340, bottom: 88, tickangle: -35, showlegend: true, legendY: -0.32 }),
-            { ...PLOTLY_CONFIG, responsive: true }
-        );
-    }
+    const sd = data.score_distribution || {};
+    const sdLabels = sd.labels && sd.labels.length ? sd.labels : ['Verde (0-40)', 'Amarillo (41-75)', 'Rojo (76-100)'];
+    const sdCounts = sd.counts && sd.counts.length ? sd.counts : [verde, amarillo, rojo];
+    const sdColors = sd.colors && sd.colors.length ? sd.colors : [C.green, C.yellow, C.red];
+    safePlotlyReact('chartScores', [{
+        x: sdLabels,
+        y: sdCounts,
+        type: 'bar',
+        marker: { color: sdColors, line: { width: 0 }, opacity: 0.9 },
+        text: sdCounts.map((v) => fmtChartNum(v) || '0'),
+        textposition: 'outside',
+        textfont: { size: 11, color: C.text, family: 'Inter, sans-serif' },
+        hovertemplate: '<b>%{x}</b><br>%{y:,} casos<extra></extra>',
+    }], {
+        ...PL,
+        xaxis: {
+            title: { text: 'Nivel de riesgo (score híbrido)', font: { size: 11, color: C.muted } },
+            ...dashBarAxis(C),
+            tickangle: -20,
+        },
+        yaxis: { title: { text: 'Cantidad de siniestros', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
+        height: 280,
+        margin: { t: 16, b: 64, l: 52, r: 20, autoexpand: true },
+        bargap: 0.35,
+    }, { ...PLOTLY_CONFIG, responsive: true });
 
-    if (data.temporal_risk_data && data.temporal_risk_data.length) {
-        const months = data.temporal_risk_data.map((t) => t.mes);
-        const verdes = data.temporal_risk_data.map((t) => t.Verde || 0);
-        const amarillos = data.temporal_risk_data.map((t) => t.Amarillo || 0);
-        const rojos = data.temporal_risk_data.map((t) => t.Rojo || 0);
-        safePlotlyReact('chartTemporal',
-            buildStackedRiskTraces(months, verdes, amarillos, rojos, C, ['Bajo (Verde)', 'Medio (Amarillo)', 'Alto (Rojo)']),
-            dashStackedLayout(PL, C, {
-                height: 300,
-                bottom: 64,
-                tickangle: -25,
-                xTitle: 'Mes',
-                yTitle: 'Casos por nivel de riesgo',
-                legendY: -0.3,
-            }),
-            { ...PLOTLY_CONFIG, responsive: true }
-        );
-    }
+    const ramos = (data.ramo_data || []).map((r) => r.ramo);
+    const ramoVerdes = (data.ramo_data || []).map((r) => r.verdes ?? Math.max(0, (r.count || 0) - (r.rojos || 0) - (r.amarillos || 0)));
+    const ramoAmarillos = (data.ramo_data || []).map((r) => r.amarillos ?? 0);
+    const ramoRojos = (data.ramo_data || []).map((r) => r.rojos ?? 0);
+    safePlotlyReact('chartRamo',
+        buildStackedRiskTraces(ramos.length ? ramos : ['Sin datos'], ramoVerdes.length ? ramoVerdes : [0], ramoAmarillos.length ? ramoAmarillos : [0], ramoRojos.length ? ramoRojos : [0], C, ['Bajo', 'Medio', 'Alto']),
+        dashStackedLayout(PL, C, { height: 340, bottom: 88, tickangle: -35, showlegend: true, legendY: -0.32 }),
+        { ...PLOTLY_CONFIG, responsive: true }
+    );
 
-    if (data.heatmap_ramo_riesgo && data.heatmap_ramo_riesgo.ramos && data.heatmap_ramo_riesgo.ramos.length) {
-        const z = data.heatmap_ramo_riesgo.z;
-        safePlotlyReact('chartHeatmapRamoRiesgo', [{
-            z,
-            x: data.heatmap_ramo_riesgo.semaforos,
-            y: data.heatmap_ramo_riesgo.ramos,
-            type: 'heatmap',
-            colorscale: theme === 'light'
-                ? [[0, '#f8fafc'], [0.5, 'rgba(3,105,161,0.35)'], [1, '#0369a1']]
-                : [[0, '#0b1220'], [0.5, 'rgba(0,209,255,0.35)'], [1, '#00d1ff']],
-            showscale: true,
-            colorbar: { title: 'Casos', thickness: 12, len: 0.85, tickfont: { size: 9, color: C.muted } },
-            text: z.map((row) => row.map((v) => fmtChartNum(v) || '0')),
-            texttemplate: '%{text}',
-            textfont: { size: 12, color: '#ffffff', family: 'Inter, sans-serif' },
-            hovertemplate: 'Ramo: %{y}<br>Nivel: %{x}<br>Casos: %{z}<extra></extra>',
-        }], {
-            ...PL,
-            margin: { t: 16, b: 48, l: 110, r: 48, autoexpand: true },
-            xaxis: { title: { text: 'Nivel de riesgo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
-            yaxis: { title: { text: 'Ramo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C), automargin: true },
+    const months = (data.temporal_risk_data || []).map((t) => t.mes);
+    const tVerdes = (data.temporal_risk_data || []).map((t) => t.Verde || 0);
+    const tAmarillos = (data.temporal_risk_data || []).map((t) => t.Amarillo || 0);
+    const tRojos = (data.temporal_risk_data || []).map((t) => t.Rojo || 0);
+    safePlotlyReact('chartTemporal',
+        buildStackedRiskTraces(months.length ? months : ['—'], tVerdes.length ? tVerdes : [0], tAmarillos.length ? tAmarillos : [0], tRojos.length ? tRojos : [0], C, ['Bajo (Verde)', 'Medio (Amarillo)', 'Alto (Rojo)']),
+        dashStackedLayout(PL, C, {
             height: 300,
-        }, { ...PLOTLY_CONFIG, responsive: true });
-    }
+            bottom: 64,
+            tickangle: -25,
+            xTitle: 'Mes',
+            yTitle: 'Casos por nivel de riesgo',
+            legendY: -0.3,
+        }),
+        { ...PLOTLY_CONFIG, responsive: true }
+    );
 
-    if (data.geo_risk_data && data.geo_risk_data.length) {
-        const suc = data.geo_risk_data.map((g) => g.sucursal);
-        const verdes = data.geo_risk_data.map((g) => g.Verde || 0);
-        const amarillos = data.geo_risk_data.map((g) => g.Amarillo || 0);
-        const rojos = data.geo_risk_data.map((g) => g.Rojo || 0);
-        safePlotlyReact('chartGeoOperacion',
-            buildStackedRiskTraces(suc, verdes, amarillos, rojos, C, ['Bajo', 'Medio', 'Alto']),
-            dashStackedLayout(PL, C, {
-                height: 300,
-                bottom: 72,
-                tickangle: -30,
-                xTitle: 'Sucursal',
-                yTitle: 'Casos por nivel de riesgo',
-                legendY: -0.3,
-            }),
-            { ...PLOTLY_CONFIG, responsive: true }
-        );
-    }
+    const heat = data.heatmap_ramo_riesgo || {};
+    const heatRamos = heat.ramos && heat.ramos.length ? heat.ramos : ['—'];
+    const heatSemaforos = heat.semaforos && heat.semaforos.length ? heat.semaforos : ['Verde', 'Amarillo', 'Rojo'];
+    const heatZ = heat.z && heat.z.length ? heat.z : [[0, 0, 0]];
+    safePlotlyReact('chartHeatmapRamoRiesgo', [{
+        z: heatZ,
+        x: heatSemaforos,
+        y: heatRamos,
+        type: 'heatmap',
+        colorscale: theme === 'light'
+            ? [[0, '#f8fafc'], [0.5, 'rgba(3,105,161,0.35)'], [1, '#0369a1']]
+            : [[0, '#0b1220'], [0.5, 'rgba(0,209,255,0.35)'], [1, '#00d1ff']],
+        showscale: true,
+        colorbar: { title: 'Casos', thickness: 12, len: 0.85, tickfont: { size: 9, color: C.muted } },
+        text: heatZ.map((row) => row.map((v) => fmtChartNum(v) || '0')),
+        texttemplate: '%{text}',
+        textfont: { size: 12, color: '#ffffff', family: 'Inter, sans-serif' },
+        hovertemplate: 'Ramo: %{y}<br>Nivel: %{x}<br>Casos: %{z}<extra></extra>',
+    }], {
+        ...PL,
+        margin: { t: 16, b: 48, l: 110, r: 48, autoexpand: true },
+        xaxis: { title: { text: 'Nivel de riesgo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
+        yaxis: { title: { text: 'Ramo', font: { size: 11, color: C.muted } }, ...dashBarAxis(C), automargin: true },
+        height: 300,
+    }, { ...PLOTLY_CONFIG, responsive: true });
+
+    const geo = data.geo_risk_data || [];
+    const suc = geo.map((g) => g.sucursal);
+    const gVerdes = geo.map((g) => g.Verde || 0);
+    const gAmarillos = geo.map((g) => g.Amarillo || 0);
+    const gRojos = geo.map((g) => g.Rojo || 0);
+    safePlotlyReact('chartGeoOperacion',
+        buildStackedRiskTraces(suc.length ? suc : ['—'], gVerdes.length ? gVerdes : [0], gAmarillos.length ? gAmarillos : [0], gRojos.length ? gRojos : [0], C, ['Bajo', 'Medio', 'Alto']),
+        dashStackedLayout(PL, C, {
+            height: 300,
+            bottom: 72,
+            tickangle: -30,
+            xTitle: 'Sucursal',
+            yTitle: 'Casos por nivel de riesgo',
+            legendY: -0.3,
+        }),
+        { ...PLOTLY_CONFIG, responsive: true }
+    );
 
     bindPlotlyDashboardCharts(data);
     scheduleDashboardChartsResize();
@@ -909,7 +938,6 @@ function resizeDashboardCharts() {
     ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
-        if (el.offsetParent === null && !el.closest('.tab-panel.active')) return;
         try {
             if (el.querySelector('.plotly')) Plotly.Plots.resize(el);
         } catch (e) { /* ignore */ }

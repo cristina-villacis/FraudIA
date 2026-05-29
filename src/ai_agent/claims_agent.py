@@ -53,6 +53,172 @@ class ClaimsAgent:
             lines.append(f"- Reglas críticas activas: {reglas_crit}")
         return "\n".join(lines) if lines else ""
 
+    def _format_dashboard_last_payload(self, payload: Dict[str, Any]) -> List[str]:
+        """Serializa el payload completo del dashboard para el LLM."""
+        lines: List[str] = []
+        if not isinstance(payload, dict):
+            return lines
+
+        lines.append("=== DASHBOARD EJECUTIVO (análisis agregado, mismo que ve el usuario) ===")
+        total = payload.get("total", payload.get("total_unfiltered"))
+        lines.append(f"Registros en vista: {total} (universo analizado: {payload.get('total_unfiltered', total)})")
+        if payload.get("source_total_siniestros"):
+            lines.append(f"Siniestros cargados en archivo: {payload['source_total_siniestros']}")
+        lines.append(f"Score híbrido promedio: {payload.get('score_promedio', 'N/A')}")
+        lines.append(
+            f"Montos: total=${payload.get('monto_total', 0):,.2f}, "
+            f"en rojo=${payload.get('monto_rojo', 0):,.2f}"
+        )
+
+        sem = payload.get("semaforo") or {}
+        if sem:
+            lines.append(
+                f"Semáforos: Rojo={sem.get('Rojo', 0)}, "
+                f"Amarillo={sem.get('Amarillo', 0)}, Verde={sem.get('Verde', 0)}"
+            )
+
+        ek = payload.get("executive_kpis") or {}
+        if ek:
+            lines.append("KPIs ejecutivos del dashboard:")
+            for key, val in ek.items():
+                lines.append(f"  · {key}: {val}")
+
+        for sig in (payload.get("signals_summary") or [])[:22]:
+            lines.append(f"  Señal «{sig.get('signal', '?')}»: {sig.get('count', 0)} casos")
+
+        crit = payload.get("critical_rules_summary") or {}
+        if crit:
+            lines.append("Conteo reglas críticas RF:")
+            for code, n in sorted(crit.items(), key=lambda x: -int(x[1] or 0))[:12]:
+                lines.append(f"  · {code}: {n} casos")
+
+        for r in (payload.get("ramo_data") or [])[:18]:
+            lines.append(
+                f"  Ramo {r.get('ramo')}: {r.get('count')} casos, score_avg={r.get('score_avg')}, "
+                f"R={r.get('rojos', 0)} A={r.get('amarillos', 0)} V={r.get('verdes', 0)}, "
+                f"monto=${float(r.get('monto_total') or 0):,.0f}"
+            )
+
+        for p in (payload.get("provider_risk") or [])[:15]:
+            ben = str(p.get("beneficiario") or "")[:50]
+            lines.append(
+                f"  Proveedor {ben}: {p.get('casos')} casos, score_prom={p.get('score_prom')}, "
+                f"monto=${float(p.get('monto') or 0):,.0f}"
+            )
+
+        sd = payload.get("score_distribution") or {}
+        labels = sd.get("labels") or []
+        counts = sd.get("counts") or []
+        if labels:
+            lines.append("Distribución por banda de score:")
+            for lab, cnt in zip(labels, counts):
+                lines.append(f"  · {lab}: {cnt} siniestros")
+
+        for t in (payload.get("temporal_risk_data") or [])[-14:]:
+            lines.append(
+                f"  Mes {t.get('mes')}: Verde={t.get('Verde', 0)}, "
+                f"Amarillo={t.get('Amarillo', 0)}, Rojo={t.get('Rojo', 0)}"
+            )
+
+        for g in (payload.get("geo_risk_data") or [])[:14]:
+            lines.append(
+                f"  Sucursal {g.get('sucursal')}: V={g.get('Verde', 0)}, "
+                f"A={g.get('Amarillo', 0)}, R={g.get('Rojo', 0)}"
+            )
+
+        heat = payload.get("heatmap_ramo_riesgo") or {}
+        ramos_h = heat.get("ramos") or []
+        sem_h = heat.get("semaforos") or []
+        z = heat.get("z") or []
+        if ramos_h and sem_h:
+            lines.append(f"Heatmap ramo×semáforo (columnas: {', '.join(map(str, sem_h))}):")
+            for i, ramo in enumerate(ramos_h[:14]):
+                row = z[i] if i < len(z) else []
+                lines.append(f"  {ramo}: {row}")
+
+        lines.append("Top casos del dashboard (ID | ramo | score | semáforo | monto):")
+        for c in (payload.get("top_cases") or [])[:25]:
+            sc = c.get("score_hibrido", c.get("score_reglas", ""))
+            sem_c = c.get("semaforo_final", c.get("semaforo_reglas", ""))
+            monto = c.get("monto_reclamado", 0)
+            alert = str(c.get("alertas_reglas") or "")[:80]
+            lines.append(
+                f"  | {c.get('id_siniestro')} | {c.get('ramo', '')} | {sc} | {sem_c} | "
+                f"${float(monto or 0):,.0f} | {alert}"
+            )
+        return lines
+
+    def _format_ml_analysis_context(self) -> List[str]:
+        """Métricas ML, anomalías y NLP del pipeline."""
+        lines: List[str] = []
+        snapshot = self.extra_context.get("model_snapshot")
+        results = self.extra_context.get("model_results")
+        merged: Dict[str, Any] = {}
+        if isinstance(results, dict):
+            merged.update(results)
+        if isinstance(snapshot, dict):
+            merged.update(snapshot)
+
+        if merged:
+            lines.append("=== MOTOR MACHINE LEARNING (entrenamiento y métricas) ===")
+            for key in (
+                "trained", "auc_roc", "cv_auc_mean", "cv_auc_std",
+                "precision_fraude", "recall_fraude", "f1_fraude",
+                "accuracy", "precision", "recall", "f1_score",
+                "ml_prob_promedio", "casos_alta_prob_ml", "anomalies_detected",
+            ):
+                val = merged.get(key)
+                if val is not None and val != "":
+                    if isinstance(val, float):
+                        lines.append(f"  · {key}: {val:.4f}")
+                    else:
+                        lines.append(f"  · {key}: {val}")
+
+            cm = merged.get("confusion_matrix")
+            if cm is not None:
+                lines.append(f"  · confusion_matrix: {cm}")
+
+            top_feat = merged.get("top_features") or merged.get("feature_importance")
+            if isinstance(top_feat, list) and top_feat:
+                lines.append("  Variables más importantes del modelo:")
+                for item in top_feat[:12]:
+                    if isinstance(item, dict):
+                        fname = item.get("feature", item.get("name", "?"))
+                        imp = item.get("importance", item.get("score", ""))
+                        lines.append(f"    - {fname}: {imp}")
+                    else:
+                        lines.append(f"    - {item}")
+
+            if merged.get("error"):
+                lines.append(f"  Aviso modelo: {merged['error']}")
+            if merged.get("warning"):
+                lines.append(f"  Aviso: {merged['warning']}")
+
+        if self.ml_col and self.ml_col in self.df.columns:
+            prob = pd.to_numeric(self.df[self.ml_col], errors="coerce").dropna()
+            if len(prob):
+                lines.append("Probabilidad ML en cartera (df_scored):")
+                lines.append(f"  · Promedio: {prob.mean()*100:.2f}%")
+                lines.append(f"  · Casos prob ≥ 70%: {int((prob >= 0.7).sum())}")
+                lines.append(f"  · Casos prob ≥ 50%: {int((prob >= 0.5).sum())}")
+
+        if self.anomaly_col and self.anomaly_col in self.df.columns:
+            anom = pd.to_numeric(self.df[self.anomaly_col], errors="coerce").dropna()
+            if len(anom):
+                lines.append("Anomalías (Isolation Forest) en cartera:")
+                lines.append(f"  · Score promedio: {anom.mean()*100:.2f}%")
+                lines.append(f"  · Casos score ≥ 75%: {int((anom >= 0.75).sum())}")
+
+        anom_res = self.extra_context.get("anomaly_results")
+        if isinstance(anom_res, dict) and anom_res:
+            lines.append(f"Resumen detección anomalías: {json.dumps(anom_res, default=str, ensure_ascii=False)[:2000]}")
+
+        nlp = self.extra_context.get("nlp_results")
+        if isinstance(nlp, dict) and nlp:
+            lines.append(f"Análisis NLP narrativas: {json.dumps(nlp, default=str, ensure_ascii=False)[:1500]}")
+
+        return lines
+
     def build_dataset_context(self, max_top: int = 15) -> str:
         """Contexto global de la sesión (todos los niveles de riesgo, no solo críticos)."""
         total = len(self.df)
@@ -108,8 +274,19 @@ class ClaimsAgent:
                         f"{row.get(self.semaforo_col, 'N/A')}"
                     )
 
+        src_counts = self.extra_context.get("source_row_counts")
+        if isinstance(src_counts, dict) and src_counts:
+            lines.append("Filas cargadas por tabla:")
+            for name, cnt in src_counts.items():
+                lines.append(f"  · {name}: {cnt}")
+
+        dash_full = self.extra_context.get("dashboard_last_payload")
+        if isinstance(dash_full, dict) and dash_full:
+            lines.extend(self._format_dashboard_last_payload(dash_full))
+        lines.extend(self._format_ml_analysis_context())
+
         dashboard_snapshot = self.extra_context.get("dashboard_snapshot")
-        if isinstance(dashboard_snapshot, dict):
+        if isinstance(dashboard_snapshot, dict) and not dash_full:
             lines.append("Dashboard (snapshot guardado):")
             lines.append(
                 f"- Registros considerados: {dashboard_snapshot.get('records_considered', total)} "
@@ -151,7 +328,7 @@ class ClaimsAgent:
         exec_sum = self.extra_context.get("executive_summary")
         if exec_sum:
             lines.append("Resumen ejecutivo del análisis:")
-            lines.append(str(exec_sum)[:1200])
+            lines.append(str(exec_sum)[:2500])
 
         manifest = self.extra_context.get("manifest")
         if isinstance(manifest, dict) and manifest.get("steps"):
@@ -293,7 +470,7 @@ class ClaimsAgent:
 
         # --- Modo principal: asistente conversacional (Gemini / OpenAI) ---
         if self._use_external_llm():
-            context = self.build_dataset_context(max_top=25)
+            context = self.build_dataset_context(max_top=30)
             hints = self._gather_factual_hints(question)
             text, motor, llm_error = chat_with_llm(
                 question,
@@ -324,7 +501,7 @@ class ClaimsAgent:
 
         if self._use_external_llm() and rule_result.get("tipo") not in ("ayuda",):
             factual = rule_result.get("respuesta", "")
-            context = self.build_dataset_context(max_top=25)
+            context = self.build_dataset_context(max_top=30)
             enhanced, motor, llm_error = enhance_with_llm(question, factual, context)
             if enhanced:
                 rule_result["respuesta"] = enhanced

@@ -1,5 +1,5 @@
 /**
- * Agente de Auditoría IA — chat centralizado conectado al dataset procesado (df_scored).
+ * Asistente de IA conversacional — chat conectado al análisis completo (dataset, ML, dashboard).
  */
 const AuditAgent = (function () {
     const SUGGESTIONS = [
@@ -30,7 +30,7 @@ const AuditAgent = (function () {
         root.dataset.rendered = '1';
         root.innerHTML = `
             <div class="audit-header">
-                <h2>Asistente de auditoría</h2>
+                <h2>Asistente de IA conversacional</h2>
                 <p>Pregunte en lenguaje natural sobre su cartera completa. Le explico por qué un caso está en
                 <strong>alto</strong>, <strong>medio</strong> o <strong>bajo</strong> riesgo — siempre como alerta de revisión, no como veredicto.</p>
             </div>
@@ -89,7 +89,7 @@ const AuditAgent = (function () {
         if (!msgs || msgs.dataset.welcome === '1') return;
         msgs.dataset.welcome = '1';
         appendAgentMessage(
-            'Hola, soy su asistente de auditoría en FXecure. Tras cargar y analizar su cartera, '
+            'Hola, soy su Asistente de IA conversacional en FXecure. Tras cargar y analizar su cartera, '
             + 'puede preguntarme lo que necesite en lenguaje natural: un caso concreto, comparaciones, '
             + 'proveedores, montos o el porqué de un semáforo. Respondo con los datos de su análisis actual.',
             null

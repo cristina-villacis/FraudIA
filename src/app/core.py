@@ -84,9 +84,13 @@ def build_agent_context() -> dict:
     return {
         "dashboard_snapshot": app_state.get("dashboard_snapshot"),
         "model_snapshot": app_state.get("model_snapshot"),
+        "model_results": app_state.get("model_results"),
+        "anomaly_results": app_state.get("anomaly_results"),
+        "nlp_results": app_state.get("nlp_results"),
         "dashboard_last_payload": app_state.get("dashboard_last_payload"),
         "documentos_subidos": doc_summary,
         "executive_summary": app_state.get("executive_summary"),
+        "source_row_counts": app_state.get("source_row_counts"),
         "total_pdfs_cargados": doc_summary.get("total", 0),
     }
 

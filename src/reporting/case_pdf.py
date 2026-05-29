@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import io
-import re
 from typing import Any, Dict
 
 from fpdf import FPDF
@@ -16,11 +15,11 @@ _MESES_ES = (
 
 
 def _safe_text(value: Any, max_len: int = 800) -> str:
+    """Conserva UTF-8 (tildes, ñ); fpdf2 codifica a Latin-1/Unicode en el PDF."""
     if value is None:
         return ""
     s = str(value).strip()
-    s = s.replace("\u2014", "-").replace("\u2013", "-")
-    s = re.sub(r"[^\x20-\x7E\n\r\t]", "?", s)
+    s = s.replace("\u2014", "—").replace("\u2013", "–")
     return s[:max_len]
 
 
@@ -36,7 +35,7 @@ class _ReportPDF(FPDF):
         self.cell(95, 5, "FXecure", ln=0)
         self.set_font("Helvetica", "", 8)
         self.set_text_color(80, 80, 80)
-        self.cell(95, 5, "Agente IA Antifraude - Reporte de Evaluacion", ln=1, align="R")
+        self.cell(95, 5, "Agente IA Antifraude - Reporte de Evaluación", ln=1, align="R")
         self.set_font("Helvetica", "B", 9)
         self.set_text_color(0, 0, 0)
         self.cell(95, 5, self._case_id, ln=0)
@@ -50,7 +49,7 @@ class _ReportPDF(FPDF):
         self.set_y(-10)
         self.set_font("Helvetica", "I", 7)
         self.set_text_color(120, 120, 120)
-        self.cell(0, 5, f"Pag. {self.page_no()}/{{nb}}", align="R")
+        self.cell(0, 5, f"Pág. {self.page_no()}/{{nb}}", align="R")
 
 
 def build_case_forensic_pdf(case: Dict[str, Any]) -> bytes:
@@ -92,22 +91,22 @@ def build_case_forensic_pdf(case: Dict[str, Any]) -> bytes:
     pdf.cell(col_w, 10, rango, border=1, align="C", ln=1)
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 9)
-    pdf.multi_cell(0, 5, "ACCION SUGERIDA: " + _safe_text(case.get("accion_destacada"), 400))
+    pdf.multi_cell(0, 5, "ACCIÓN SUGERIDA: " + _safe_text(case.get("accion_destacada"), 400))
     pdf.ln(4)
 
     # Section 1
     pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 6, "1. IDENTIFICACION DEL SINIESTRO", ln=1)
+    pdf.cell(0, 6, "1. IDENTIFICACIÓN DEL SINIESTRO", ln=1)
     pdf.set_font("Helvetica", "", 9)
     fields = [
         ("No. Siniestro", case.get("id_siniestro")),
         ("Ramo", case.get("ramo")),
         ("Cobertura", case.get("cobertura")),
-        ("Fecha de analisis", case.get("generado")),
+        ("Fecha de análisis", case.get("generado")),
         ("Monto reclamado", f"${float(case.get('monto_reclamado') or 0):,.2f}"),
         ("Asegurado", case.get("nombre_asegurado")),
-        ("Poliza", case.get("id_poliza")),
-        ("Reporte tardio", case.get("reporte_tardio") or "—"),
+        ("Póliza", case.get("id_poliza")),
+        ("Reporte tardío", case.get("reporte_tardio") or "—"),
     ]
     half = 95
     for i in range(0, len(fields), 2):
@@ -128,7 +127,7 @@ def build_case_forensic_pdf(case: Dict[str, Any]) -> bytes:
     pdf.cell(0, 6, f"2. ALERTAS DETECTADAS ({len(alertas)} senales)", ln=1)
     pdf.set_font("Helvetica", "B", 7)
     w = [8, 72, 28, 14, 18]
-    headers = ["#", "DESCRIPCION", "UMBRAL", "PTS", "SEV."]
+    headers = ["#", "DESCRIPCIÓN", "UMBRAL", "PTS", "SEV."]
     for h, ww in zip(headers, w):
         pdf.cell(ww, 5, h, border=1, fill=True)
     pdf.ln(5)
@@ -151,7 +150,7 @@ def build_case_forensic_pdf(case: Dict[str, Any]) -> bytes:
 
     # Section 4 - score bars
     pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 6, "4. DISTRIBUCION DEL SCORE", ln=1)
+    pdf.cell(0, 6, "4. DISTRIBUCIÓN DEL SCORE", ln=1)
     bars = case.get("score_bars") or []
     if bars:
         labels = "  ".join(f"{b.get('label')} {b.get('puntos')} pts" for b in bars[:10])
@@ -165,7 +164,7 @@ def build_case_forensic_pdf(case: Dict[str, Any]) -> bytes:
 
     # Section 5
     pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 6, "5. CONCLUSION Y RECOMENDACION", ln=1)
+    pdf.cell(0, 6, "5. CONCLUSIÓN Y RECOMENDACIÓN", ln=1)
     pdf.set_font("Helvetica", "", 9)
     pdf.multi_cell(0, 5, _safe_text(case.get("conclusion"), 1200))
     pdf.ln(4)

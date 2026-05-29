@@ -1627,9 +1627,9 @@
             <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
             <span class="nav-label">Análisis predictivo</span>
         </div>
-        <div class="nav-item" data-tab="audit" title="Asistente de auditoría">
+        <div class="nav-item" data-tab="audit" title="Asistente de IA conversacional">
             <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg></div>
-            <span class="nav-label">Asistente de auditoría</span>
+            <span class="nav-label">Asistente de IA conversacional</span>
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">Salida</div>
@@ -1764,7 +1764,7 @@
             </div>
         </div>
 
-        <!-- ═══════ TAB: AGENTE DE AUDITORÍA IA ═══════ -->
+        <!-- ═══════ TAB: ASISTENTE DE IA CONVERSACIONAL ═══════ -->
         <div id="tab-audit" class="tab-panel audit-module">
             <div id="auditAgentContent"></div>
         </div>
@@ -2602,6 +2602,113 @@
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function userWantsExplicitDataTable(question) {
+        return /tabla|listado|listar|mu[eé]strame|muestra|mostrar en tabla|en formato tabla|ranking|top\s*\d+|cu[aá]les son los|enumera|detalle de los casos/i.test(String(question || ''));
+    }
+    window.userWantsExplicitDataTable = userWantsExplicitDataTable;
+
+    function rowsToHtmlTable(headers, rows) {
+        const thead = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
+        const tbody = rows.map((r) => {
+            const cells = (Array.isArray(r) ? r : headers.map((h) => r[h])).map((c) =>
+                `<td>${escapeHtml(c == null ? '-' : String(c))}</td>`
+            ).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('');
+        return `<div class="chat-data-table-wrap"><table class="chat-data-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+    }
+
+    function markdownTableToHtml(tableLines) {
+        const parseRow = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+        if (tableLines.length < 2) return '';
+        const headers = parseRow(tableLines[0]);
+        const bodyRows = tableLines.slice(2).map(parseRow).filter((r) => r.some((c) => c));
+        return rowsToHtmlTable(headers, bodyRows);
+    }
+
+    function tryConvertCaseListBlock(lines, start, end) {
+        const re = /^\s*(?:[-•*]|\d+\.)\s*(SIN-[\w-]+)\s*[:：\-–|]\s*(.+)$/i;
+        const rows = [];
+        for (let i = start; i < end; i++) {
+            const m = lines[i].match(re);
+            if (!m) return null;
+            const rest = m[2];
+            const scoreM = rest.match(/score\s*[=:]?\s*([\d.]+)/i);
+            const semM = rest.match(/\b(Rojo|Amarillo|Verde)\b/i);
+            const ramoM = rest.match(/ramo\s*[=:]?\s*([^,;|]+)/i);
+            const montoM = rest.match(/\$\s*([\d,.]+)/);
+            rows.push([
+                m[1],
+                scoreM ? scoreM[1] : '',
+                semM ? semM[1] : '',
+                ramoM ? ramoM[1].trim() : '',
+                montoM ? montoM[1] : rest.slice(0, 60),
+            ]);
+        }
+        if (rows.length < 2) return null;
+        return rowsToHtmlTable(['ID Siniestro', 'Score', 'Semáforo', 'Ramo', 'Monto / detalle'], rows);
+    }
+
+    function tryConvertPipeBlock(lines, start, end) {
+        const parsed = [];
+        for (let i = start; i < end; i++) {
+            const line = lines[i].trim();
+            if (!line.includes('|')) return null;
+            if (/^\s*\|[\s\-:|]+\|\s*$/.test(line)) continue;
+            const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+            if (cells.length < 2) return null;
+            parsed.push(cells);
+        }
+        if (parsed.length < 2) return null;
+        const headers = parsed[0];
+        const body = parsed.slice(1);
+        return rowsToHtmlTable(headers, body);
+    }
+
+    function tryConvertCsvBlock(lines, start, end) {
+        const block = [];
+        for (let i = start; i < end; i++) {
+            const line = lines[i].trim();
+            if (!line || !line.includes(',')) break;
+            if ((line.match(/,/g) || []).length < 2) break;
+            block.push(line.split(',').map((c) => c.trim()));
+        }
+        if (block.length < 2 || block[0].length < 2) return null;
+        return rowsToHtmlTable(block[0], block.slice(1));
+    }
+
+    function renderStructuredTextAsTables(text) {
+        const lines = String(text).split('\n');
+        const out = [];
+        let i = 0;
+        while (i < lines.length) {
+            if (/^\s*\|/.test(lines[i]) && i + 1 < lines.length && /^\s*\|[\s\-:|]+\|/.test(lines[i + 1])) {
+                const block = [];
+                while (i < lines.length && /^\s*\|/.test(lines[i])) {
+                    block.push(lines[i]);
+                    i += 1;
+                }
+                out.push(markdownTableToHtml(block));
+                continue;
+            }
+            let j = i;
+            while (j < lines.length && lines[j].trim() !== '') j += 1;
+            if (j > i) {
+                const html = tryConvertCaseListBlock(lines, i, j)
+                    || tryConvertPipeBlock(lines, i, j)
+                    || tryConvertCsvBlock(lines, i, j);
+                if (html) {
+                    out.push(html);
+                    i = j;
+                    continue;
+                }
+            }
+            out.push(lines[i]);
+            i += 1;
+        }
+        return out.join('\n');
+    }
+
     function renderAgentText(text) {
         if (!text) return '';
         const plain = String(text)
@@ -2614,12 +2721,18 @@
             .replace(/(\*\*|__)(.*?)\1/g, '$2')
             .replace(/(\*|_)(.*?)\1/g, '$2')
             .replace(/~~(.*?)~~/g, '$1')
-            .replace(/^\s*[-*+]\s+/gm, '• ')
-            .replace(/^\s*\d+\.\s+/gm, '')
             .replace(/\n{3,}/g, '\n\n')
             .trim();
-        return escapeHtml(plain).replace(/\n/g, '<br>');
+        const withTables = renderStructuredTextAsTables(plain);
+        const parts = withTables.split(/(<div class="chat-data-table-wrap">[\s\S]*?<\/div>)/g);
+        return parts.map((part) => {
+            if (part.startsWith('<div class="chat-data-table-wrap">')) return part;
+            const escaped = escapeHtml(part).replace(/\n/g, '<br>');
+            return escaped.replace(/• /g, '• ');
+        }).join('');
     }
+    window.renderAgentText = renderAgentText;
+    window.rowsToHtmlTable = rowsToHtmlTable;
 
     function shortLabel(row) {
         return row.id_siniestro || row.beneficiario || row.id_asegurado || row.id_proveedor || row.id_vehiculo || row.ramo || row.cobertura || 'Item';
@@ -2661,7 +2774,7 @@
     }
 
     function renderAgentDataBlock(datos, question = '') {
-        if (!datos) return '';
+        if (!datos || !userWantsExplicitDataTable(question)) return '';
         const rows = Array.isArray(datos) ? datos : [datos];
         if (!rows.length || typeof rows[0] !== 'object') return '';
         const headers = Object.keys(rows[0]).slice(0, 8);
@@ -2694,6 +2807,7 @@
         if (wantsChart && chartHtml) return chartHtml;
         return tableHtml;
     }
+    window.renderAgentDataBlock = renderAgentDataBlock;
 
     // ── Export ──
     async function exportPowerBI() {
@@ -2719,8 +2833,25 @@
     <script src="/static/ingest.js?v=7"></script>
     <script src="/static/case-report-preview.js?v=1"></script>
     <script src="/static/cases-bandeja.js?v=5"></script>
-    <script src="/static/audit-agent.js?v=4"></script>
+    <script src="/static/audit-agent.js?v=6"></script>
     <script src="/static/ml-engine.js?v=14"></script>
-    <script src="/static/dashboard.js?v=11"></script>
+    <script src="/static/dashboard.js?v=12"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        bootstrapSessionFromServer().then((b) => {
+            if (!b) return;
+            if (b.pipeline_ready) {
+                const aiBadge = document.getElementById('aiEngineBadge');
+                if (aiBadge) {
+                    aiBadge.className = 'badge badge-green';
+                    aiBadge.innerHTML = '<span class="pulse-dot pulse-dot-green"></span> IA: Análisis listo';
+                }
+                setPipelineButtonsEnabled(true);
+            } else if (b.datasets_ready) {
+                setPipelineButtonsEnabled(true);
+            }
+        });
+    });
+    </script>
 </body>
 </html>
