@@ -15,6 +15,10 @@
 
 El sistema permite automatizar procesos de auditoría, optimizar tiempos de revisión y reducir pérdidas económicas causadas por reclamaciones fraudulentas.
 
+### ⚖️ Enfoque ético y principio de coadyuvancia 
+
+Siguiendo estrictamente las bases del reto de **Aseguradora del Sur**, **FXecure genera alertas de revisión analítica, NO acusaciones automáticas de fraude ni rechazos automatizados de siniestros**. El propósito del sistema es identificar casos sospechosos, anómalos o de mayor riesgo para coadyuvar y optimizar la toma de decisiones del analista humano especializado de la Unidad Antifraude.
+
 FXecure combina:
 
 * 🤖 Inteligencia Artificial.
@@ -72,14 +76,21 @@ Visualización en tiempo real de:
 
 ---
 
-## 💬 Agente IA conversacional
-Consultas en lenguaje natural como:
+## 💬 Agente IA conversacional (FXecure Chat)
 
-* 🗣️ *“¿Qué reclamaciones tienen mayor riesgo?”*
-* 🗣️ *“Muéstrame los fraudes detectados esta semana.”*
-* 🗣️ *“¿Qué variables afectaron esta predicción?”*
+Módulo interactivo centralizado que cuenta con acceso completo en memoria a todo el pipeline de datos. Está diseñado con un enfoque libre, fluido y conversacional (no robótico) pero estrictamente delimitado al contexto del negocio para responder a las preguntas analíticas como: 
 
----
+* 📊 *“¿Cuáles son los 10 siniestros con mayor riesgo de posible fraude?”*
+* 🔍 *“¿Por qué este siniestro fue marcado como alto riesgo?”*
+* 🏭 *“¿Qué proveedores o talleres concentran más alertas?”*
+* 📈 *“¿Qué ramos y ciudades tienen mayor porcentaje de casos sospechosos?”*
+* 🗺️ *“¿Qué ciudades presentan mayor concentración de alertas?”*
+* 👥 *“¿Qué asegurados tienen mayor frecuencia de reclamos?”*
+* 📑 *“¿Qué documentos faltan en los casos críticos?”*
+* 💰 *“¿Qué casos tienen montos atípicos?”*
+* ⏱️ *“¿Qué siniestros ocurrieron cerca del inicio de la póliza?”*
+* 🧬 *“¿Qué patrones se repiten en los reclamos sospechosos?”*
+* 📋 *“Genera un resumen ejecutivo de los casos críticos y recomienda cuáles revisar primero.”*
 
 # 🏗️ Arquitectura del proyecto
 
@@ -245,6 +256,30 @@ streamlit run dashboard.py
 | **Reglas heurísticas** | Basado en reglas | Validaciones críticas |
 
 ---
+
+# 🧮 Matriz de reglas y semáforo de riesgo (Bases del reto)
+
+El sistema calcula el score final cruzando las variables analíticas con los pesos sugeridos por Aseguradora del Sur:
+
+### ⏱️ Ponderación de señales de riesgo
+* **Borde de Vigencia:** Siniestro ocurrido ≤ 10 días del inicio/fin de la póliza (8 pts) | 11 a 30 días (4 pts).
+* **Reporte Tardío de Robo:** Demora denuncia > 48 horas (8 pts) | 24 a 48 horas (4 pts).
+* **Frecuencia Crítica:** Asegurado, vehículo o conductor con ≥ 3 siniestros en los últimos 18 meses (8 pts).
+* **Inconsistencias Documentales:** Facturas alteradas o fechas previas al evento (10 pts).
+* **Similitud Textual NLP:** > 85% de duplicidad en la narrativa del reclamo (8 pts).
+
+### 🚨 Reglas críticas implementadas (Mapeo de negocio)
+
+* **RF-01:** Cobertura Pérdida Total por Robo (PTXRB) -> Escalado automático a **Rojo**.
+* **RF-02:** Evidencia de Falsificación o Adulteración Documental -> Escalado automático a **Rojo**.
+* **RF-03:** Coincidencia exacta de Asegurado o Proveedor en Lista Restrictiva -> Escalado automático a **Rojo**.
+* **RF-05:** Siniestro extremo al borde de vigencia (< 48 horas) -> Escalado a **Amarillo**.
+
+### 🟢 Semáforo ejecutivo de acción
+
+* 🟢 **[0 - 40] Verde (Bajo):** Continuar con el flujo normal de liquidación.
+* 🟡 **[41 - 75] Amarillo (Medio):** Escalar a la Unidad Antifraude para revisión documental.
+* 🔴 **[76 - 100] Rojo (Alto):** Escalar a la Unidad Antifraude para revisión especializada de campo.
 
 ## 📋 Variables analizadas
 
