@@ -380,3 +380,139 @@
     border: 1px solid var(--fd-border);
 }
 .fraudia-banner strong { color: var(--fd-cyan); }
+
+/* ── Tema claro ───────────────────────────────────── */
+[data-theme="light"] .fraudia-dash {
+    --fd-bg: #F1F5F9;
+    --fd-panel: rgba(255, 255, 255, 0.96);
+    --fd-border: rgba(15, 23, 42, 0.1);
+    --fd-cyan: #0369A1;
+    --fd-blue: #2563EB;
+    --fd-purple: #7C3AED;
+    --fd-green: #047857;
+    --fd-yellow: #B45309;
+    --fd-red: #B91C1C;
+    color: #0F172A;
+}
+[data-theme="light"] #fraudiaParticles { opacity: 0.12; }
+
+[data-theme="light"] .fraudia-dash-header {
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .fraudia-dash-header h2 {
+    background: linear-gradient(135deg, #0F172A 0%, #0369A1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+[data-theme="light"] .fraudia-dash-header p,
+[data-theme="light"] .fraudia-meta {
+    color: #475569;
+}
+[data-theme="light"] .fraudia-meta strong { color: #0369A1; }
+
+[data-theme="light"] .fraudia-toolbar input,
+[data-theme="light"] .fraudia-toolbar select {
+    background: #FFFFFF;
+    border-color: rgba(15, 23, 42, 0.12);
+    color: #0F172A;
+}
+
+[data-theme="light"] .fraudia-kpi {
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .fraudia-kpi-label { color: #64748B; }
+[data-theme="light"] .fraudia-kpi-value { color: #0F172A; }
+
+[data-theme="light"] .fraudia-panel {
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .fraudia-panel:hover {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+[data-theme="light"] .fraudia-panel-title { color: #0369A1; }
+
+[data-theme="light"] .fraudia-insight {
+    background: rgba(3, 105, 161, 0.06);
+    color: #334155;
+}
+[data-theme="light"] .fraudia-insight.alert {
+    background: rgba(185, 28, 28, 0.06);
+    color: #991B1B;
+}
+[data-theme="light"] .fraudia-insight.warning {
+    background: rgba(180, 83, 9, 0.06);
+    color: #92400E;
+}
+[data-theme="light"] .fraudia-insight.success {
+    background: rgba(4, 120, 87, 0.06);
+    color: #047857;
+}
+
+[data-theme="light"] .fraudia-temporal-tabs button {
+    color: #64748B;
+    border-color: rgba(15, 23, 42, 0.12);
+}
+[data-theme="light"] .fraudia-temporal-tabs button.active {
+    background: rgba(3, 105, 161, 0.1);
+    color: #0369A1;
+    border-color: rgba(3, 105, 161, 0.25);
+}
+
+[data-theme="light"] .fraudia-ops-card {
+    background: rgba(124, 58, 237, 0.05);
+    border-color: rgba(124, 58, 237, 0.15);
+}
+[data-theme="light"] .fraudia-ops-card label { color: #64748B; }
+[data-theme="light"] .fraudia-ops-card strong { color: #6D28D9; }
+
+[data-theme="light"] .fraudia-table th {
+    background: #F8FAFC;
+    color: #0369A1;
+    border-bottom-color: rgba(15, 23, 42, 0.1);
+}
+[data-theme="light"] .fraudia-table td {
+    color: #334155;
+    border-bottom-color: rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .fraudia-table tr:hover td {
+    background: rgba(3, 105, 161, 0.04);
+}
+
+[data-theme="light"] .fraudia-badge.rojo { background: rgba(185, 28, 28, 0.1); color: #B91C1C; }
+[data-theme="light"] .fraudia-badge.amarillo { background: rgba(180, 83, 9, 0.1); color: #B45309; }
+[data-theme="light"] .fraudia-badge.verde { background: rgba(4, 120, 87, 0.1); color: #047857; }
+
+[data-theme="light"] .fraudia-btn-xs {
+    background: rgba(3, 105, 161, 0.08);
+    color: #0369A1;
+    border-color: rgba(3, 105, 161, 0.2);
+}
+[data-theme="light"] .fraudia-btn-xs:hover {
+    background: rgba(3, 105, 161, 0.15);
+}
+
+[data-theme="light"] .fraudia-drawer {
+    background: rgba(255, 255, 255, 0.98);
+    border-left-color: rgba(15, 23, 42, 0.1);
+    box-shadow: -8px 0 32px rgba(15, 23, 42, 0.12);
+    color: #0F172A;
+}
+[data-theme="light"] .fraudia-drawer h4 { color: #0369A1; }
+[data-theme="light"] .fraudia-xai-row {
+    border-bottom-color: rgba(15, 23, 42, 0.08);
+    color: #334155;
+}
+[data-theme="light"] .fraudia-xai-row strong { color: #0F172A; }
+
+[data-theme="light"] .fraudia-banner {
+    background: rgba(3, 105, 161, 0.06);
+    color: #334155;
+    border-color: rgba(3, 105, 161, 0.15);
+}
+[data-theme="light"] .fraudia-banner strong { color: #0369A1; }
+
+[data-theme="light"] .fraudia-skeleton {
+    background: linear-gradient(90deg, #E2E8F0 0%, #F1F5F9 50%, #E2E8F0 100%);
+    background-size: 200% 100%;
+}

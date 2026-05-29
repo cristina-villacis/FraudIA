@@ -644,4 +644,7 @@ if (typeof window !== 'undefined') {
     window.loadDashboard = loadDashboard;
     window.scheduleDashboardChartsResize = scheduleResize;
     window.resizeDashboardCharts = resizeCharts;
+    window.refreshDashboardOnThemeChange = function () {
+        if (fraudiaDash.lastData?.fraudia) renderFraudia(fraudiaDash.lastData.fraudia);
+    };
 }
