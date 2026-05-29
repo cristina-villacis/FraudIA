@@ -1405,33 +1405,6 @@ def cases_all_list() -> dict:
     return {"total": len(records), "cases": records}
 
 
-def ml_simulate(params: dict) -> dict:
-    monto = float(params.get("monto", 0) or 0)
-    dias = float(params.get("dias", 0) or 0)
-    prov = int(params.get("prov", 0) or 0)
-    nlp = float(params.get("nlp", 0) or 0)
-    if nlp > 1:
-        nlp = nlp / 100.0
-    score = 25.0
-    score += min(35.0, (monto / 100000.0) * 25.0)
-    score += min(20.0, dias * 1.2)
-    score += 18.0 if prov else 0.0
-    score += nlp * 25.0
-    score = int(min(100, round(score)))
-    prob = min(0.99, score / 100.0 * 0.92 + 0.05)
-    sem = "Rojo" if score >= 76 else "Amarillo" if score >= 41 else "Verde"
-    sev = "Crítica" if score >= 76 else "Media" if score >= 41 else "Baja"
-    result = {
-        "score": score,
-        "prob_fraude": round(prob * 100, 1),
-        "semaforo": sem,
-        "severidad": sev,
-        "inputs": {"monto": monto, "dias": dias, "prov": prov, "nlp_pct": round(nlp * 100, 1)},
-    }
-    app_state["ml_simulation"] = result
-    return result
-
-
 def case_forensic_pdf(case_id: str) -> bytes:
     if not _ensure_scored_state():
         if not _ensure_session_state(require_scored=True):
@@ -1514,6 +1487,275 @@ def _build_ml_probability_charts(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
+def _linear_forecast(values: List[float], periods: int) -> List[float]:
+    """Proyección simple por tendencia lineal (últimos puntos)."""
+    if not values:
+        return [0.0] * periods
+    if len(values) == 1:
+        return [max(0.0, float(values[0]))] * periods
+    window = values[-min(7, len(values)) :]
+    n = len(window)
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(window) / n
+    num = sum((xs[i] - mean_x) * (window[i] - mean_y) for i in range(n))
+    den = sum((x - mean_x) ** 2 for x in xs) or 1.0
+    slope = num / den
+    intercept = mean_y - slope * mean_x
+    start_x = n
+    return [max(0.0, intercept + slope * (start_x + i)) for i in range(periods)]
+
+
+def _fraud_trend_from_monthly(temporal_risk: List[Dict]) -> Dict[str, Any]:
+    if len(temporal_risk) < 2:
+        return {"delta_pct": 0, "direction": "neutral", "label": "Sin histórico suficiente"}
+    recent = temporal_risk[-1]
+    prev = temporal_risk[-2]
+    r_now = float(recent.get("Rojo") or 0)
+    r_prev = float(prev.get("Rojo") or 0) or 1.0
+    delta = round((r_now - r_prev) / r_prev * 100, 1)
+    direction = "up" if delta > 2 else "down" if delta < -2 else "neutral"
+    sign = "+" if delta > 0 else ""
+    return {
+        "delta_pct": delta,
+        "direction": direction,
+        "label": f"{sign}{delta}% casos críticos vs. mes anterior",
+    }
+
+
+def _build_ml_predictive_insights(df: pd.DataFrame, metrics: dict) -> Dict[str, Any]:
+    """Series temporales, forecast 30d, Sankey, red y heatmaps para análisis predictivo."""
+    score_col = "score_hibrido" if "score_hibrido" in df.columns else "score_reglas"
+    sem_col = "semaforo_final" if "semaforo_final" in df.columns else "semaforo_reglas"
+    insights: Dict[str, Any] = {
+        "monthly_history": [],
+        "risk_evolution": [],
+        "fraud_trend": {"delta_pct": 0, "direction": "neutral", "label": "Cargue datos para tendencia"},
+        "forecast_30d": None,
+        "forecast_ia": None,
+        "sankey": {"labels": [], "source": [], "target": [], "value": []},
+        "risk_network": {"nodes": [], "edges": []},
+        "risk_heatmap": {"x_labels": [], "y_labels": [], "z": []},
+        "anomaly_heatmap": {"x": [], "y": [], "z": []},
+    }
+
+    temporal_risk: List[Dict] = []
+    if "fecha_ocurrencia" in df.columns and sem_col in df.columns:
+        fecha = pd.to_datetime(df["fecha_ocurrencia"], errors="coerce")
+        tmp = df.copy()
+        tmp["_fecha"] = fecha
+        tmp = tmp.dropna(subset=["_fecha"])
+        if not tmp.empty:
+            tmp["mes"] = tmp["_fecha"].dt.to_period("M").astype(str)
+            piv = (
+                tmp.pivot_table(
+                    index="mes",
+                    columns=sem_col,
+                    values="id_siniestro",
+                    aggfunc="count",
+                    fill_value=0,
+                )
+                .reindex(columns=["Rojo", "Amarillo", "Verde"], fill_value=0)
+                .reset_index()
+            )
+            temporal_risk = piv.to_dict("records")
+            insights["monthly_history"] = temporal_risk
+            insights["fraud_trend"] = _fraud_trend_from_monthly(temporal_risk)
+
+            if score_col in tmp.columns:
+                risk_evo = (
+                    tmp.groupby("mes")
+                    .agg(
+                        score_avg=(score_col, "mean"),
+                        casos=("id_siniestro", "count"),
+                        rojos=(sem_col, lambda s: int((s == "Rojo").sum())),
+                    )
+                    .reset_index()
+                    .round(2)
+                )
+                insights["risk_evolution"] = risk_evo.to_dict("records")
+
+            tmp["dia"] = tmp["_fecha"].dt.strftime("%Y-%m-%d")
+            daily = (
+                tmp.groupby("dia")
+                .agg(
+                    casos=("id_siniestro", "count"),
+                    rojos=(sem_col, lambda s: int((s == "Rojo").sum())),
+                    score_avg=(score_col, "mean") if score_col in tmp.columns else ("id_siniestro", "count"),
+                )
+                .reset_index()
+                .sort_values("dia")
+                .tail(60)
+            )
+            if not daily.empty:
+                hist_labels = daily["dia"].astype(str).tolist()
+                hist_rojos = [float(x) for x in daily["rojos"].tolist()]
+                hist_score = [round(float(x), 2) for x in daily["score_avg"].tolist()]
+                fc_rojos = _linear_forecast(hist_rojos, 30)
+                fc_score = _linear_forecast(hist_score, 30)
+                last_dt = pd.to_datetime(hist_labels[-1])
+                fc_labels = [
+                    (last_dt + pd.Timedelta(days=i + 1)).strftime("%Y-%m-%d")
+                    for i in range(30)
+                ]
+                fc_upper = [round(v * 1.18, 2) for v in fc_rojos]
+                fc_lower = [round(max(0, v * 0.82), 2) for v in fc_rojos]
+                block = {
+                    "historical_labels": hist_labels,
+                    "historical_rojos": hist_rojos,
+                    "historical_score": hist_score,
+                    "forecast_labels": fc_labels,
+                    "forecast_rojos": [round(v, 2) for v in fc_rojos],
+                    "forecast_score": [round(v, 2) for v in fc_score],
+                    "forecast_upper": fc_upper,
+                    "forecast_lower": fc_lower,
+                    "confidence_pct": 78 if len(hist_rojos) >= 14 else 62,
+                }
+                insights["forecast_30d"] = block
+                insights["forecast_ia"] = {
+                    "labels": hist_labels[-14:] + fc_labels,
+                    "actual": hist_rojos[-14:] + [None] * 30,
+                    "predicted": [None] * min(14, len(hist_rojos)) + fc_rojos,
+                    "upper": [None] * min(14, len(hist_rojos)) + fc_upper,
+                    "lower": [None] * min(14, len(hist_rojos)) + fc_lower,
+                    "model_note": "Proyección heurística (tendencia + banda de confianza)",
+                }
+
+    sem_counts = metrics.get("semaforo_counts") or {}
+    if sem_counts:
+        insights["donut_semaforo"] = {
+            "labels": ["Verde", "Amarillo", "Rojo"],
+            "values": [
+                int(sem_counts.get("Verde", 0)),
+                int(sem_counts.get("Amarillo", 0)),
+                int(sem_counts.get("Rojo", 0)),
+            ],
+        }
+
+    if "ramo" in df.columns and sem_col in df.columns:
+        labels: List[str] = []
+        sources: List[int] = []
+        targets: List[int] = []
+        values: List[int] = []
+        ramos = df["ramo"].fillna("Sin ramo").astype(str).value_counts().head(6).index.tolist()
+        sem_order = ["Verde", "Amarillo", "Rojo"]
+        label_idx: Dict[str, int] = {}
+
+        def _idx(name: str) -> int:
+            if name not in label_idx:
+                label_idx[name] = len(labels)
+                labels.append(name)
+            return label_idx[name]
+
+        for ramo in ramos:
+            sub = df[df["ramo"].fillna("Sin ramo").astype(str) == ramo]
+            r_i = _idx(str(ramo))
+            for sem in sem_order:
+                cnt = int((sub[sem_col] == sem).sum())
+                if cnt <= 0:
+                    continue
+                s_i = _idx(f"Semáforo {sem}")
+                sources.append(r_i)
+                targets.append(s_i)
+                values.append(cnt)
+        insights["sankey"] = {
+            "labels": labels,
+            "source": sources,
+            "target": targets,
+            "value": values,
+        }
+
+    prov_col = next(
+        (c for c in ("nombre_proveedor", "proveedor", "id_proveedor") if c in df.columns),
+        None,
+    )
+    if prov_col and score_col in df.columns:
+        top = (
+            df.groupby(prov_col)
+            .agg(casos=("id_siniestro", "count"), score=(score_col, "mean"))
+            .reset_index()
+            .nlargest(8, "score")
+        )
+        nodes = [{"id": "Cartera", "label": "Cartera", "size": 24}]
+        edges: List[Dict] = []
+        for _, row in top.iterrows():
+            pid = str(row[prov_col])[:28]
+            nodes.append({"id": pid, "label": pid, "size": max(8, min(22, float(row["score"]) / 4))})
+            edges.append({
+                "source": "Cartera",
+                "target": pid,
+                "weight": int(row["casos"]),
+                "risk": round(float(row["score"]), 1),
+            })
+        insights["risk_network"] = {"nodes": nodes, "edges": edges}
+
+    if score_col in df.columns and "monto_reclamado" in df.columns:
+        scores = pd.to_numeric(df[score_col], errors="coerce").fillna(0)
+        montos = pd.to_numeric(df["monto_reclamado"], errors="coerce").fillna(0)
+        score_bins = ["0-40", "41-60", "61-75", "76-100"]
+        monto_bins = ["<50K", "50K-200K", "200K-500K", ">500K"]
+
+        def _sb(s: float) -> str:
+            if s <= 40:
+                return "0-40"
+            if s <= 60:
+                return "41-60"
+            if s <= 75:
+                return "61-75"
+            return "76-100"
+
+        def _mb(m: float) -> str:
+            if m < 50_000:
+                return "<50K"
+            if m < 200_000:
+                return "50K-200K"
+            if m < 500_000:
+                return "200K-500K"
+            return ">500K"
+
+        tmp_h = pd.DataFrame({"sb": scores.map(_sb), "mb": montos.map(_mb)})
+        piv_h = (
+            tmp_h.groupby(["mb", "sb"])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(index=monto_bins, columns=score_bins, fill_value=0)
+        )
+        insights["risk_heatmap"] = {
+            "x_labels": score_bins,
+            "y_labels": monto_bins,
+            "z": piv_h.values.tolist(),
+        }
+
+        if "fecha_ocurrencia" in df.columns:
+            fechas = pd.to_datetime(df["fecha_ocurrencia"], errors="coerce")
+            dow = fechas.dt.dayofweek.fillna(0).astype(int).clip(0, 6)
+            week = fechas.dt.isocalendar().week.fillna(1).astype(int) % 5
+            tmp_a = pd.DataFrame({"w": week, "d": dow, "s": scores})
+            ah = tmp_a.groupby(["w", "d"])["s"].mean().unstack(fill_value=0)
+            insights["anomaly_heatmap"] = {
+                "x": ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
+                "y": [f"S{i+1}" for i in range(ah.shape[0])],
+                "z": ah.values.tolist(),
+            }
+
+    auc = float(metrics.get("cv_auc_mean") or metrics.get("auc_roc") or 0)
+    def _pct(v: float) -> float:
+        return v * 100 if 0 <= v <= 1 else v
+
+    prec = _pct(float(metrics.get("precision_fraude") or 0))
+    rec = _pct(float(metrics.get("recall_fraude") or metrics.get("recall") or 0))
+    f1 = _pct(float(metrics.get("f1_fraude") or metrics.get("f1_score") or 0))
+    anom = min(100, float(metrics.get("anomalies_detected") or 0) * 3)
+    alta = min(100, float(metrics.get("casos_alta_prob_ml") or 0) * 2)
+    insights["feature_radar"] = {
+        "labels": ["AUC", "Precisión", "Recall", "F1", "Anomalías", "Alta prob."],
+        "values": [round(auc * 100, 1), round(prec, 1), round(rec, 1), round(f1, 1), round(anom, 1), round(alta, 1)],
+    }
+    if score_col in df.columns:
+        insights["risk_gauge_score"] = round(float(df[score_col].mean()), 1)
+    return insights
+
+
 def _enrich_ml_metrics(metrics: dict) -> dict:
     """Campos extra para la pantalla AI / ML Engine."""
     ar = app_state.get("anomaly_results")
@@ -1554,6 +1796,7 @@ def _enrich_ml_metrics(metrics: dict) -> dict:
                 ],
             }
         metrics.update(_build_ml_probability_charts(df))
+        metrics["predictive"] = _build_ml_predictive_insights(df, metrics)
     return metrics
 
 

@@ -11,8 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/ingest.css?v=3">
     <link rel="stylesheet" href="/static/dashboard-premium.css?v=6">
-    <link rel="stylesheet" href="/static/dashboard-soc.css?v=1">
-    <link rel="stylesheet" href="/static/ml-premium.css?v=5">
+    <link rel="stylesheet" href="/static/dashboard-soc.css?v=2">
+    <link rel="stylesheet" href="/static/ml-premium.css?v=7">
+    <link rel="stylesheet" href="/static/ml-predictive.css?v=1">
     <link rel="stylesheet" href="/static/audit-agent.css?v=1">
     <link rel="stylesheet" href="/static/case-report.css?v=1">
     <link rel="stylesheet" href="/static/fxecure-enterprise.css?v=1">
@@ -1758,7 +1759,7 @@
         <!-- ═══════ TAB: MODEL ═══════ -->
         <div id="tab-model" class="tab-panel ml-engine-module">
             <div id="modelContent">
-                <div class="alert alert-info">Complete el análisis en <strong>Carga de Datos</strong> para usar el simulador y las métricas del modelo.</div>
+                <div class="alert alert-info">Complete el análisis en <strong>Carga de Datos</strong> para ver las métricas del modelo.</div>
             </div>
         </div>
 
@@ -2135,9 +2136,18 @@
             item.classList.add('active');
             document.getElementById('tab-' + item.dataset.tab).classList.add('active');
             if (item.dataset.tab === 'dashboard') {
-                bootstrapSessionFromServer().then(() => initDashboard().then(() => {
+                bootstrapSessionFromServer().then(() => {
+                    const boot = (typeof initDashboard === 'function')
+                        ? initDashboard()
+                        : (typeof loadDashboard === 'function' ? loadDashboard() : Promise.resolve());
+                    return boot;
+                }).then(() => {
                     if (typeof scheduleDashboardChartsResize === 'function') scheduleDashboardChartsResize();
-                }));
+                }).catch((err) => {
+                    console.error('Dashboard init:', err);
+                    const c = document.getElementById('dashboardContent');
+                    if (c) c.innerHTML = '<div class="alert alert-danger">Error al cargar el dashboard. Recargue con Ctrl+F5.</div>';
+                });
             }
             if (item.dataset.tab === 'model') {
                 bootstrapSessionFromServer().then(() => loadModelMetrics().then(() => {
@@ -2803,8 +2813,8 @@
     <script src="/static/case-report-preview.js?v=1"></script>
     <script src="/static/cases-bandeja.js?v=6"></script>
     <script src="/static/audit-agent.js?v=6"></script>
-    <script src="/static/ml-engine.js?v=14"></script>
-    <script src="/static/dashboard.js?v=16"></script>
+    <script src="/static/ml-engine.js?v=21"></script>
+    <script src="/static/dashboard.js?v=18"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         bootstrapSessionFromServer().then((b) => {

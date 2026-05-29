@@ -67,12 +67,6 @@
     flex: 1 1 320px;
     justify-content: flex-end;
 }
-.ml-body-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
-    gap: 1.25rem;
-    align-items: start;
-}
 .ml-main {
     min-width: 0;
 }
@@ -97,54 +91,10 @@
     height: 300px;
     width: 100%;
 }
-.ml-sim-panel {
-    position: sticky;
-    top: 80px;
-    display: flex;
-    flex-direction: column;
-    z-index: 2;
-}
-.ml-sim-panel .ml-sim-grid {
-    grid-template-columns: 1fr;
-    gap: 0.65rem;
-}
-.ml-sim-field-full {
-    grid-column: 1 / -1;
-}
-.ml-sim-panel .ml-sim-btn {
-    margin-top: 0.75rem;
-    width: 100%;
-}
-.ml-sim-nlp-val {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--cyan);
-    margin-top: 0.35rem;
-    text-align: center;
-}
-.ml-sim-range {
-    width: 100%;
-    accent-color: var(--cyan);
-    margin-top: 0.25rem;
-}
 .ml-monitor-stats {
     margin-bottom: 0.65rem;
 }
 @media (max-width: 1100px) {
-    .ml-body-layout {
-        grid-template-columns: 1fr;
-    }
-    .ml-sim-panel {
-        position: static;
-        order: -1;
-    }
-    .ml-sim-panel .ml-sim-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    .ml-sim-field-full {
-        grid-column: span 2;
-    }
     .ml-topbar .ml-metrics-strip {
         justify-content: flex-start;
     }
@@ -425,63 +375,6 @@
 }
 .ml-xai-box .case-id { color: var(--cyan); font-weight: 700; }
 
-/* Simulator */
-.ml-sim-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-}
-.ml-sim-field label {
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-    margin-bottom: 0.35rem;
-}
-.ml-sim-field input[type="number"],
-.ml-sim-field select {
-    width: 100%;
-    padding: 0.45rem 0.6rem;
-    border-radius: 8px;
-    border: 1px solid rgba(0, 209, 255, 0.18);
-    background: rgba(11, 17, 32, 0.55);
-    color: var(--text-primary);
-    font-size: 0.82rem;
-    font-family: inherit;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-.ml-sim-field select {
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2300D1FF' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.6rem center;
-    padding-right: 1.75rem;
-}
-.ml-sim-field input[type="number"]:focus,
-.ml-sim-field select:focus {
-    outline: none;
-    border-color: rgba(0, 209, 255, 0.5);
-    box-shadow: 0 0 0 3px rgba(0, 209, 255, 0.12);
-}
-.ml-sim-result {
-    margin-top: 1rem;
-    padding: 1rem;
-    border-radius: var(--radius);
-    text-align: center;
-    background: rgba(0, 209, 255, 0.08);
-    border: 1px solid rgba(0, 209, 255, 0.25);
-}
-.ml-sim-score {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: var(--cyan);
-    line-height: 1;
-}
-.ml-sim-prob { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem; }
-
 /* Chat */
 .ml-tech-chat {
     display: flex;
@@ -535,14 +428,6 @@
 [data-theme="light"] .ml-pipeline {
     background: rgba(255, 255, 255, 0.92);
     border-color: rgba(3, 105, 161, 0.15);
-}
-[data-theme="light"] .ml-sim-field input[type="number"],
-[data-theme="light"] .ml-sim-field select {
-    background: #ffffff;
-    border-color: rgba(3, 105, 161, 0.2);
-}
-[data-theme="light"] .ml-sim-field select {
-    background-color: #ffffff;
 }
 [data-theme="light"] .ml-ia-title h2 {
     background: linear-gradient(135deg, #0f172a, #0369a1);

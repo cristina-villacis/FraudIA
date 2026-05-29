@@ -298,15 +298,6 @@ async def api_cases_all():
         return _err(e, 400)
 
 
-@app.post("/api/ml-simulate")
-async def api_ml_simulate(request: Request):
-    try:
-        body = await request.json()
-        return h.ml_simulate(body or {})
-    except ValueError as e:
-        return _err(e, 400)
-
-
 @app.get("/api/case/{case_id}/pdf")
 async def api_case_pdf(case_id: str):
     try:

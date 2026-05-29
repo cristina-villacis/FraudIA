@@ -497,15 +497,10 @@ function renderHeroKpis(highlights) {
     const items = highlights && highlights.length ? highlights : [];
     el.innerHTML = items.map((h) => {
         const glow = h.glow ? `glow-${h.glow}` : 'glow-blue';
-        const icon = DASH_SVG_ICONS[h.icon] || DASH_SVG_ICONS.layers;
         const deltaCls = h.delta_dir || 'neutral';
         const deltaHtml = h.delta ? `<span class="dash-hero-delta ${deltaCls}">${h.delta}</span>` : '';
         const color = h.key === 'critical' ? 'var(--red)' : h.key === 'financial' ? 'var(--yellow)' : h.key === 'prevented' ? 'var(--green)' : '#fff';
         return `<article class="dash-hero-card ${glow}">
-            <div class="dash-hero-top">
-                <span class="dash-hero-icon">${icon}</span>
-                <span class="dash-hero-check">✔</span>
-            </div>
             <div class="dash-hero-label">${h.label}</div>
             <div class="dash-hero-value" style="color:${color}">${fmtExecValue(h)}</div>
             ${deltaHtml}
@@ -551,10 +546,7 @@ function renderRiskRecommendation(rp) {
     if (!el || !rp) return;
     const tier = rp.tier || {};
     el.innerHTML = `<strong>Recomendación · ${tier.label || '—'} (P${tier.priority || '—'})</strong>
-        ${rp.recommendation || '—'}
-        <div style="margin-top:0.5rem;font-size:0.72rem;color:var(--text-muted);">
-            Prob. fraude: <strong style="color:#93C5FD">${(rp.prob_fraude || 0).toFixed(1)}%</strong>
-        </div>`;
+        ${rp.recommendation || '—'}`;
 }
 
 function renderCriticalAlertFeed(feed) {
@@ -817,30 +809,19 @@ function buildDashboardShell() {
                     <span class="dash-gauge-sub" id="globalRiskSub">Riesgo global</span>
                 </div>
             </div>
-            <div class="dash-view-toggle">
-                <button type="button" class="dash-view-btn active" data-view="executive">Vista ejecutiva</button>
-                <button type="button" class="dash-view-btn" data-view="analyst">Vista analista</button>
-            </div>
         </header>
 
         <section class="dash-ai-strip" id="aiInsightsStrip" aria-live="polite"></section>
 
-        <div class="dash-section-tag">KPIs destacados · Centro de comando</div>
-        <div class="dash-hero-kpis" id="heroKpisContainer"></div>
-
-        <div class="dash-section-tag" style="margin-top:0.5rem;">KPIs ejecutivos</div>
-        <div class="dash-exec-grid" id="execKpisContainer"></div>
+        <div class="dash-section-tag">Indicadores ejecutivos</div>
+        <div class="dash-hero-kpis dash-kpi-single-row" id="heroKpisContainer"></div>
 
         <section class="dash-risk-command">
             <div class="dash-section-tag">Sistema de score de riesgo · IA explicable</div>
-            <div class="dash-risk-command-grid">
+            <div class="dash-risk-command-grid dash-risk-command-grid--2">
                 <div class="dash-gauge-panel">
                     <h4>Score híbrido</h4>
                     <div id="chartScoreGauge" style="min-height:200px;"></div>
-                </div>
-                <div class="dash-gauge-panel">
-                    <h4>Probabilidad de fraude</h4>
-                    <div id="chartProbGauge" style="min-height:200px;"></div>
                     <div id="riskRecommendation" class="dash-rec-box"></div>
                 </div>
                 <div class="dash-gauge-panel">
@@ -889,8 +870,8 @@ function buildDashboardShell() {
         <span id="sparkScore" style="display:none;"></span>
         <span id="sparkAlerts" style="display:none;"></span>
 
-        <details class="dash-panel dash-filters-panel dash-analyst-only">
-            <summary>▸ Filtros de exploración (clic en gráficos para filtrar)</summary>
+        <details class="dash-panel dash-filters-panel">
+            <summary>Filtros de exploración (clic en gráficos para filtrar)</summary>
             <div class="dash-filters-body">
                 <div class="card dashboard-toolbar" style="margin:0;border:none;background:transparent;box-shadow:none;">
                     <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.75rem;">
@@ -928,8 +909,8 @@ function buildDashboardShell() {
         <div id="dashboardBanner" class="dashboard-filtered-banner"></div>
         <span id="kpiClasificacion" style="display:none;"></span>
 
-        <details class="dash-analyst-depth dash-analyst-only">
-        <summary>▸ Análisis profundo · gráficos avanzados</summary>
+        <details class="dash-analyst-depth" style="display:none;" aria-hidden="true">
+        <summary>Análisis profundo · gráficos avanzados</summary>
 
         <section class="dash-risk-hub">
             <h3 class="dash-section-title">Mapa central de riesgo</h3>
@@ -1142,7 +1123,6 @@ function renderAiInsights(insights) {
     const items = insights && insights.length ? insights : [{ type: 'info', text: 'Motor de riesgo listo. Ejecute el análisis para generar insights.' }];
     strip.innerHTML = items.map((ins) => `
         <div class="dash-ai-card dash-ai-${ins.type || 'info'}">
-            <span class="dash-ai-icon">✦</span>
             <p>${ins.text}</p>
         </div>
     `).join('');
@@ -1280,11 +1260,6 @@ function renderSegmentChart(data, segmentKey) {
 }
 
 function bindDashboardEvents() {
-    document.querySelectorAll('.dash-view-btn').forEach((btn) => {
-        btn.addEventListener('click', () => setDashboardViewMode(btn.dataset.view || 'executive'));
-    });
-    setDashboardViewMode('executive');
-
     document.querySelectorAll('.dash-seg-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
             dashboardState.segmentTab = tab.dataset.segment || 'sucursal';
@@ -1296,14 +1271,14 @@ function bindDashboardEvents() {
     const closeDrawer = document.getElementById('dashDrawerClose');
     if (closeDrawer) closeDrawer.addEventListener('click', closeDashDrawer);
 
-    document.getElementById('btnApplyFilters').addEventListener('click', () => {
+    document.getElementById('btnApplyFilters')?.addEventListener('click', () => {
         syncFiltersFromForm();
         dashboardState.filters.semaforo = document.getElementById('filterSemaforo').value;
         updateSemaforoPills();
         updateFilterChips();
         refreshDashboard();
     });
-    document.getElementById('btnResetFilters').addEventListener('click', clearDashboardFilters);
+    document.getElementById('btnResetFilters')?.addEventListener('click', clearDashboardFilters);
 
     ['filterRamo', 'filterCobertura', 'filterSucursal', 'filterEstado', 'filterSemaforo'].forEach(id => {
         document.getElementById(id).addEventListener('change', () => {
@@ -1766,19 +1741,6 @@ function renderDashboardCharts(data) {
             },
         }], gaugeLayout, { ...PLOTLY_CONFIG, responsive: true });
 
-        safePlotlyReact('chartProbGauge', [{
-            type: 'indicator',
-            mode: 'gauge+number',
-            value: rp.prob_fraude || 0,
-            number: { suffix: '%', font: { size: 26, color: C.text } },
-            gauge: {
-                axis: { range: [0, 100], tickcolor: C.muted },
-                bar: { color: '#6366f1', thickness: 0.72 },
-                bgcolor: 'rgba(255,255,255,0.04)',
-                steps: [{ range: [0, 100], color: 'rgba(99,102,241,0.12)' }],
-            },
-        }], gaugeLayout, { ...PLOTLY_CONFIG, responsive: true });
-
         if (rp.radar && rp.radar.labels && rp.radar.labels.length) {
             safePlotlyReact('chartRadar', [{
                 type: 'scatterpolar',
@@ -1801,9 +1763,9 @@ function renderDashboardCharts(data) {
         }
     }
 
-    const geo = data.geo_fraud_heatmap || {};
-    if (geo.locations && geo.locations.length) {
-        const colors = geo.intensity.map((v) => {
+    const geoHeatmap = data.geo_fraud_heatmap || {};
+    if (geoHeatmap.locations && geoHeatmap.locations.length) {
+        const colors = geoHeatmap.intensity.map((v) => {
             if (v >= 60) return '#B91C1C';
             if (v >= 40) return '#FF4D4F';
             if (v >= 25) return '#F5B700';
@@ -1812,16 +1774,16 @@ function renderDashboardCharts(data) {
         safePlotlyReact('chartGeoFraud', [{
             type: 'bar',
             orientation: 'h',
-            y: geo.locations.map((l) => String(l).slice(0, 32)),
-            x: geo.intensity,
+            y: geoHeatmap.locations.map((l) => String(l).slice(0, 32)),
+            x: geoHeatmap.intensity,
             marker: { color: colors, opacity: 0.92 },
-            text: (geo.casos || []).map((c, i) => `${c} · ${(geo.rojos || [])[i] || 0} crít.`),
+            text: (geoHeatmap.casos || []).map((c, i) => `${c} · ${(geoHeatmap.rojos || [])[i] || 0} crít.`),
             textposition: 'outside',
             textfont: { size: 10, color: C.muted },
             hovertemplate: '<b>%{y}</b><br>Intensidad: %{x:.1f}<extra></extra>',
         }], {
             ...PL,
-            height: Math.max(300, geo.locations.length * 32),
+            height: Math.max(300, geoHeatmap.locations.length * 32),
             margin: { t: 12, b: 40, l: 8, r: 56 },
             xaxis: { title: { text: 'Índice de intensidad antifraude', font: { size: 11, color: C.muted } }, ...dashBarAxis(C) },
             yaxis: { ...dashBarAxis(C), automargin: true },
@@ -1836,7 +1798,7 @@ function resizeDashboardCharts() {
     if (typeof Plotly === 'undefined') return;
     ['chartSemaforo', 'chartScores', 'chartRamo', 'chartTemporal', 'chartHeatmapRamoRiesgo', 'chartGeoOperacion',
         'chartTreemap', 'chartRiskMatrix', 'chartBubble', 'chartTemporalAlerts', 'chartSegment',
-        'chartScoreGauge', 'chartProbGauge', 'chartRadar', 'chartGeoFraud'].forEach((id) => {
+        'chartScoreGauge', 'chartRadar', 'chartGeoFraud'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         try {
@@ -1899,7 +1861,6 @@ function renderDashboardData(data) {
     const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     const ed = data.executive_dashboard || {};
     renderHeroKpis(ed.highlights);
-    renderExecGrid(ed.extended, data.sparklines);
     const rp = data.risk_profile || {};
     renderRiskBands(rp.bands);
     renderRiskRecommendation(rp);
@@ -1944,10 +1905,9 @@ function renderDashboardData(data) {
     if (iaStatus) iaStatus.textContent = (dashboardState.metricsAuc !== '--' && Number(dashboardState.metricsAuc) > 0) ? 'Modelo supervisado activo' : 'Reglas + anomalías';
 
     setText('kpiProbFraude', 'Señales ' + (data.enriched_alerts || []).length);
-    setText('kpiProbValue', (ek.prob_fraude_promedio || 0).toFixed(1) + '%');
     setText(
         'kpiClasificacion',
-        `🔴 ${(ek.riesgo_alto || 0).toLocaleString()} · 🟡 ${(ek.riesgo_medio || 0).toLocaleString()} · 🟢 ${(ek.riesgo_bajo || 0).toLocaleString()}`
+        `Rojo ${(ek.riesgo_alto || 0).toLocaleString()} · Amarillo ${(ek.riesgo_medio || 0).toLocaleString()} · Verde ${(ek.riesgo_bajo || 0).toLocaleString()}`
     );
 
     updateFilterChips();
@@ -2136,10 +2096,16 @@ async function initDashboard() {
                 dashHeaders['X-FraudIA-Session'] = sid;
             }
         } catch (e) { /* ignore */ }
-        const optResp = await fetch('/api/dashboard-filters', { headers: dashHeaders });
+        const optResp = await fetch(
+            '/api/dashboard-filters',
+            typeof withFraudiaSessionHeaders === 'function'
+                ? withFraudiaSessionHeaders({ headers: dashHeaders })
+                : { headers: dashHeaders },
+        );
         const opts = await optResp.json();
-        if (opts.error) {
-            container.innerHTML = '<div class="alert alert-info">' + opts.error + '. Ejecute el pipeline desde Datos.</div>';
+        if (!optResp.ok || opts.error) {
+            container.innerHTML = '<div class="alert alert-warning">' + (opts.error || 'No hay datos analizados') +
+                '. Vuelva a <strong>Carga de Datos</strong> y pulse <strong>Iniciar análisis de riesgo</strong>.</div>';
             return;
         }
         dashboardState.options = opts;
@@ -2163,4 +2129,9 @@ async function initDashboard() {
 }
 
 // Compatibilidad con llamadas anteriores
-function loadDashboard() { initDashboard(); }
+function loadDashboard() { return initDashboard(); }
+
+if (typeof window !== 'undefined') {
+    window.initDashboard = initDashboard;
+    window.loadDashboard = loadDashboard;
+}
