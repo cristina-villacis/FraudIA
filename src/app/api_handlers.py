@@ -1201,6 +1201,16 @@ def dashboard_data(query_params) -> dict:
         source_total_siniestros=source_total,
     )
     app_state["dashboard_last_payload"] = payload
+    snap = app_state.get("model_snapshot") or {}
+    if isinstance(payload.get("fraudia"), dict) and isinstance(snap, dict):
+        ops = payload["fraudia"].setdefault("ops", {})
+        if snap.get("auc_roc") is not None:
+            ops["auc_roc"] = round(float(snap["auc_roc"]), 3)
+        if snap.get("precision_fraude") is not None:
+            p = float(snap["precision_fraude"])
+            ops["precision_pct"] = round(p * 100 if p <= 1 else p, 1)
+        if snap.get("active_model"):
+            ops["model_name"] = snap["active_model"]
     return payload
 
 

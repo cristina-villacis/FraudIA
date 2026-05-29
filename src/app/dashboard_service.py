@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import pandas as pd
 
+from src.app.fraudia_dashboard import build_fraudia_view
 from src.risk.classification import (
     SCORE_AMARILLO_MAX,
     SCORE_AMARILLO_MIN,
@@ -938,6 +939,7 @@ def build_dashboard_payload(
             "fraud_trend": {"delta_pct": 0, "direction": "neutral", "label": ""},
             "cases_analytics": [],
             "active_alerts_count": 0,
+            "fraudia": build_fraudia_view(pd.DataFrame()),
         }
 
     score_col, semaforo_col = _score_and_semaforo_cols(df)
@@ -1222,4 +1224,5 @@ def build_dashboard_payload(
         "critical_alert_feed": critical_alert_feed,
         "soc_timeline": soc_timeline,
         "geo_fraud_heatmap": geo_fraud_heatmap,
+        "fraudia": build_fraudia_view(df, sparklines, temporal_risk_data),
     }
