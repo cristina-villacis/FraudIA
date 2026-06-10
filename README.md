@@ -496,7 +496,7 @@ Este proyecto se encuentra bajo la licencia **MIT**.
 | :--- | :--- |
 | **Cristina Villacís** | ` Futura Ingeniera en Ciencias de la Computación ` |
 | **Jareth Rojas** | `Futuro Ingeniero en Ciencia de Datos e IA ` |
-| **Liskeyla Macías** | `Analista de Datos y Procesos `|
+| **Liskeyla Macías Ramos** | `Analista de Datos y Procesos `|
 
 ---
 
